@@ -115,6 +115,8 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
 ```json
 {
   "latest": "1.121.372.1020",
+  "game_latest": "1.122.100.1020",
+  "game_latest_date": "2026-02-15",
 
   "patches": [
     {
@@ -151,6 +153,11 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
     }
   ],
 
+  "new_dlcs": [
+    {"id": "EP15", "name": "New Expansion Pack"},
+    {"id": "GP12", "name": "New Game Pack"}
+  ],
+
   "fingerprints": {
     "1.121.372.1020": {
       "Game/Bin/TS4_x64.exe": "1E45D4A27DC56134689A306FA92EF115",
@@ -168,7 +175,9 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `latest` | Yes | The newest available version string |
+| `latest` | Yes | The newest version with patches available |
+| `game_latest` | No | The actual latest game version released by EA (shown to users when ahead of `latest`) |
+| `game_latest_date` | No | Release date of `game_latest` (displayed in the GUI) |
 | `patches` | Yes | Array of patch entries |
 | `patches[].from` | Yes | Source version |
 | `patches[].to` | Yes | Target version |
@@ -177,6 +186,7 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
 | `patches[].files[].size` | Yes | File size in bytes (for progress bars) |
 | `patches[].files[].md5` | Yes | MD5 checksum for integrity verification |
 | `patches[].crack` | No | Optional crack archive for this version step |
+| `new_dlcs` | No | Array of DLCs announced but not yet patchable (`{"id": "...", "name": "..."}`) |
 | `fingerprints` | No | Version hashes for auto-detection (see below) |
 | `fingerprints_url` | No | URL to a crowd-sourced fingerprints JSON |
 | `report_url` | No | URL where clients POST learned hashes |
@@ -187,19 +197,184 @@ The updater uses BFS pathfinding to find the shortest chain of patches from the 
 
 ### Creating Patches
 
-Patches are created using the patcher tool (included as a sibling `patcher/` directory), which uses xdelta3 to produce binary delta files. You need both the source and target game versions to create a patch.
+Patches are created using the patcher tool (included as a sibling `patcher/` directory), which uses xdelta3 to produce binary delta files. You need both the **source version** and **target version** of the game files on your machine.
 
-Once created, upload the patch files to any HTTP-accessible location and add the corresponding entry to your manifest.
+#### Step-by-step: creating a patch
+
+1. **Obtain both game versions.** You need a clean copy of the old version and the new version. The patcher compares them file by file and generates a binary delta.
+
+2. **Run the patcher tool** to create the delta patch:
+
+   ```bash
+   cd patcher
+   python patcher.py create --old "D:\TS4_1.119" --new "D:\TS4_1.120" --output ts4_1.119_to_1.120.patch
+   ```
+
+3. **Hash the sentinel files** for the new version so users can auto-detect it:
+
+   ```bash
+   Sims4Updater.exe learn "D:\TS4_1.120" 1.120.250.1020
+   ```
+
+   This outputs MD5 hashes for the 3 sentinel files:
+
+   - `Game/Bin/TS4_x64.exe` — Main executable, changes every update
+   - `Game/Bin/Default.ini` — Config with version number embedded
+   - `delta/EP01/version.ini` — DLC version marker
+
+4. **Get the file size and MD5** of the patch archive:
+
+   ```bash
+   certutil -hashfile ts4_1.119_to_1.120.patch MD5
+   ```
+
+5. **Upload the patch file** to your hosting provider (see below).
+
+6. **Update the manifest** with the new patch entry and fingerprints.
+
+#### When a new game update comes out
+
+1. Update the manifest's `game_latest` field immediately — users will see "patch coming soon" in the GUI.
+2. Create the patch archive from the old version to the new version.
+3. Upload the patch files to your hosting.
+4. Add the patch entry to the manifest and set `latest` to the new version.
+5. Users will now see "Update Now" on their next check.
+
+#### When new DLC is released
+
+1. Add the DLC to the manifest's `new_dlcs` array — users will see it in the DLC list as "pending".
+2. Once the patch is created and uploaded, move the DLC from `new_dlcs` to the regular patch.
+3. Update `data/dlc_catalog.json` in the repo and rebuild the exe for the DLC to have proper localized names.
+
+### Hosting with Cloudflare (Recommended)
+
+Cloudflare's free tier provides everything needed for global patch distribution with minimal cost.
+
+#### Hosting the manifest and patch files
+
+##### Option A: Cloudflare R2 (object storage) — recommended for large files
+
+R2 has no egress fees (unlike S3/GCS), making it ideal for large game patches.
+
+1. Create a Cloudflare account and enable R2 in the dashboard.
+2. Create an R2 bucket (e.g., `ts4-patches`).
+3. Connect a custom domain or use the R2 public access URL.
+4. Upload your patch files to the bucket:
+
+   ```bash
+   # Using rclone (recommended for large files)
+   rclone copy ts4_1.119_to_1.120.patch r2:ts4-patches/patches/
+
+   # Or use the Cloudflare dashboard upload
+   ```
+
+5. Upload your `manifest.json` to the same bucket:
+
+   ```bash
+   rclone copy manifest.json r2:ts4-patches/
+   ```
+
+6. Your manifest URL will be: `https://your-domain.com/manifest.json`
+
+##### Option B: Cloudflare Pages (static hosting) — good for manifest only
+
+If your patch files are hosted elsewhere (e.g., Google Drive, Mega, GitHub Releases), you can host just the manifest on Cloudflare Pages:
+
+1. Create a GitHub repo with your `manifest.json`.
+2. Connect it to Cloudflare Pages.
+3. Every push automatically deploys the updated manifest.
+
+#### Hosting the fingerprint API (crowd-sourced hashes)
+
+Use a Cloudflare Worker + KV to receive hash reports and serve validated fingerprints. The free tier handles 100K requests/day.
+
+**1. Create a KV namespace** in the Cloudflare dashboard called `TS4_FINGERPRINTS`.
+
+**2. Create a Worker** (`ts4-fingerprints-worker`) with this code:
+
+```javascript
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // GET /fingerprints.json — serve validated fingerprints
+    if (request.method === "GET" && url.pathname === "/fingerprints.json") {
+      const data = await env.TS4_FINGERPRINTS.get("validated", "json") || {};
+      return Response.json({ versions: data });
+    }
+
+    // POST /report — receive hash reports from clients
+    if (request.method === "POST" && url.pathname === "/report") {
+      try {
+        const body = await request.json();
+        const { version, hashes } = body;
+        if (!version || !hashes) {
+          return new Response("Missing version or hashes", { status: 400 });
+        }
+
+        // Store reports per version with IP-based dedup
+        const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+        const reportKey = `reports:${version}`;
+        const existing = await env.TS4_FINGERPRINTS.get(reportKey, "json") || [];
+
+        // Deduplicate by IP
+        if (existing.some(r => r.ip === ip)) {
+          return Response.json({ status: "already_reported" });
+        }
+
+        existing.push({ ip, hashes, ts: Date.now() });
+        await env.TS4_FINGERPRINTS.put(reportKey, JSON.stringify(existing));
+
+        // Auto-validate after 3 matching reports
+        if (existing.length >= 3) {
+          const hashStrings = existing.map(r => JSON.stringify(r.hashes));
+          const counts = {};
+          hashStrings.forEach(h => counts[h] = (counts[h] || 0) + 1);
+          const majority = Object.entries(counts).find(([, c]) => c >= 3);
+
+          if (majority) {
+            const validated = await env.TS4_FINGERPRINTS.get("validated", "json") || {};
+            validated[version] = JSON.parse(majority[0]);
+            await env.TS4_FINGERPRINTS.put("validated", JSON.stringify(validated));
+          }
+        }
+
+        return Response.json({ status: "ok", reports: existing.length });
+      } catch (e) {
+        return new Response("Invalid request", { status: 400 });
+      }
+    }
+
+    return new Response("Not found", { status: 404 });
+  }
+};
+```
+
+**3. Bind the KV namespace** to the Worker in the Cloudflare dashboard (Settings > Variables > KV Namespace Bindings > variable name: `TS4_FINGERPRINTS`).
+
+**4. Deploy** and set the URLs in your manifest:
+
+```json
+{
+  "fingerprints_url": "https://ts4-fingerprints-worker.your-account.workers.dev/fingerprints.json",
+  "report_url": "https://ts4-fingerprints-worker.your-account.workers.dev/report"
+}
+```
+
+#### Cost
+
+| Service | Free tier | Notes |
+|---------|-----------|-------|
+| Cloudflare R2 | 10 GB storage, 10M reads/mo | No egress fees |
+| Cloudflare Workers | 100K requests/day | Fingerprint API |
+| Cloudflare KV | 100K reads/day, 1K writes/day | Hash storage |
+| Cloudflare Pages | Unlimited bandwidth | Manifest hosting |
+
+For most Sims 4 update distributions, the free tier is more than sufficient.
 
 ### Version Fingerprints
 
-When you create a patch, you have access to the target version's game files. Hash the 3 sentinel files and include them in the manifest's `fingerprints` section:
-
-| Sentinel File | Purpose |
-|---------------|---------|
-| `Game/Bin/TS4_x64.exe` | Main executable — changes every update |
-| `Game/Bin/Default.ini` | Config with version number embedded |
-| `delta/EP01/version.ini` | DLC version marker |
+When you create a patch, you have access to the target version's game files. Hash the 3 sentinel files and include them in the manifest's `fingerprints` section. This lets all users auto-detect the new version immediately, even before they've applied the patch themselves.
 
 ```bash
 # Quick way to get the hashes (on the machine with the target version):
@@ -210,13 +385,13 @@ This outputs the MD5 hashes — copy them into your manifest's `fingerprints` fi
 
 ### Crowd-Sourced Hash Reporting
 
-For fully automatic hash distribution across all users, set up two optional endpoints:
+For fully automatic hash distribution across all users, set up the two optional endpoints described in the Cloudflare Worker section above:
 
-1. **`report_url`** — Receives POST requests with `{"version": "...", "hashes": {...}}` from clients after successful patches or `learn` commands. Implement consensus validation (accept only after 3+ matching reports from different IPs).
+1. **`report_url`** — Receives POST requests with `{"version": "...", "hashes": {...}}` from clients after successful patches or `learn` commands. The Worker validates by requiring 3+ matching reports from different IPs.
 
 2. **`fingerprints_url`** — Serves a JSON file of validated hashes. The updater fetches this on every manifest check and merges new hashes into each user's local database.
 
-A Cloudflare Worker with KV storage (free tier: 100K requests/day) is sufficient for global scale. Example response for `fingerprints_url`:
+Example response for `fingerprints_url`:
 
 ```json
 {
@@ -275,6 +450,8 @@ The full update process runs in 5 stages:
 5. **Finalize** — Learn new version hashes, auto-toggle DLCs, update settings
 
 Downloads support HTTP Range headers for resuming interrupted transfers. Each file is verified against its MD5 checksum. The download can be cancelled at any point.
+
+**Patch-pending awareness:** When the manifest includes `game_latest` (the actual EA release version) ahead of `latest` (the latest patchable version), the GUI shows a "patch coming soon" banner and disables the update button. Users are informed that a new version exists without being able to attempt an update that would fail. Once the maintainer creates the patch and updates the manifest, the update button automatically becomes available on the next check.
 
 ### DLC Management
 

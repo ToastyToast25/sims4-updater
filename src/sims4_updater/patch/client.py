@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import json
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from .manifest import Manifest, PatchEntry, parse_manifest
+from .manifest import Manifest, PatchEntry, PendingDLC, parse_manifest
 from .planner import UpdatePlan, plan_update
 from .downloader import Downloader, DownloadResult, ProgressCallback
 from ..core.exceptions import ManifestError, DownloadError
@@ -36,6 +36,10 @@ class UpdateInfo:
     plan: UpdatePlan | None = None
     total_download_size: int = 0
     step_count: int = 0
+    game_latest_version: str = ""
+    game_latest_date: str = ""
+    patch_pending: bool = False
+    new_dlcs: list[PendingDLC] = field(default_factory=list)
 
 
 class PatchClient:
@@ -153,16 +157,36 @@ class PatchClient:
             target_version: Desired version (defaults to manifest.latest).
 
         Returns:
-            UpdateInfo with plan details.
+            UpdateInfo with plan details including patch_pending state.
         """
         manifest = self.fetch_manifest()
         target = target_version or manifest.latest
 
+        game_latest = manifest.game_latest or manifest.latest
+        is_patch_pending = manifest.patch_pending
+
+        # User already at the actual latest game version
+        if current_version == game_latest:
+            return UpdateInfo(
+                current_version=current_version,
+                latest_version=target,
+                update_available=False,
+                game_latest_version=game_latest,
+                game_latest_date=manifest.game_latest_date,
+                patch_pending=False,
+                new_dlcs=list(manifest.new_dlcs),
+            )
+
+        # User at the latest patchable version but game has a newer release
         if current_version == target:
             return UpdateInfo(
                 current_version=current_version,
                 latest_version=target,
                 update_available=False,
+                game_latest_version=game_latest,
+                game_latest_date=manifest.game_latest_date,
+                patch_pending=is_patch_pending,
+                new_dlcs=list(manifest.new_dlcs),
             )
 
         update_plan = plan_update(manifest, current_version, target)
@@ -174,6 +198,10 @@ class PatchClient:
             plan=update_plan,
             total_download_size=update_plan.total_download_size,
             step_count=update_plan.step_count,
+            game_latest_version=game_latest,
+            game_latest_date=manifest.game_latest_date,
+            patch_pending=is_patch_pending,
+            new_dlcs=list(manifest.new_dlcs),
         )
 
     def download_update(

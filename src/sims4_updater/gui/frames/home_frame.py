@@ -1,5 +1,8 @@
 """
 Home frame — version display, update button, quick status.
+
+Shows patch-pending banners when a new game version exists but
+patches aren't available yet, and new DLC notifications.
 """
 
 from __future__ import annotations
@@ -19,8 +22,10 @@ class HomeFrame(ctk.CTkFrame):
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
+        self._last_update_info = None
 
         self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(4, weight=1)  # push content up
 
         # ── Title ──
         title = ctk.CTkLabel(
@@ -67,10 +72,10 @@ class HomeFrame(ctk.CTkFrame):
         )
         self._version_label.grid(row=1, column=1, padx=15, pady=2, sticky="w")
 
-        # Latest version
+        # Latest patchable version
         ctk.CTkLabel(
             self._card,
-            text="Latest Version:",
+            text="Latest Patch:",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=2, column=0, padx=15, pady=2, sticky="w")
@@ -83,13 +88,27 @@ class HomeFrame(ctk.CTkFrame):
         )
         self._latest_label.grid(row=2, column=1, padx=15, pady=2, sticky="w")
 
+        # Game latest (actual EA release) — hidden until check
+        self._game_latest_row_label = ctk.CTkLabel(
+            self._card,
+            text="Game Latest:",
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=theme.COLORS["text_muted"],
+        )
+        self._game_latest_label = ctk.CTkLabel(
+            self._card,
+            text="",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
+        )
+
         # DLC summary
         ctk.CTkLabel(
             self._card,
             text="DLCs:",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=3, column=0, padx=15, pady=(2, 15), sticky="w")
+        ).grid(row=4, column=0, padx=15, pady=(2, 15), sticky="w")
 
         self._dlc_label = ctk.CTkLabel(
             self._card,
@@ -97,7 +116,12 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._dlc_label.grid(row=3, column=1, padx=15, pady=(2, 15), sticky="w")
+        self._dlc_label.grid(row=4, column=1, padx=15, pady=(2, 15), sticky="w")
+
+        # ── Banner area (patch pending / new DLC notices) ──
+        self._banner_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._banner_frame.grid(row=2, column=0, padx=30, pady=0, sticky="ew")
+        self._banner_frame.grid_columnconfigure(0, weight=1)
 
         # ── Status message ──
         self._status_label = ctk.CTkLabel(
@@ -106,11 +130,11 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         )
-        self._status_label.grid(row=2, column=0, padx=30, pady=(0, 5), sticky="w")
+        self._status_label.grid(row=3, column=0, padx=30, pady=(5, 5), sticky="w")
 
         # ── Buttons ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=3, column=0, padx=30, pady=10, sticky="ew")
+        btn_frame.grid(row=5, column=0, padx=30, pady=10, sticky="ew")
 
         self._update_btn = ctk.CTkButton(
             btn_frame,
@@ -178,7 +202,6 @@ class HomeFrame(ctk.CTkFrame):
         dlc_info = info.get("dlc_info")
 
         if game_dir:
-            # Truncate long paths
             display = str(game_dir)
             if len(display) > 60:
                 display = "..." + display[-57:]
@@ -195,6 +218,12 @@ class HomeFrame(ctk.CTkFrame):
         self._dlc_label.configure(text=dlc_info or "N/A")
         self._status_label.configure(text="")
         self._update_btn.configure(state="normal")
+
+        # Reset button to default state
+        self._update_btn.configure(
+            text="Check for Updates",
+            command=self._on_check_updates,
+        )
 
     def _on_check_updates(self):
         """Check for updates button handler."""
@@ -219,30 +248,97 @@ class HomeFrame(ctk.CTkFrame):
         return self.app.updater.check_for_updates()
 
     def _on_updates_checked(self, info):
-        """GUI thread: show update results."""
+        """GUI thread: show update results with patch-pending awareness."""
         self._update_btn.configure(state="normal")
+        self._last_update_info = info
 
+        # Show latest patchable version
         self._latest_label.configure(text=info.latest_version)
 
-        if not info.update_available:
-            self._status_label.configure(
-                text="You are up to date!",
-                text_color=theme.COLORS["success"],
+        # Show game latest row if different from latest patchable
+        game_latest = info.game_latest_version
+        if game_latest and game_latest != info.latest_version:
+            date_str = ""
+            if info.game_latest_date:
+                date_str = f"  ({info.game_latest_date})"
+            self._game_latest_row_label.grid(
+                row=3, column=0, padx=15, pady=2, sticky="w",
+            )
+            self._game_latest_label.configure(
+                text=f"{game_latest}{date_str}",
+                text_color=theme.COLORS["warning"],
+            )
+            self._game_latest_label.grid(
+                row=3, column=1, padx=15, pady=2, sticky="w",
             )
         else:
-            from ..patch.client import format_size
+            self._game_latest_row_label.grid_forget()
+            self._game_latest_label.grid_forget()
+
+        # Clear old banners
+        self._clear_banners()
+
+        if info.update_available:
+            # Patches available — can update now
+            from ...patch.client import format_size
 
             size = format_size(info.total_download_size)
             self._status_label.configure(
                 text=f"Update available: {info.step_count} step(s), {size}",
-                text_color=theme.COLORS["warning"],
+                text_color=theme.COLORS["accent"],
             )
-
-            # Change button to "Update Now"
             self._update_btn.configure(
                 text="Update Now",
                 command=lambda: self._start_update(info),
             )
+
+            # If there's also a pending newer version beyond the patchable one
+            if info.patch_pending:
+                self._add_banner(
+                    f"New game version {game_latest} detected "
+                    f"-- patch coming soon. You can update to "
+                    f"{info.latest_version} now.",
+                    color=theme.COLORS["warning"],
+                )
+
+        elif info.patch_pending:
+            # At latest patchable, but a newer game version exists
+            self._status_label.configure(
+                text="You have the latest available patch.",
+                text_color=theme.COLORS["success"],
+            )
+            self._add_banner(
+                f"New game version {game_latest} has been released "
+                f"-- patch coming soon!",
+                color=theme.COLORS["warning"],
+            )
+            # Disable update button — nothing to update to
+            self._update_btn.configure(
+                text="Patch Pending",
+                state="disabled",
+            )
+
+        else:
+            # Fully up to date
+            self._status_label.configure(
+                text="You are up to date!",
+                text_color=theme.COLORS["success"],
+            )
+            self._update_btn.configure(
+                text="Check for Updates",
+                command=self._on_check_updates,
+            )
+
+        # Show new DLC notifications and pass to DLC frame
+        if info.new_dlcs:
+            names = ", ".join(d.name for d in info.new_dlcs)
+            self._add_banner(
+                f"New DLC announced: {names} -- patch pending",
+                color=theme.COLORS["text_muted"],
+            )
+            dlc_frame = self.app._frames.get("dlc")
+            if dlc_frame and hasattr(dlc_frame, "set_pending_dlcs"):
+                dlc_frame.set_pending_dlcs(info.new_dlcs)
 
     def _on_check_error(self, error):
         self._update_btn.configure(state="normal")
@@ -257,3 +353,28 @@ class HomeFrame(ctk.CTkFrame):
         progress_frame = self.app._frames.get("progress")
         if progress_frame:
             progress_frame.start_update(info.plan)
+
+    # ── Banner helpers ──────────────────────────────────────────
+
+    def _clear_banners(self):
+        for widget in self._banner_frame.winfo_children():
+            widget.destroy()
+
+    def _add_banner(self, text: str, color: str = ""):
+        """Add a notification banner to the banner area."""
+        banner = ctk.CTkFrame(
+            self._banner_frame,
+            corner_radius=6,
+            fg_color=theme.COLORS["bg_card"],
+        )
+        banner.pack(fill="x", pady=(4, 0))
+
+        ctk.CTkLabel(
+            banner,
+            text=text,
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=color or theme.COLORS["text"],
+            wraplength=500,
+            anchor="w",
+            justify="left",
+        ).pack(padx=12, pady=8, fill="x")

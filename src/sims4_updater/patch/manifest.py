@@ -45,6 +45,15 @@ class PatchEntry:
 
 
 @dataclass
+class PendingDLC:
+    """A DLC announced in the manifest but not yet patchable."""
+
+    id: str
+    name: str
+    status: str = "pending"
+
+
+@dataclass
 class Manifest:
     """Parsed manifest describing all available patches."""
 
@@ -54,6 +63,14 @@ class Manifest:
     fingerprints_url: str = ""
     report_url: str = ""
     manifest_url: str = ""
+    game_latest: str = ""
+    game_latest_date: str = ""
+    new_dlcs: list[PendingDLC] = field(default_factory=list)
+
+    @property
+    def patch_pending(self) -> bool:
+        """True if the actual game version is ahead of the latest patchable."""
+        return bool(self.game_latest and self.game_latest != self.latest)
 
     def get_patch(self, version_from: str, version_to: str) -> PatchEntry | None:
         for p in self.patches:
@@ -103,6 +120,16 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                     str(k): str(v) for k, v in hashes.items()
                 }
 
+    # Parse optional new_dlcs list
+    new_dlcs = []
+    for dlc_raw in data.get("new_dlcs", []):
+        if isinstance(dlc_raw, dict) and "id" in dlc_raw:
+            new_dlcs.append(PendingDLC(
+                id=dlc_raw["id"],
+                name=dlc_raw.get("name", dlc_raw["id"]),
+                status=dlc_raw.get("status", "pending"),
+            ))
+
     return Manifest(
         latest=latest,
         patches=patches,
@@ -110,6 +137,9 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         fingerprints_url=data.get("fingerprints_url", ""),
         report_url=data.get("report_url", ""),
         manifest_url=source_url,
+        game_latest=data.get("game_latest", ""),
+        game_latest_date=data.get("game_latest_date", ""),
+        new_dlcs=new_dlcs,
     )
 
 

@@ -21,6 +21,7 @@ class DLCFrame(ctk.CTkFrame):
         self.app = app
         self._checkboxes: dict[str, ctk.CTkCheckBox] = {}
         self._checkbox_vars: dict[str, ctk.BooleanVar] = {}
+        self._pending_dlcs = []
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -185,6 +186,25 @@ class DLCFrame(ctk.CTkFrame):
                 self._checkboxes[dlc.id] = cb
                 row += 1
 
+        # ── Pending DLCs from manifest ──
+        if self._pending_dlcs:
+            ctk.CTkLabel(
+                self._scroll_frame,
+                text="Pending (Patch Not Yet Available)",
+                font=ctk.CTkFont(size=13, weight="bold"),
+                text_color=theme.COLORS["warning"],
+            ).grid(row=row, column=0, padx=5, pady=(12, 4), sticky="w")
+            row += 1
+
+            for pending in self._pending_dlcs:
+                ctk.CTkLabel(
+                    self._scroll_frame,
+                    text=f"{pending.name}  [PENDING]",
+                    font=ctk.CTkFont(size=12),
+                    text_color=theme.COLORS["text_muted"],
+                ).grid(row=row, column=0, padx=15, pady=1, sticky="w")
+                row += 1
+
         self._status_label.configure(
             text=f"{installed}/{total} installed, {enabled} enabled"
         )
@@ -246,6 +266,10 @@ class DLCFrame(ctk.CTkFrame):
             text="Changes applied successfully.",
             text_color=theme.COLORS["success"],
         )
+
+    def set_pending_dlcs(self, pending_dlcs):
+        """Store pending DLCs from manifest for display on next refresh."""
+        self._pending_dlcs = pending_dlcs
 
     def _on_dlc_error(self, error):
         self._auto_btn.configure(state="normal")
