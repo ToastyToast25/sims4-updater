@@ -2,7 +2,7 @@
 
 A standalone Windows application for updating, managing, and maintaining cracked installations of The Sims 4. Detects your installed version, downloads and applies binary delta patches, manages DLC toggles across 5 crack config formats, and handles language settings — all from a single 21 MB executable with a modern dark-mode GUI.
 
-Built on top of [anadius's patcher](https://github.com/anadius/patcher) engine using xdelta3 binary delta patching.
+Built on top of anadius's patcher engine using xdelta3 binary delta patching.
 
 ---
 
@@ -187,7 +187,7 @@ The updater uses BFS pathfinding to find the shortest chain of patches from the 
 
 ### Creating Patches
 
-Patches are created using the [patcher](https://github.com/anadius/patcher) tool, which uses xdelta3 to produce binary delta files. You need both the source and target game versions to create a patch.
+Patches are created using the patcher tool (included as a sibling `patcher/` directory), which uses xdelta3 to produce binary delta files. You need both the source and target game versions to create a patch.
 
 Once created, upload the patch files to any HTTP-accessible location and add the corresponding entry to your manifest.
 
@@ -333,7 +333,7 @@ Persistent settings stored at `%LocalAppData%\anadius\sims4_updater\settings.jso
 ### Build Requirements
 
 - Python 3.12+
-- The [patcher](https://github.com/anadius/patcher) repository cloned as a sibling directory
+- The `patcher/` directory placed as a sibling (i.e. `../patcher/` relative to this repo)
 
 ### Setup
 
