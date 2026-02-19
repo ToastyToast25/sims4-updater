@@ -50,6 +50,9 @@ class Manifest:
 
     latest: str
     patches: list[PatchEntry] = field(default_factory=list)
+    fingerprints: dict[str, dict[str, str]] = field(default_factory=dict)
+    fingerprints_url: str = ""
+    report_url: str = ""
     manifest_url: str = ""
 
     def get_patch(self, version_from: str, version_to: str) -> PatchEntry | None:
@@ -90,7 +93,24 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         except (KeyError, TypeError, ValueError) as e:
             raise ManifestError(f"Invalid patch entry at index {i}: {e}") from e
 
-    return Manifest(latest=latest, patches=patches, manifest_url=source_url)
+    # Parse optional fingerprints: {version: {sentinel: md5}}
+    fingerprints = {}
+    raw_fp = data.get("fingerprints", {})
+    if isinstance(raw_fp, dict):
+        for version, hashes in raw_fp.items():
+            if isinstance(hashes, dict):
+                fingerprints[version] = {
+                    str(k): str(v) for k, v in hashes.items()
+                }
+
+    return Manifest(
+        latest=latest,
+        patches=patches,
+        fingerprints=fingerprints,
+        fingerprints_url=data.get("fingerprints_url", ""),
+        report_url=data.get("report_url", ""),
+        manifest_url=source_url,
+    )
 
 
 def _parse_patch_entry(entry: dict) -> PatchEntry:

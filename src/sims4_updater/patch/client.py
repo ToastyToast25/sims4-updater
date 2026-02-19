@@ -19,6 +19,7 @@ from .manifest import Manifest, PatchEntry, parse_manifest
 from .planner import UpdatePlan, plan_update
 from .downloader import Downloader, DownloadResult, ProgressCallback
 from ..core.exceptions import ManifestError, DownloadError
+from ..core.learned_hashes import LearnedHashDB
 
 
 # Callback types for status updates: (message: str)
@@ -56,12 +57,14 @@ class PatchClient:
         manifest_url: str,
         download_dir: str | Path = ".",
         cancel_event: threading.Event | None = None,
+        learned_db: LearnedHashDB | None = None,
     ):
         self.manifest_url = manifest_url
         self.download_dir = Path(download_dir)
         self._cancel = cancel_event or threading.Event()
         self._manifest: Manifest | None = None
         self._downloader: Downloader | None = None
+        self._learned_db = learned_db
 
     @property
     def downloader(self) -> Downloader:
@@ -115,6 +118,16 @@ class PatchClient:
             ) from e
 
         self._manifest = parse_manifest(data, source_url=self.manifest_url)
+
+        # Merge fingerprints from manifest into local learned DB
+        if self._learned_db and self._manifest.fingerprints:
+            self._learned_db.merge(self._manifest.fingerprints)
+            self._learned_db.save()
+
+        # Fetch crowd-sourced fingerprints if URL provided
+        if self._learned_db and self._manifest.fingerprints_url:
+            self._fetch_crowd_fingerprints(self._manifest.fingerprints_url)
+
         return self._manifest
 
     def load_manifest_from_file(self, path: str | Path) -> Manifest:
@@ -261,6 +274,54 @@ class PatchClient:
                 if path.is_file():
                     files.append(path)
         return files
+
+    # ── Hash Learning ─────────────────────────────────────────────
+
+    def _fetch_crowd_fingerprints(self, url: str):
+        """Fetch crowd-sourced fingerprints and merge into learned DB (best-effort)."""
+        try:
+            resp = self.downloader.session.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, dict):
+                versions = data.get("versions", data)
+                if isinstance(versions, dict):
+                    self._learned_db.merge(versions)
+                    self._learned_db.save()
+        except Exception:
+            pass  # non-critical, silently ignore
+
+    def report_hashes(
+        self,
+        version: str,
+        hashes: dict[str, str],
+        report_url: str | None = None,
+    ):
+        """Report learned hashes to the remote API (fire-and-forget).
+
+        Args:
+            version: The version string.
+            hashes: Dict of {sentinel_path: md5_hash}.
+            report_url: URL to POST to. Falls back to manifest's report_url.
+        """
+        url = report_url
+        if not url and self._manifest:
+            url = self._manifest.report_url
+        if not url:
+            return
+
+        def _send():
+            try:
+                self.downloader.session.post(
+                    url,
+                    json={"version": version, "hashes": hashes},
+                    timeout=10,
+                )
+            except Exception:
+                pass  # fire-and-forget
+
+        thread = threading.Thread(target=_send, daemon=True)
+        thread.start()
 
     def close(self):
         """Clean up resources."""

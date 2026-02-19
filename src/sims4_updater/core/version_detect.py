@@ -1,7 +1,8 @@
 """
 Version detection for The Sims 4.
 
-Hashes 1-3 sentinel files and matches against a database of 135 known versions.
+Hashes 1-3 sentinel files and matches against a database of known versions.
+Sources are merged in priority order: bundled DB < learned DB < manifest fingerprints.
 Detection takes <2 seconds on SSD.
 """
 
@@ -13,6 +14,7 @@ from pathlib import Path
 
 from .exceptions import VersionDetectionError
 from .files import hash_file
+from .learned_hashes import LearnedHashDB
 from .. import constants
 
 
@@ -31,9 +33,13 @@ class DetectionResult:
 
 
 class VersionDatabase:
-    """In-memory database of version fingerprints."""
+    """In-memory database of version fingerprints.
 
-    def __init__(self, db_path: str | Path | None = None):
+    Merges hashes from the bundled DB and the local learned DB.
+    The learned DB takes priority (newer data wins).
+    """
+
+    def __init__(self, db_path: str | Path | None = None, learned_db: LearnedHashDB | None = None):
         if db_path is None:
             db_path = constants.get_data_dir() / "version_hashes.json"
 
@@ -41,7 +47,24 @@ class VersionDatabase:
             data = json.load(f)
 
         self.sentinel_files: list[str] = data["sentinel_files"]
-        self.versions: dict[str, dict[str, str]] = data["versions"]
+        self.versions: dict[str, dict[str, str]] = dict(data["versions"])
+
+        # Merge learned hashes (local DB takes priority for overlapping keys)
+        self._learned_db = learned_db or LearnedHashDB()
+        if self._learned_db.versions:
+            for version, hashes in self._learned_db.versions.items():
+                if version in self.versions:
+                    self.versions[version] = {**self.versions[version], **hashes}
+                else:
+                    self.versions[version] = dict(hashes)
+            # Extend sentinel list with any new sentinels from learned DB
+            for s in self._learned_db.sentinel_files:
+                if s not in self.sentinel_files:
+                    self.sentinel_files.append(s)
+
+    @property
+    def learned_db(self) -> LearnedHashDB:
+        return self._learned_db
 
     def lookup(self, local_hashes: dict[str, str]) -> DetectionResult:
         """Match local file hashes against the version database."""
@@ -101,8 +124,8 @@ class VersionDatabase:
 class VersionDetector:
     """Detects the installed Sims 4 version by hashing sentinel files."""
 
-    def __init__(self, db: VersionDatabase | None = None):
-        self.db = db or VersionDatabase()
+    def __init__(self, db: VersionDatabase | None = None, learned_db: LearnedHashDB | None = None):
+        self.db = db or VersionDatabase(learned_db=learned_db)
 
     def validate_game_dir(self, game_dir: str | Path) -> bool:
         """Check if the directory looks like a Sims 4 installation."""

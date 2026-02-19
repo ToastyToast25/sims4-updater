@@ -29,6 +29,7 @@ if (
 from patcher.patcher import Patcher as BasePatcher, CallbackType  # noqa: E402
 
 from .core.version_detect import VersionDetector, DetectionResult
+from .core.learned_hashes import LearnedHashDB
 from .core.exceptions import (
     UpdaterError,
     DownloadError,
@@ -65,7 +66,8 @@ class Sims4Updater(BasePatcher):
         super().__init__(ask_question, callback)
 
         self.settings = settings or Settings.load()
-        self._detector = VersionDetector()
+        self._learned_db = LearnedHashDB()
+        self._detector = VersionDetector(learned_db=self._learned_db)
         self._dlc_manager = DLCManager()
         self._patch_client: PatchClient | None = None
         self._cancel = threading.Event()
@@ -83,6 +85,7 @@ class Sims4Updater(BasePatcher):
                 manifest_url=self.settings.manifest_url,
                 download_dir=self._download_dir,
                 cancel_event=self._cancel,
+                learned_db=self._learned_db,
             )
         return self._patch_client
 
@@ -277,6 +280,35 @@ class Sims4Updater(BasePatcher):
         else:
             self.callback(CallbackType.INFO, f"Extracted: {archive}")
 
+    # ── Hash Learning ──────────────────────────────────────────────
+
+    def learn_version(self, game_dir: str | Path, version: str):
+        """Hash sentinel files and store as a learned version fingerprint.
+
+        Also reports hashes to the remote API if available.
+
+        Args:
+            game_dir: Path to the Sims 4 installation.
+            version: The known version string.
+        """
+        from .core.files import hash_file
+
+        game_dir = Path(game_dir)
+        hashes = {}
+        for sentinel in constants.SENTINEL_FILES:
+            file_path = game_dir / sentinel.replace("/", os.sep)
+            if file_path.is_file():
+                hashes[sentinel] = hash_file(str(file_path))
+
+        if not hashes:
+            return
+
+        self._learned_db.add_version(version, hashes)
+        self._learned_db.save()
+
+        # Report to remote API (fire-and-forget)
+        self.patch_client.report_hashes(version, hashes)
+
     # ── High-Level Update Orchestration ────────────────────────────
 
     def update(
@@ -368,8 +400,16 @@ class Sims4Updater(BasePatcher):
             selected_dlcs = [d for d in all_dlcs if d not in missing_dlcs]
             self.patch(selected_dlcs)
 
-            # Step 5: Auto-toggle DLCs after patching
+            # Step 5: Learn new version hashes + auto-toggle DLCs
             self._state = UpdateState.FINALIZING
+
+            # Learn the new version's sentinel hashes
+            target_version = info.plan.target_version
+            if target_version:
+                if status:
+                    status("Learning new version hashes...")
+                self.learn_version(game_dir, target_version)
+
             if status:
                 status("Auto-toggling DLCs...")
 

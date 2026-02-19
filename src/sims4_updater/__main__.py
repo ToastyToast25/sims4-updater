@@ -10,6 +10,7 @@ Usage:
     python -m sims4_updater language                 # Show current language
     python -m sims4_updater language <code> [dir]    # Set language
     python -m sims4_updater manifest <url|file>     # Inspect a manifest
+    python -m sims4_updater learn <game_dir> <ver>  # Learn version hashes
 """
 
 import argparse
@@ -335,6 +336,58 @@ def show_status(args):
         print(f"Last known version: {settings.last_known_version}")
 
 
+def learn_hashes(args):
+    """Learn version hashes from a known game installation."""
+    from pathlib import Path
+    from sims4_updater.core.version_detect import VersionDetector
+    from sims4_updater.core.learned_hashes import LearnedHashDB
+    from sims4_updater.core.files import hash_file
+    from sims4_updater import constants
+
+    game_dir = Path(args.game_dir)
+    version = args.version
+    detector = VersionDetector()
+
+    if not detector.validate_game_dir(game_dir):
+        print("ERROR: Not a valid Sims 4 installation directory.")
+        sys.exit(1)
+
+    print(f"Game directory: {game_dir}")
+    print(f"Version: {version}")
+    print()
+
+    # Hash sentinel files
+    hashes = {}
+    for sentinel in constants.SENTINEL_FILES:
+        file_path = game_dir / sentinel.replace("/", os.sep)
+        if file_path.is_file():
+            md5 = hash_file(str(file_path))
+            hashes[sentinel] = md5
+            print(f"  {sentinel}: {md5}")
+        else:
+            print(f"  {sentinel}: MISSING")
+
+    if not hashes:
+        print("\nERROR: No sentinel files found.")
+        sys.exit(1)
+
+    # Check if this conflicts with an existing version
+    db = detector.db
+    existing = db.versions.get(version)
+    if existing and existing != hashes:
+        print(f"\nWARNING: Bundled DB already has different hashes for {version}.")
+        print("Your local hashes will take priority for future detection.")
+
+    # Save to learned DB
+    learned = LearnedHashDB()
+    learned.add_version(version, hashes)
+    learned.save()
+
+    print(f"\nSaved {len(hashes)} hash(es) for version {version}.")
+    print(f"Database: {learned.path}")
+    print(f"Total learned versions: {learned.version_count}")
+
+
 def show_language(args):
     """Show or set language."""
     from sims4_updater.language.changer import get_current_language, set_language, LANGUAGES
@@ -388,6 +441,11 @@ def main():
     dlc_auto_parser = subparsers.add_parser("dlc-auto", help="Auto-toggle DLCs")
     dlc_auto_parser.add_argument("game_dir", help="Path to The Sims 4 installation directory")
 
+    # learn
+    learn_parser = subparsers.add_parser("learn", help="Learn version hashes from game directory")
+    learn_parser.add_argument("game_dir", help="Path to The Sims 4 installation directory")
+    learn_parser.add_argument("version", help="Version string (e.g. 1.120.123.1020)")
+
     # language
     lang_parser = subparsers.add_parser("language", help="Show or set language")
     lang_parser.add_argument("code", nargs="?", help="Language code (e.g. en_US)")
@@ -407,6 +465,8 @@ def main():
         show_dlc_states(args.game_dir)
     elif args.command == "dlc-auto":
         auto_toggle_dlcs(args.game_dir)
+    elif args.command == "learn":
+        learn_hashes(args)
     elif args.command == "language":
         show_language(args)
     elif args.command is None:
@@ -425,6 +485,7 @@ def main():
             print('  manifest <url|file>       Inspect a patch manifest')
             print('  dlc <game_dir>            Show DLC states')
             print('  dlc-auto <game_dir>       Auto-toggle DLCs')
+            print('  learn <game_dir> <ver>    Learn version hashes')
             print('  language [code]           Show or set language')
     else:
         parser.print_help()
