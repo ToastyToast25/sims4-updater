@@ -3,6 +3,7 @@ Home frame — version display, update button, quick status.
 
 Shows patch-pending banners when a new game version exists but
 patches aren't available yet, and new DLC notifications.
+Also checks for updater self-updates from GitHub Releases.
 """
 
 from __future__ import annotations
@@ -23,9 +24,52 @@ class HomeFrame(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.app = app
         self._last_update_info = None
+        self._app_update_info = None
+        self._self_updating = False
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(4, weight=1)  # push content up
+        self.grid_rowconfigure(5, weight=1)  # push content up
+
+        # Row layout:
+        #   0 = app update banner (hidden by default)
+        #   1 = title
+        #   2 = info card
+        #   3 = banner area (patch pending / new DLC)
+        #   4 = status message
+        #   5 = spacer (weight=1)
+        #   6 = buttons
+
+        # ── App update banner (hidden by default) ──
+        self._app_update_frame = ctk.CTkFrame(
+            self, corner_radius=8, fg_color=theme.COLORS["accent"],
+        )
+        self._app_update_inner = ctk.CTkFrame(
+            self._app_update_frame, fg_color="transparent",
+        )
+        self._app_update_inner.pack(fill="x", padx=16, pady=10)
+
+        self._app_update_label = ctk.CTkLabel(
+            self._app_update_inner,
+            text="",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff",
+            anchor="w",
+        )
+        self._app_update_label.pack(side="left", fill="x", expand=True)
+
+        self._app_update_btn = ctk.CTkButton(
+            self._app_update_inner,
+            text="Update Now",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            height=28,
+            width=110,
+            corner_radius=6,
+            fg_color="#ffffff",
+            text_color=theme.COLORS["accent"],
+            hover_color="#e0e0e0",
+            command=self._on_self_update,
+        )
+        self._app_update_btn.pack(side="right", padx=(10, 0))
 
         # ── Title ──
         title = ctk.CTkLabel(
@@ -33,20 +77,20 @@ class HomeFrame(ctk.CTkFrame):
             text="The Sims 4 Updater",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         )
-        title.grid(row=0, column=0, padx=30, pady=(30, 5), sticky="w")
+        title.grid(row=1, column=0, padx=theme.SECTION_PAD, pady=(20, 8), sticky="w")
 
         # ── Info card ──
         self._card = ctk.CTkFrame(self, corner_radius=10)
-        self._card.grid(row=1, column=0, padx=30, pady=15, sticky="ew")
+        self._card.grid(row=2, column=0, padx=30, pady=15, sticky="ew")
         self._card.grid_columnconfigure(1, weight=1)
 
         # Game directory
         ctk.CTkLabel(
             self._card,
             text="Game Directory:",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
+            font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=0, column=0, padx=15, pady=(15, 2), sticky="w")
+        ).grid(row=0, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w")
 
         self._game_dir_label = ctk.CTkLabel(
             self._card,
@@ -54,15 +98,15 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._game_dir_label.grid(row=0, column=1, padx=15, pady=(15, 2), sticky="w")
+        self._game_dir_label.grid(row=0, column=1, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w")
 
         # Installed version
         ctk.CTkLabel(
             self._card,
             text="Installed Version:",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
+            font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=1, column=0, padx=15, pady=2, sticky="w")
+        ).grid(row=1, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._version_label = ctk.CTkLabel(
             self._card,
@@ -70,15 +114,15 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._version_label.grid(row=1, column=1, padx=15, pady=2, sticky="w")
+        self._version_label.grid(row=1, column=1, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         # Latest patchable version
         ctk.CTkLabel(
             self._card,
             text="Latest Patch:",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
+            font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=2, column=0, padx=15, pady=2, sticky="w")
+        ).grid(row=2, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._latest_label = ctk.CTkLabel(
             self._card,
@@ -86,13 +130,13 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._latest_label.grid(row=2, column=1, padx=15, pady=2, sticky="w")
+        self._latest_label.grid(row=2, column=1, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         # Game latest (actual EA release) — hidden until check
         self._game_latest_row_label = ctk.CTkLabel(
             self._card,
             text="Game Latest:",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
+            font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
         self._game_latest_label = ctk.CTkLabel(
@@ -106,9 +150,9 @@ class HomeFrame(ctk.CTkFrame):
         ctk.CTkLabel(
             self._card,
             text="DLCs:",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
+            font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=4, column=0, padx=15, pady=(2, 15), sticky="w")
+        ).grid(row=4, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w")
 
         self._dlc_label = ctk.CTkLabel(
             self._card,
@@ -116,11 +160,11 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._dlc_label.grid(row=4, column=1, padx=15, pady=(2, 15), sticky="w")
+        self._dlc_label.grid(row=4, column=1, padx=theme.CARD_PAD_X, pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w")
 
         # ── Banner area (patch pending / new DLC notices) ──
         self._banner_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self._banner_frame.grid(row=2, column=0, padx=30, pady=0, sticky="ew")
+        self._banner_frame.grid(row=3, column=0, padx=30, pady=0, sticky="ew")
         self._banner_frame.grid_columnconfigure(0, weight=1)
 
         # ── Status message ──
@@ -130,37 +174,46 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         )
-        self._status_label.grid(row=3, column=0, padx=30, pady=(5, 5), sticky="w")
+        self._status_label.grid(row=4, column=0, padx=30, pady=(5, 5), sticky="w")
 
         # ── Buttons ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=5, column=0, padx=30, pady=10, sticky="ew")
+        btn_frame.grid(row=6, column=0, padx=30, pady=10, sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=3)
+        btn_frame.grid_columnconfigure(1, weight=1)
 
         self._update_btn = ctk.CTkButton(
             btn_frame,
             text="Check for Updates",
             font=ctk.CTkFont(size=14, weight="bold"),
-            height=42,
-            corner_radius=8,
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
             command=self._on_check_updates,
         )
-        self._update_btn.pack(side="left", padx=(0, 10))
+        self._update_btn.grid(row=0, column=0, padx=(0, 10), sticky="ew")
 
         self._refresh_btn = ctk.CTkButton(
             btn_frame,
             text="Refresh",
             font=ctk.CTkFont(size=13),
-            height=42,
-            corner_radius=8,
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card"],
             command=self.refresh,
         )
-        self._refresh_btn.pack(side="left")
+        self._refresh_btn.grid(row=0, column=1, sticky="ew")
 
     def on_show(self):
         pass
+
+    def check_app_update(self):
+        """Check for updater self-updates in background (silent)."""
+        self.app.run_async(
+            self._check_app_update_bg,
+            on_done=self._on_app_update_checked,
+        )
 
     def refresh(self):
         """Refresh game info in background."""
@@ -262,14 +315,14 @@ class HomeFrame(ctk.CTkFrame):
             if info.game_latest_date:
                 date_str = f"  ({info.game_latest_date})"
             self._game_latest_row_label.grid(
-                row=3, column=0, padx=15, pady=2, sticky="w",
+                row=3, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w",
             )
             self._game_latest_label.configure(
                 text=f"{game_latest}{date_str}",
                 text_color=theme.COLORS["warning"],
             )
             self._game_latest_label.grid(
-                row=3, column=1, padx=15, pady=2, sticky="w",
+                row=3, column=1, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w",
             )
         else:
             self._game_latest_row_label.grid_forget()
@@ -353,6 +406,75 @@ class HomeFrame(ctk.CTkFrame):
         progress_frame = self.app._frames.get("progress")
         if progress_frame:
             progress_frame.start_update(info.plan)
+
+    # ── Self-update ─────────────────────────────────────────────
+
+    def _check_app_update_bg(self):
+        """Background: check GitHub for a new updater version."""
+        from ...core.self_update import check_for_app_update
+        return check_for_app_update()
+
+    def _on_app_update_checked(self, info):
+        """GUI thread: show or hide the app update banner."""
+        self._app_update_info = info
+        if info and info.update_available:
+            from ...patch.client import format_size
+            size = format_size(info.download_size) if info.download_size else "?"
+            self._app_update_label.configure(
+                text=f"Updater v{info.latest_version} available ({size})",
+            )
+            self._app_update_frame.grid(
+                row=0, column=0, padx=30, pady=(5, 0), sticky="ew",
+            )
+            # Shift title down — re-grid it at row 1 is not needed since
+            # we use grid_rowconfigure weight; just show the banner above
+        else:
+            self._app_update_frame.grid_forget()
+
+    def _on_self_update(self):
+        """Handle 'Update Now' button for the updater itself."""
+        if self._self_updating or not self._app_update_info:
+            return
+        self._self_updating = True
+        self._app_update_btn.configure(state="disabled", text="Downloading...")
+        self.app.run_async(
+            self._download_self_update_bg,
+            on_done=self._on_self_update_downloaded,
+            on_error=self._on_self_update_error,
+        )
+
+    def _download_self_update_bg(self):
+        """Background: download the new updater exe."""
+        from ...core.self_update import download_app_update
+        return download_app_update(self._app_update_info)
+
+    def _on_self_update_downloaded(self, new_exe_path):
+        """GUI thread: apply the update (swap exe and relaunch)."""
+        import tkinter as tk
+
+        confirm = tk.messagebox.askyesno(
+            "Update Ready",
+            f"Updater v{self._app_update_info.latest_version} downloaded.\n\n"
+            "The application will close and relaunch with the new version.\n\n"
+            "Continue?",
+            parent=self,
+        )
+        if not confirm:
+            self._self_updating = False
+            self._app_update_btn.configure(state="normal", text="Update Now")
+            return
+
+        from ...core.self_update import apply_app_update
+        apply_app_update(new_exe_path)
+        self.app._on_close()
+
+    def _on_self_update_error(self, error):
+        """GUI thread: show self-update error."""
+        self._self_updating = False
+        self._app_update_btn.configure(state="normal", text="Update Now")
+        self._app_update_label.configure(
+            text=f"Update failed: {error}",
+        )
 
     # ── Banner helpers ──────────────────────────────────────────
 

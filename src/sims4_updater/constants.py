@@ -52,3 +52,10 @@ def get_tools_dir():
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "tools"
     return Path(__file__).resolve().parent.parent.parent / "tools"
+
+
+def get_icon_path():
+    """Get path to the application icon (works frozen and from source)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "sims4.png"
+    return Path(__file__).resolve().parent.parent.parent / "sims4.png"

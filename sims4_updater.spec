@@ -39,6 +39,8 @@ a = Analysis(
         (os.path.join(TOOLS_DIR, 'xdelta3-x86.exe'), 'tools'),
         (os.path.join(TOOLS_DIR, 'unrar.exe'), 'tools'),
         (os.path.join(TOOLS_DIR, 'unrar-license.txt'), 'tools'),
+        # Application icon (for window title bar — PNG for crisp rendering)
+        (os.path.join(SPEC_DIR, 'sims4.png'), '.'),
         # CustomTkinter assets
         (CTK_DIR, 'customtkinter'),
     ],

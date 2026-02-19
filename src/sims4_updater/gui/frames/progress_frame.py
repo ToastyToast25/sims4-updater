@@ -89,8 +89,8 @@ class ProgressFrame(ctk.CTkFrame):
         # Bar
         self._progress_bar = ctk.CTkProgressBar(
             progress_card,
-            height=16,
-            corner_radius=8,
+            height=20,
+            corner_radius=theme.CORNER_RADIUS,
             progress_color=theme.COLORS["accent"],
         )
         self._progress_bar.grid(row=1, column=0, padx=15, pady=(5, 10), sticky="ew")
@@ -111,6 +111,8 @@ class ProgressFrame(ctk.CTkFrame):
             self,
             font=ctk.CTkFont("Consolas", 11),
             corner_radius=8,
+            border_width=1,
+            border_color=theme.COLORS["border"],
             state="disabled",
             wrap="none",
             activate_scrollbars=True,
@@ -145,8 +147,8 @@ class ProgressFrame(ctk.CTkFrame):
             text="Cancel",
             font=ctk.CTkFont(size=13),
             width=100,
-            height=36,
-            corner_radius=6,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
             command=self._on_cancel,
@@ -166,8 +168,8 @@ class ProgressFrame(ctk.CTkFrame):
             text="Back to Home",
             font=ctk.CTkFont(size=13),
             width=120,
-            height=36,
-            corner_radius=6,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card"],
             command=self._on_done,
             state="disabled",

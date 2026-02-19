@@ -38,6 +38,19 @@ class App(ctk.CTk):
         self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
         self.minsize(theme.MIN_WIDTH, theme.MIN_HEIGHT)
 
+        # Prevent CustomTkinter from overriding our icon (it checks this flag)
+        self._iconbitmap_method_called = True
+
+        # Window icon (use PNG via wm_iconphoto for crisp rendering)
+        from ..constants import get_icon_path
+
+        icon_path = get_icon_path()
+        if icon_path.is_file():
+            raw = tk.PhotoImage(file=str(icon_path))
+            # Subsample 1024x1024 → 32x32 for crisp title bar / taskbar icon
+            self._icon_image = raw.subsample(raw.width() // 32)
+            self.wm_iconphoto(True, self._icon_image)
+
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
@@ -82,17 +95,26 @@ class App(ctk.CTk):
         )
         self._sidebar.grid(row=0, column=0, sticky="nsw")
         self._sidebar.grid_propagate(False)
+        self._sidebar.grid_columnconfigure(0, weight=1)
 
         # Logo / title
-        logo_label = ctk.CTkLabel(
+        ctk.CTkLabel(
             self._sidebar,
             text="TS4 Updater",
             font=ctk.CTkFont(size=16, weight="bold"),
-        )
-        logo_label.grid(row=0, column=0, padx=20, pady=(20, 30))
+        ).grid(row=0, column=0, columnspan=2, padx=20, pady=(20, 15))
 
-        # Nav buttons
+        # Separator below logo
+        ctk.CTkFrame(
+            self._sidebar, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=1, column=0, columnspan=2, padx=15, sticky="ew")
+
+        # Nav buttons — two-column grid: col 0 = indicator, col 1 = button
+        self._sidebar.grid_columnconfigure(0, weight=0, minsize=8)
+        self._sidebar.grid_columnconfigure(1, weight=1)
+
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
+        self._nav_indicators: dict[str, ctk.CTkFrame] = {}
         nav_items = [
             ("home", "Home"),
             ("dlc", "DLCs"),
@@ -100,33 +122,76 @@ class App(ctk.CTk):
         ]
 
         for i, (key, label) in enumerate(nav_items):
+            row_idx = i + 2
+
+            # Left accent bar (3px, hidden by default)
+            indicator = ctk.CTkFrame(
+                self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
+                corner_radius=0, fg_color="transparent",
+            )
+            indicator.grid(row=row_idx, column=0, padx=(5, 0), pady=3)
+            indicator.grid_propagate(False)
+            self._nav_indicators[key] = indicator
+
             btn = ctk.CTkButton(
                 self._sidebar,
-                text=label,
+                text=f"  {label}",
                 font=ctk.CTkFont(size=13),
                 height=theme.SIDEBAR_BTN_HEIGHT,
-                corner_radius=6,
+                corner_radius=theme.CORNER_RADIUS_SMALL,
                 fg_color="transparent",
                 text_color=theme.COLORS["text_muted"],
                 hover_color=theme.COLORS["bg_card"],
                 anchor="w",
                 command=lambda k=key: self._show_frame(k),
             )
-            btn.grid(row=i + 1, column=0, padx=10, pady=2, sticky="ew")
+            btn.grid(row=row_idx, column=1, padx=(4, 10), pady=3, sticky="ew")
             self._nav_buttons[key] = btn
 
-        self._sidebar.grid_rowconfigure(len(nav_items) + 2, weight=1)
+        spacer_row = len(nav_items) + 2
+        self._sidebar.grid_rowconfigure(spacer_row, weight=1)
 
-        # Version label at bottom
+        # Separator above footer
+        ctk.CTkFrame(
+            self._sidebar, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=spacer_row + 1, column=0, columnspan=2, padx=15, sticky="ew")
+
+        # Footer: version, copyright, creator, GitHub link
         from .. import VERSION
 
-        ver_label = ctk.CTkLabel(
-            self._sidebar,
+        footer = ctk.CTkFrame(self._sidebar, fg_color="transparent")
+        footer.grid(
+            row=spacer_row + 2, column=0, columnspan=2, padx=18, pady=(8, 14), sticky="ew",
+        )
+
+        ctk.CTkLabel(
+            footer,
             text=f"v{VERSION}",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
+        ).pack(anchor="w", pady=(0, 1))
+
+        ctk.CTkLabel(
+            footer,
+            text="\u00a9 2026 ToastyToast25",
+            font=ctk.CTkFont(size=9),
+            text_color=theme.COLORS["text_muted"],
+        ).pack(anchor="w", pady=(0, 1))
+
+        gh_link = ctk.CTkLabel(
+            footer,
+            text="GitHub",
+            font=ctk.CTkFont(size=9, underline=True),
+            text_color=theme.COLORS["accent"],
+            cursor="hand2",
         )
-        ver_label.grid(row=len(nav_items) + 3, column=0, padx=20, pady=(0, 10))
+        gh_link.pack(anchor="w")
+        gh_link.bind(
+            "<Button-1>",
+            lambda e: __import__("webbrowser").open(
+                "https://github.com/ToastyToast25/sims4-updater"
+            ),
+        )
 
     # ── Content Area ────────────────────────────────────────────
 
@@ -156,17 +221,23 @@ class App(ctk.CTk):
         if frame is None:
             return
 
-        # Update nav button colors
+        # Update nav button colors and indicator bars
         for key, btn in self._nav_buttons.items():
             if key == name:
                 btn.configure(
                     fg_color=theme.COLORS["accent"],
                     text_color=theme.COLORS["text"],
                 )
+                self._nav_indicators[key].configure(
+                    fg_color=theme.COLORS["accent"],
+                )
             else:
                 btn.configure(
                     fg_color="transparent",
                     text_color=theme.COLORS["text_muted"],
+                )
+                self._nav_indicators[key].configure(
+                    fg_color="transparent",
                 )
 
         frame.tkraise()
@@ -242,10 +313,19 @@ class App(ctk.CTk):
     # ── Lifecycle ───────────────────────────────────────────────
 
     def _on_startup(self):
-        """Run on first tick — detect game, load state."""
+        """Run on first tick — detect game, load state, check for app updates."""
         home = self._frames.get("home")
         if home and hasattr(home, "refresh"):
             home.refresh()
+
+        # Check for updater self-updates silently after a short delay
+        self.after(1000, self._check_app_update)
+
+    def _check_app_update(self):
+        """Silently check GitHub for a new updater version."""
+        home = self._frames.get("home")
+        if home and hasattr(home, "check_app_update"):
+            home.check_app_update()
 
     def _on_close(self):
         """Handle window close."""

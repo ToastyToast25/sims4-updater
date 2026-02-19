@@ -39,29 +39,31 @@ class DLCFrame(ctk.CTkFrame):
 
         btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         btn_frame.grid(row=0, column=1, sticky="e")
+        btn_frame.grid_columnconfigure(0, weight=1)
+        btn_frame.grid_columnconfigure(1, weight=1)
 
         self._auto_btn = ctk.CTkButton(
             btn_frame,
             text="Auto-Toggle",
             font=ctk.CTkFont(size=12),
-            height=32,
-            corner_radius=6,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
             command=self._on_auto_toggle,
         )
-        self._auto_btn.pack(side="left", padx=(0, 5))
+        self._auto_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         self._apply_btn = ctk.CTkButton(
             btn_frame,
             text="Apply Changes",
             font=ctk.CTkFont(size=12),
-            height=32,
-            corner_radius=6,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card"],
             command=self._on_apply,
         )
-        self._apply_btn.pack(side="left")
+        self._apply_btn.grid(row=0, column=1, sticky="ew")
 
         # ── Status ──
         self._status_label = ctk.CTkLabel(
@@ -133,11 +135,21 @@ class DLCFrame(ctk.CTkFrame):
         total = 0
         installed = 0
         enabled = 0
+        first_section = True
 
         for pack_type in type_order:
             type_states = [s for s in states if s["dlc"].pack_type == pack_type]
             if not type_states:
                 continue
+
+            # Separator before each section (except the first)
+            if not first_section:
+                ctk.CTkFrame(
+                    self._scroll_frame, height=1,
+                    fg_color=theme.COLORS["separator"],
+                ).grid(row=row, column=0, padx=5, pady=(8, 0), sticky="ew")
+                row += 1
+            first_section = False
 
             # Section header
             ctk.CTkLabel(
@@ -173,16 +185,17 @@ class DLCFrame(ctk.CTkFrame):
                     text=f"{name}{status_text}",
                     variable=var,
                     font=ctk.CTkFont(size=12),
-                    height=28,
+                    height=theme.BUTTON_HEIGHT_SMALL,
                     corner_radius=4,
                 )
 
                 if not is_installed:
                     cb.configure(
                         text_color=theme.COLORS["text_muted"],
+                        state="disabled",
                     )
 
-                cb.grid(row=row, column=0, padx=15, pady=1, sticky="w")
+                cb.grid(row=row, column=0, padx=15, pady=2, sticky="w")
                 self._checkboxes[dlc.id] = cb
                 row += 1
 

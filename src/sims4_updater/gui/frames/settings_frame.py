@@ -41,18 +41,18 @@ class SettingsFrame(ctk.CTkFrame):
         ctk.CTkLabel(
             card,
             text="Game Directory",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).grid(row=row, column=0, padx=15, pady=(15, 2), sticky="w")
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+        ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 2), sticky="w")
         row += 1
 
         path_frame = ctk.CTkFrame(card, fg_color="transparent")
-        path_frame.grid(row=row, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="ew")
+        path_frame.grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew")
         path_frame.grid_columnconfigure(0, weight=1)
 
         self._game_dir_entry = ctk.CTkEntry(
             path_frame,
             font=ctk.CTkFont(size=12),
-            height=34,
+            height=36,
         )
         self._game_dir_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
@@ -60,39 +60,51 @@ class SettingsFrame(ctk.CTkFrame):
             path_frame,
             text="Browse",
             font=ctk.CTkFont(size=12),
-            height=34,
+            height=36,
             width=80,
-            corner_radius=6,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_game_dir,
         ).grid(row=0, column=1)
 
+        row += 1
+
+        # ── Separator ──
+        ctk.CTkFrame(
+            card, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # Manifest URL
         ctk.CTkLabel(
             card,
             text="Manifest URL",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).grid(row=row, column=0, padx=15, pady=(10, 2), sticky="w")
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+        ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
 
         self._manifest_entry = ctk.CTkEntry(
             card,
             font=ctk.CTkFont(size=12),
-            height=34,
+            height=36,
             placeholder_text="https://example.com/manifest.json",
         )
         self._manifest_entry.grid(
-            row=row, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="ew"
+            row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew"
         )
+        row += 1
+
+        # ── Separator ──
+        ctk.CTkFrame(
+            card, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # Language
         ctk.CTkLabel(
             card,
             text="Language",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).grid(row=row, column=0, padx=15, pady=(10, 2), sticky="w")
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+        ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
 
         from ...language.changer import LANGUAGES
@@ -105,25 +117,31 @@ class SettingsFrame(ctk.CTkFrame):
             values=lang_values,
             variable=self._lang_var,
             font=ctk.CTkFont(size=12),
-            height=34,
+            height=36,
             state="readonly",
         )
         self._lang_dropdown.grid(
-            row=row, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="ew"
+            row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew"
         )
+        row += 1
+
+        # ── Separator ──
+        ctk.CTkFrame(
+            card, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # Theme
         ctk.CTkLabel(
             card,
             text="Theme",
-            font=ctk.CTkFont(size=12, weight="bold"),
-        ).grid(row=row, column=0, padx=15, pady=(10, 2), sticky="w")
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+        ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
 
         self._theme_var = ctk.StringVar(value="Dark")
         theme_frame = ctk.CTkFrame(card, fg_color="transparent")
-        theme_frame.grid(row=row, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
+        theme_frame.grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(0, 10), sticky="w")
 
         ctk.CTkRadioButton(
             theme_frame,
@@ -131,7 +149,7 @@ class SettingsFrame(ctk.CTkFrame):
             variable=self._theme_var,
             value="Dark",
             font=ctk.CTkFont(size=12),
-        ).pack(side="left", padx=(0, 15))
+        ).pack(side="left", padx=(0, 20))
 
         ctk.CTkRadioButton(
             theme_frame,
@@ -139,7 +157,7 @@ class SettingsFrame(ctk.CTkFrame):
             variable=self._theme_var,
             value="Light",
             font=ctk.CTkFont(size=12),
-        ).pack(side="left", padx=(0, 15))
+        ).pack(side="left", padx=(0, 20))
 
         ctk.CTkRadioButton(
             theme_frame,
@@ -151,6 +169,12 @@ class SettingsFrame(ctk.CTkFrame):
 
         row += 1
 
+        # ── Separator ──
+        ctk.CTkFrame(
+            card, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
+        row += 1
+
         # Check on start
         self._check_start_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
@@ -158,32 +182,33 @@ class SettingsFrame(ctk.CTkFrame):
             text="Check for updates on startup",
             variable=self._check_start_var,
             font=ctk.CTkFont(size=12),
-        ).grid(row=row, column=0, columnspan=2, padx=15, pady=(5, 15), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(6, theme.CARD_PAD_Y), sticky="w")
 
         row += 1
 
         # ── Save button ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=2, column=0, padx=30, pady=15, sticky="ew")
+        btn_frame.grid(row=2, column=0, padx=theme.SECTION_PAD, pady=20, sticky="ew")
+        btn_frame.grid_columnconfigure(0, weight=1)
 
         self._save_btn = ctk.CTkButton(
             btn_frame,
             text="Save Settings",
             font=ctk.CTkFont(size=14, weight="bold"),
-            height=42,
-            corner_radius=8,
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
             command=self._save_settings,
         )
-        self._save_btn.pack(side="left")
+        self._save_btn.grid(row=0, column=0, sticky="ew")
 
         self._status_label = ctk.CTkLabel(
             btn_frame,
             text="",
             font=ctk.CTkFont(*theme.FONT_SMALL),
         )
-        self._status_label.pack(side="left", padx=15)
+        self._status_label.grid(row=1, column=0, pady=(8, 0), sticky="w")
 
     def on_show(self):
         """Load current settings into fields."""
