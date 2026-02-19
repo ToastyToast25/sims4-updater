@@ -27,8 +27,10 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# PyInstaller
-*.spec
+# PyInstaller build output (spec file is tracked)
+build/
+dist/
+*.manifest
 
 # Misc
 *.log
