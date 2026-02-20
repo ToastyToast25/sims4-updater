@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
+from ..components import InfoCard, get_animator
 
 if TYPE_CHECKING:
     from ..app import App
@@ -30,8 +31,8 @@ class SettingsFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).grid(row=0, column=0, padx=30, pady=(20, 15), sticky="w")
 
-        # ── Settings card ──
-        card = ctk.CTkFrame(self, corner_radius=10)
+        # ── Settings card (with hover glow) ──
+        card = InfoCard(self)
         card.grid(row=1, column=0, padx=30, pady=0, sticky="ew")
         card.grid_columnconfigure(1, weight=1)
 
@@ -269,9 +270,16 @@ class SettingsFrame(ctk.CTkFrame):
 
         try:
             settings.save()
-            self._status_label.configure(
-                text="Settings saved.",
-                text_color=theme.COLORS["success"],
+            self._status_label.configure(text="")
+            self.app.show_toast("Settings saved!", "success")
+
+            # Flash save button green → back to accent
+            animator = get_animator()
+            animator.cancel_all(self._save_btn, tag="save_flash")
+            animator.animate_color(
+                self._save_btn, "fg_color",
+                theme.COLORS["success"], theme.COLORS["accent"],
+                600, tag="save_flash",
             )
         except Exception as e:
             self._status_label.configure(

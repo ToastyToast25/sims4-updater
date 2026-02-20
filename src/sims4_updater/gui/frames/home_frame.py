@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
+from ..components import InfoCard, StatusBadge, get_animator
 
 if TYPE_CHECKING:
     from ..app import App
@@ -26,6 +27,7 @@ class HomeFrame(ctk.CTkFrame):
         self._last_update_info = None
         self._app_update_info = None
         self._self_updating = False
+        self._entrance_played = False
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(5, weight=1)  # push content up
@@ -71,16 +73,27 @@ class HomeFrame(ctk.CTkFrame):
         )
         self._app_update_btn.pack(side="right", padx=(10, 0))
 
-        # ── Title ──
-        title = ctk.CTkLabel(
-            self,
+        # ── Title + Subtitle ──
+        title_frame = ctk.CTkFrame(self, fg_color="transparent")
+        title_frame.grid(row=1, column=0, padx=theme.SECTION_PAD, pady=(20, 4), sticky="ew")
+
+        self._title = ctk.CTkLabel(
+            title_frame,
             text="The Sims 4 Updater",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         )
-        title.grid(row=1, column=0, padx=theme.SECTION_PAD, pady=(20, 8), sticky="w")
+        self._title.pack(anchor="w")
 
-        # ── Info card ──
-        self._card = ctk.CTkFrame(self, corner_radius=10)
+        self._subtitle = ctk.CTkLabel(
+            title_frame,
+            text="Keep your game patched and up to date",
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=theme.COLORS["text_muted"],
+        )
+        self._subtitle.pack(anchor="w", pady=(2, 0))
+
+        # ── Info card (with hover glow) ──
+        self._card = InfoCard(self)
         self._card.grid(row=2, column=0, padx=30, pady=15, sticky="ew")
         self._card.grid_columnconfigure(1, weight=1)
 
@@ -167,14 +180,9 @@ class HomeFrame(ctk.CTkFrame):
         self._banner_frame.grid(row=3, column=0, padx=30, pady=0, sticky="ew")
         self._banner_frame.grid_columnconfigure(0, weight=1)
 
-        # ── Status message ──
-        self._status_label = ctk.CTkLabel(
-            self,
-            text="",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
-            text_color=theme.COLORS["text_muted"],
-        )
-        self._status_label.grid(row=4, column=0, padx=30, pady=(5, 5), sticky="w")
+        # ── Status badge ──
+        self._status_badge = StatusBadge(self, text="", style="muted")
+        self._status_badge.grid(row=4, column=0, padx=30, pady=(5, 5), sticky="w")
 
         # ── Buttons ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -206,7 +214,10 @@ class HomeFrame(ctk.CTkFrame):
         self._refresh_btn.grid(row=0, column=1, sticky="ew")
 
     def on_show(self):
-        pass
+        """Play staggered entrance animation on first show only."""
+        if not self._entrance_played:
+            self._entrance_played = True
+            self._animate_entrance()
 
     def check_app_update(self):
         """Check for updater self-updates in background (silent)."""
@@ -215,9 +226,30 @@ class HomeFrame(ctk.CTkFrame):
             on_done=self._on_app_update_checked,
         )
 
+    def _set_status(self, text: str, style: str = "muted"):
+        """Update the status badge."""
+        self._status_badge.set_status(text, style)
+
+    def _animate_entrance(self):
+        """Staggered fade-in for title, card, and buttons."""
+        animator = get_animator()
+        # Fade title
+        animator.animate_color(
+            self._title, "text_color",
+            theme.COLORS["bg_dark"], theme.COLORS["text"],
+            theme.ANIM_SLOW, tag="entrance",
+        )
+        # Fade subtitle with slight delay
+        self._subtitle.configure(text_color=theme.COLORS["bg_dark"])
+        self.after(theme.ANIM_STAGGER, lambda: animator.animate_color(
+            self._subtitle, "text_color",
+            theme.COLORS["bg_dark"], theme.COLORS["text_muted"],
+            theme.ANIM_SLOW, tag="entrance",
+        ))
+
     def refresh(self):
         """Refresh game info in background."""
-        self._status_label.configure(text="Scanning...")
+        self._set_status("Scanning...", "info")
         self._update_btn.configure(state="disabled")
         self.app.run_async(self._detect_info, on_done=self._on_info_detected)
 
@@ -269,7 +301,7 @@ class HomeFrame(ctk.CTkFrame):
 
         self._latest_label.configure(text="Use 'Check for Updates'")
         self._dlc_label.configure(text=dlc_info or "N/A")
-        self._status_label.configure(text="")
+        self._set_status("Ready", "muted")
         self._update_btn.configure(state="normal")
 
         # Reset button to default state
@@ -289,7 +321,7 @@ class HomeFrame(ctk.CTkFrame):
             return
 
         self._update_btn.configure(state="disabled")
-        self._status_label.configure(text="Checking for updates...")
+        self._set_status("Checking for updates...", "info")
         self.app.run_async(
             self._check_updates_bg,
             on_done=self._on_updates_checked,
@@ -336,9 +368,9 @@ class HomeFrame(ctk.CTkFrame):
             from ...patch.client import format_size
 
             size = format_size(info.total_download_size)
-            self._status_label.configure(
-                text=f"Update available: {info.step_count} step(s), {size}",
-                text_color=theme.COLORS["accent"],
+            self._set_status(
+                f"Update available: {info.step_count} step(s), {size}",
+                "warning",
             )
             self._update_btn.configure(
                 text="Update Now",
@@ -356,10 +388,7 @@ class HomeFrame(ctk.CTkFrame):
 
         elif info.patch_pending:
             # At latest patchable, but a newer game version exists
-            self._status_label.configure(
-                text="You have the latest available patch.",
-                text_color=theme.COLORS["success"],
-            )
+            self._set_status("You have the latest available patch.", "success")
             self._add_banner(
                 f"New game version {game_latest} has been released "
                 f"-- patch coming soon!",
@@ -373,10 +402,7 @@ class HomeFrame(ctk.CTkFrame):
 
         else:
             # Fully up to date
-            self._status_label.configure(
-                text="You are up to date!",
-                text_color=theme.COLORS["success"],
-            )
+            self._set_status("You are up to date!", "success")
             self._update_btn.configure(
                 text="Check for Updates",
                 command=self._on_check_updates,
@@ -395,10 +421,7 @@ class HomeFrame(ctk.CTkFrame):
 
     def _on_check_error(self, error):
         self._update_btn.configure(state="normal")
-        self._status_label.configure(
-            text=f"Error: {error}",
-            text_color=theme.COLORS["error"],
-        )
+        self._set_status(f"Error: {error}", "error")
 
     def _start_update(self, info):
         """Start the actual update process."""

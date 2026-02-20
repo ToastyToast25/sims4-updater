@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
+from ..animations import ease_in_out_cubic
+from ..components import get_animator
 
 if TYPE_CHECKING:
     from ..app import App
@@ -29,6 +31,8 @@ class ProgressFrame(ctk.CTkFrame):
         self._is_running = False
         self._file_count = 0
         self._error_count = 0
+        self._pulse_active = False
+        self._pulse_after_id = None
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(4, weight=1)  # log area expands
@@ -212,6 +216,9 @@ class ProgressFrame(ctk.CTkFrame):
             f"Steps: {steps} | Download: {total_size}\n"
         )
 
+        # Start progress bar pulse animation
+        self._start_pulse()
+
         self.app.run_async(
             self._run_update,
             plan,
@@ -323,7 +330,9 @@ class ProgressFrame(ctk.CTkFrame):
 
     def _on_update_done(self, _):
         self._is_running = False
+        self._stop_pulse()
         self._progress_bar.set(1)
+        self._progress_bar.configure(progress_color=theme.COLORS["success"])
         self._pct_label.configure(text="100%")
         self._file_label.configure(text="")
         self._stage_label.configure(
@@ -335,8 +344,19 @@ class ProgressFrame(ctk.CTkFrame):
         self._done_btn.configure(state="normal")
         self._update_stats()
 
+        # Flash stage label and show toast
+        animator = get_animator()
+        animator.animate_color(
+            self._stage_label, "text_color",
+            "#ffffff", theme.COLORS["success"],
+            400, tag="done_flash",
+        )
+        self.app.show_toast("Update complete!", "success")
+
     def _on_update_error(self, error):
         self._is_running = False
+        self._stop_pulse()
+        self._progress_bar.configure(progress_color=theme.COLORS["error"])
         self._file_label.configure(text="")
         self._stage_label.configure(
             text="Update failed",
@@ -345,6 +365,7 @@ class ProgressFrame(ctk.CTkFrame):
         self._log_text(f"\n=== ERROR ===\n{error}\n", "error")
         self._cancel_btn.configure(state="disabled")
         self._done_btn.configure(state="normal")
+        self.app.show_toast(f"Update failed: {error}", "error")
 
     # ── Log helpers ──────────────────────────────────────────────
 
@@ -394,7 +415,52 @@ class ProgressFrame(ctk.CTkFrame):
             self._log_text("\nCancelling...\n", "warning")
 
     def _on_done(self):
+        # Reset progress bar color for next update
+        self._progress_bar.configure(progress_color=theme.COLORS["accent"])
         self.app.switch_to_home()
         home = self.app._frames.get("home")
         if home and hasattr(home, "refresh"):
             home.refresh()
+
+    # ── Pulse animation ───────────────────────────────────────────
+
+    def _start_pulse(self):
+        """Start a breathing pulse on the progress bar color."""
+        self._pulse_active = True
+        self._progress_bar.configure(progress_color=theme.COLORS["accent"])
+        self._pulse_step(0)
+
+    def _pulse_step(self, phase: int):
+        """One pulse cycle: accent -> accent_hover -> accent."""
+        if not self._pulse_active:
+            return
+
+        animator = get_animator()
+        if phase == 0:
+            # Brighten
+            animator.animate_color(
+                self._progress_bar, "progress_color",
+                theme.COLORS["accent"], theme.COLORS["accent_hover"],
+                800, easing=ease_in_out_cubic, tag="pulse",
+            )
+            self._pulse_after_id = self.after(850, lambda: self._pulse_step(1))
+        else:
+            # Dim back
+            animator.animate_color(
+                self._progress_bar, "progress_color",
+                theme.COLORS["accent_hover"], theme.COLORS["accent"],
+                800, easing=ease_in_out_cubic, tag="pulse",
+            )
+            self._pulse_after_id = self.after(850, lambda: self._pulse_step(0))
+
+    def _stop_pulse(self):
+        """Stop the pulse animation."""
+        self._pulse_active = False
+        animator = get_animator()
+        animator.cancel_all(self._progress_bar, tag="pulse")
+        if self._pulse_after_id is not None:
+            try:
+                self.after_cancel(self._pulse_after_id)
+            except Exception:
+                pass
+            self._pulse_after_id = None

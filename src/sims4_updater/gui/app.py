@@ -18,6 +18,8 @@ from threading import Lock
 import customtkinter as ctk
 
 from . import theme
+from .animations import Animator, ease_out_cubic
+from .components import ToastNotification
 from .frames.home_frame import HomeFrame
 from .frames.dlc_frame import DLCFrame
 from .frames.settings_frame import SettingsFrame
@@ -53,6 +55,12 @@ class App(ctk.CTk):
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
+
+        # Animation
+        self._animator = Animator()
+        self._current_frame_name: str | None = None
+        self._transitioning = False
+        self._active_toast: ToastNotification | None = None
 
         # Threading
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -141,12 +149,16 @@ class App(ctk.CTk):
                 corner_radius=theme.CORNER_RADIUS_SMALL,
                 fg_color="transparent",
                 text_color=theme.COLORS["text_muted"],
-                hover_color=theme.COLORS["bg_card"],
+                hover_color=theme.COLORS["sidebar_hover"],
                 anchor="w",
                 command=lambda k=key: self._show_frame(k),
             )
             btn.grid(row=row_idx, column=1, padx=(4, 10), pady=3, sticky="ew")
             self._nav_buttons[key] = btn
+
+            # Animated hover
+            btn.bind("<Enter>", lambda e, k=key: self._on_nav_enter(k))
+            btn.bind("<Leave>", lambda e, k=key: self._on_nav_leave(k))
 
         spacer_row = len(nav_items) + 2
         self._sidebar.grid_rowconfigure(spacer_row, weight=1)
@@ -215,10 +227,24 @@ class App(ctk.CTk):
         for frame in self._frames.values():
             frame.grid(row=0, column=0, sticky="nsew")
 
+    def _on_nav_enter(self, key: str):
+        """Sidebar button hover-in — skip for active tab."""
+        if key == self._current_frame_name:
+            return
+
+    def _on_nav_leave(self, key: str):
+        """Sidebar button hover-out — skip for active tab."""
+        if key == self._current_frame_name:
+            return
+
     def _show_frame(self, name: str):
-        """Switch to a named frame."""
+        """Switch to a named frame with slide animation."""
         frame = self._frames.get(name)
-        if frame is None:
+        if frame is None or self._transitioning:
+            return
+
+        # Skip if already showing this frame
+        if name == self._current_frame_name:
             return
 
         # Update nav button colors and indicator bars
@@ -240,9 +266,61 @@ class App(ctk.CTk):
                     fg_color="transparent",
                 )
 
-        frame.tkraise()
-        if hasattr(frame, "on_show"):
-            frame.on_show()
+        old_name = self._current_frame_name
+        self._current_frame_name = name
+
+        # First frame show — no animation needed
+        if old_name is None:
+            frame.tkraise()
+            if hasattr(frame, "on_show"):
+                frame.on_show()
+            return
+
+        # Slide transition: new frame slides in from right
+        self._transitioning = True
+        content_w = self._content.winfo_width()
+        if content_w <= 1:
+            # Content not yet rendered, just raise
+            frame.tkraise()
+            if hasattr(frame, "on_show"):
+                frame.on_show()
+            self._transitioning = False
+            return
+
+        # Place new frame off-screen to the right, on top
+        frame.place(x=content_w, y=0, relwidth=1.0, relheight=1.0)
+        frame.lift()
+
+        def on_tick(t):
+            x = int(content_w * (1 - t))
+            frame.place(x=x, y=0, relwidth=1.0, relheight=1.0)
+
+        def finalize():
+            # Switch back to grid layout — place() removed grid management,
+            # so we must re-grid the frame before raising it.
+            if not self._transitioning:
+                return  # Already finalized
+            if self._current_frame_name != name:
+                return  # Stale: a newer transition has started
+            try:
+                frame.place_forget()
+            except Exception:
+                pass
+            frame.grid(row=0, column=0, sticky="nsew")
+            frame.tkraise()
+            self._transitioning = False
+            if hasattr(frame, "on_show"):
+                frame.on_show()
+
+        self._animator.animate(
+            frame, theme.ANIM_NORMAL,
+            on_tick=on_tick,
+            on_done=finalize,
+            easing=ease_out_cubic,
+        )
+
+        # Safety: if animation errors out, force-finalize after timeout
+        self.after(theme.ANIM_NORMAL + 500, finalize)
 
     # ── Threading ───────────────────────────────────────────────
 
@@ -310,6 +388,18 @@ class App(ctk.CTk):
     def show_message(self, title: str, message: str):
         tk.messagebox.showinfo(title, message, parent=self)
 
+    def show_toast(self, message: str, style: str = "success"):
+        """Show a slide-in toast notification over the content area."""
+        # Dismiss previous toast immediately to prevent stacking
+        if self._active_toast is not None:
+            try:
+                self._active_toast._destroy()
+            except Exception:
+                pass
+        toast = ToastNotification(self._content, message, style)
+        self._active_toast = toast
+        toast.show()
+
     # ── Lifecycle ───────────────────────────────────────────────
 
     def _on_startup(self):
@@ -330,6 +420,7 @@ class App(ctk.CTk):
     def _on_close(self):
         """Handle window close."""
         try:
+            self._animator.cancel_all()
             self.updater.exiting.set()
             self.settings.save()
             self.updater.close()

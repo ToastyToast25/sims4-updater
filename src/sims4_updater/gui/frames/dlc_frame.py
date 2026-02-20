@@ -1,5 +1,5 @@
 """
-DLC frame — scrollable checkboxes with auto-toggle support.
+DLC frame — scrollable checkboxes with collapsible groups and auto-toggle support.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
+from ..components import get_animator
 
 if TYPE_CHECKING:
     from ..app import App
@@ -22,6 +23,8 @@ class DLCFrame(ctk.CTkFrame):
         self._checkboxes: dict[str, ctk.CTkCheckBox] = {}
         self._checkbox_vars: dict[str, ctk.BooleanVar] = {}
         self._pending_dlcs = []
+        self._section_frames: dict[str, ctk.CTkFrame] = {}
+        self._section_collapsed: dict[str, bool] = {}
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -101,12 +104,13 @@ class DLCFrame(ctk.CTkFrame):
         return states
 
     def _populate_list(self, states):
-        """GUI thread: build checkbox list."""
+        """GUI thread: build checkbox list with collapsible groups."""
         # Clear existing
         for widget in self._scroll_frame.winfo_children():
             widget.destroy()
         self._checkboxes.clear()
         self._checkbox_vars.clear()
+        self._section_frames.clear()
 
         if states is None:
             ctk.CTkLabel(
@@ -135,53 +139,74 @@ class DLCFrame(ctk.CTkFrame):
         total = 0
         installed = 0
         enabled = 0
-        first_section = True
 
         for pack_type in type_order:
             type_states = [s for s in states if s["dlc"].pack_type == pack_type]
             if not type_states:
                 continue
 
+            # Count stats for this section
+            sec_installed = sum(1 for s in type_states if s["installed"])
+            sec_total = len(type_states)
+
+            total += sec_total
+            installed += sec_installed
+            enabled += sum(1 for s in type_states if s["enabled"] is True)
+
             # Separator before each section (except the first)
-            if not first_section:
+            if row > 0:
                 ctk.CTkFrame(
                     self._scroll_frame, height=1,
                     fg_color=theme.COLORS["separator"],
                 ).grid(row=row, column=0, padx=5, pady=(8, 0), sticky="ew")
                 row += 1
-            first_section = False
 
-            # Section header
-            ctk.CTkLabel(
+            # Collapsible section header button
+            is_collapsed = self._section_collapsed.get(pack_type, False)
+            arrow = "\u25b6" if is_collapsed else "\u25bc"
+            label_text = type_labels.get(pack_type, pack_type)
+            header_text = f"{arrow}  {label_text}  ({sec_installed}/{sec_total})"
+
+            header_btn = ctk.CTkButton(
                 self._scroll_frame,
-                text=type_labels.get(pack_type, pack_type),
+                text=header_text,
                 font=ctk.CTkFont(size=13, weight="bold"),
                 text_color=theme.COLORS["accent"],
-            ).grid(row=row, column=0, padx=5, pady=(12, 4), sticky="w")
+                fg_color="transparent",
+                hover_color=theme.COLORS["sidebar_hover"],
+                anchor="w",
+                height=30,
+                corner_radius=4,
+                command=lambda pt=pack_type: self._toggle_section(pt),
+            )
+            header_btn.grid(row=row, column=0, padx=2, pady=(10, 2), sticky="ew")
             row += 1
 
+            # Content frame for collapsible children
+            content_frame = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
+            content_frame.grid(row=row, column=0, sticky="ew")
+            content_frame.grid_columnconfigure(0, weight=1)
+            self._section_frames[pack_type] = content_frame
+            row += 1
+
+            if is_collapsed:
+                content_frame.grid_remove()
+                continue
+
+            cb_row = 0
             for state in type_states:
                 dlc = state["dlc"]
                 name = dlc.get_name()
-                is_installed = state["installed"]
-                is_enabled = state["enabled"]
+                is_inst = state["installed"]
+                is_en = state["enabled"]
 
-                total += 1
-                if is_installed:
-                    installed += 1
-                if is_enabled is True:
-                    enabled += 1
-
-                var = ctk.BooleanVar(value=is_enabled is True)
+                var = ctk.BooleanVar(value=is_en is True)
                 self._checkbox_vars[dlc.id] = var
 
-                # Build display text
-                status_text = ""
-                if not is_installed:
-                    status_text = "  [MISSING]"
+                status_text = "  [MISSING]" if not is_inst else ""
 
                 cb = ctk.CTkCheckBox(
-                    self._scroll_frame,
+                    content_frame,
                     text=f"{name}{status_text}",
                     variable=var,
                     font=ctk.CTkFont(size=12),
@@ -189,30 +214,44 @@ class DLCFrame(ctk.CTkFrame):
                     corner_radius=4,
                 )
 
-                if not is_installed:
+                if not is_inst:
                     cb.configure(
                         text_color=theme.COLORS["text_muted"],
                         state="disabled",
                     )
+                else:
+                    # Hover effect on installed checkboxes
+                    cb.bind("<Enter>", lambda e, w=cb: w.configure(
+                        text_color=theme.COLORS["text"],
+                    ))
+                    cb.bind("<Leave>", lambda e, w=cb: w.configure(
+                        text_color=theme.COLORS["text"] if not hasattr(w, '_is_muted') else theme.COLORS["text_muted"],
+                    ))
 
-                cb.grid(row=row, column=0, padx=15, pady=2, sticky="w")
+                cb.grid(row=cb_row, column=0, padx=15, pady=2, sticky="w")
                 self._checkboxes[dlc.id] = cb
-                row += 1
+                cb_row += 1
 
         # ── Pending DLCs from manifest ──
         if self._pending_dlcs:
+            ctk.CTkFrame(
+                self._scroll_frame, height=1,
+                fg_color=theme.COLORS["separator"],
+            ).grid(row=row, column=0, padx=5, pady=(8, 0), sticky="ew")
+            row += 1
+
             ctk.CTkLabel(
                 self._scroll_frame,
-                text="Pending (Patch Not Yet Available)",
+                text="\u25cf  Pending (Patch Not Yet Available)",
                 font=ctk.CTkFont(size=13, weight="bold"),
                 text_color=theme.COLORS["warning"],
-            ).grid(row=row, column=0, padx=5, pady=(12, 4), sticky="w")
+            ).grid(row=row, column=0, padx=5, pady=(10, 4), sticky="w")
             row += 1
 
             for pending in self._pending_dlcs:
                 ctk.CTkLabel(
                     self._scroll_frame,
-                    text=f"{pending.name}  [PENDING]",
+                    text=f"    {pending.name}  [PENDING]",
                     font=ctk.CTkFont(size=12),
                     text_color=theme.COLORS["text_muted"],
                 ).grid(row=row, column=0, padx=15, pady=1, sticky="w")
@@ -221,6 +260,38 @@ class DLCFrame(ctk.CTkFrame):
         self._status_label.configure(
             text=f"{installed}/{total} installed, {enabled} enabled"
         )
+
+    def _toggle_section(self, pack_type: str):
+        """Toggle a section's collapsed state and refresh."""
+        self._section_collapsed[pack_type] = not self._section_collapsed.get(pack_type, False)
+        frame = self._section_frames.get(pack_type)
+        if frame is None:
+            return
+
+        if self._section_collapsed[pack_type]:
+            frame.grid_remove()
+        else:
+            frame.grid()
+
+        # Update header arrow — find the header button and update text
+        for widget in self._scroll_frame.winfo_children():
+            if isinstance(widget, ctk.CTkButton):
+                text = widget.cget("text")
+                label = {
+                    "expansion": "Expansion Packs",
+                    "game_pack": "Game Packs",
+                    "stuff_pack": "Stuff Packs",
+                    "kit": "Kits",
+                    "free_pack": "Free Packs",
+                    "other": "Other",
+                }.get(pack_type, pack_type)
+                if label in text:
+                    arrow = "\u25b6" if self._section_collapsed[pack_type] else "\u25bc"
+                    # Reconstruct the text keeping the count
+                    count_part = text.split("(")[-1] if "(" in text else ""
+                    new_text = f"{arrow}  {label}  ({count_part}" if count_part else f"{arrow}  {label}"
+                    widget.configure(text=new_text)
+                    break
 
     def _on_auto_toggle(self):
         """Auto-enable installed, disable missing."""
@@ -241,16 +312,10 @@ class DLCFrame(ctk.CTkFrame):
     def _on_auto_done(self, changes: dict):
         self._auto_btn.configure(state="normal")
         if changes:
-            self._status_label.configure(
-                text=f"Toggled {len(changes)} DLC(s). Refreshing...",
-                text_color=theme.COLORS["success"],
-            )
+            self.app.show_toast(f"Toggled {len(changes)} DLC(s)", "success")
             self._load_dlcs()
         else:
-            self._status_label.configure(
-                text="All DLCs already correctly configured.",
-                text_color=theme.COLORS["success"],
-            )
+            self.app.show_toast("All DLCs already correctly configured", "success")
 
     def _on_apply(self):
         """Apply checkbox selections to crack config."""
@@ -275,10 +340,7 @@ class DLCFrame(ctk.CTkFrame):
 
     def _on_apply_done(self, _):
         self._apply_btn.configure(state="normal")
-        self._status_label.configure(
-            text="Changes applied successfully.",
-            text_color=theme.COLORS["success"],
-        )
+        self.app.show_toast("Changes applied successfully", "success")
 
     def set_pending_dlcs(self, pending_dlcs):
         """Store pending DLCs from manifest for display on next refresh."""
