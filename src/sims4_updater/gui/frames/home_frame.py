@@ -8,6 +8,7 @@ Also checks for updater self-updates from GitHub Releases.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -45,6 +46,8 @@ class HomeFrame(ctk.CTkFrame):
         self._app_update_frame = ctk.CTkFrame(
             self, corner_radius=8, fg_color=theme.COLORS["accent"],
         )
+
+        # -- Info row: label + button (shown before download starts)
         self._app_update_inner = ctk.CTkFrame(
             self._app_update_frame, fg_color="transparent",
         )
@@ -72,6 +75,72 @@ class HomeFrame(ctk.CTkFrame):
             command=self._on_self_update,
         )
         self._app_update_btn.pack(side="right", padx=(10, 0))
+
+        # -- Download progress row (hidden until download starts)
+        self._dl_progress_frame = ctk.CTkFrame(
+            self._app_update_frame, fg_color="transparent",
+        )
+
+        # Top line: "Downloading v2.0.5..." left, "1.2 MB/s" right
+        dl_top = ctk.CTkFrame(self._dl_progress_frame, fg_color="transparent")
+        dl_top.pack(fill="x", padx=16, pady=(10, 0))
+        dl_top.columnconfigure(1, weight=1)
+
+        self._dl_title_label = ctk.CTkLabel(
+            dl_top,
+            text="Downloading...",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff",
+            anchor="w",
+        )
+        self._dl_title_label.pack(side="left")
+
+        self._dl_speed_label = ctk.CTkLabel(
+            dl_top,
+            text="",
+            font=ctk.CTkFont(size=10),
+            text_color="rgba(255,255,255,0.7)",
+            anchor="e",
+        )
+        self._dl_speed_label.pack(side="right")
+
+        # Progress bar
+        self._dl_progress_bar = ctk.CTkProgressBar(
+            self._dl_progress_frame,
+            height=8,
+            corner_radius=4,
+            progress_color="#ffffff",
+            fg_color="rgba(255,255,255,0.2)",
+        )
+        self._dl_progress_bar.pack(fill="x", padx=16, pady=(6, 0))
+        self._dl_progress_bar.set(0)
+
+        # Bottom line: "12.5 MB / 21.0 MB" left, "58% — ~12s left" right
+        dl_bottom = ctk.CTkFrame(self._dl_progress_frame, fg_color="transparent")
+        dl_bottom.pack(fill="x", padx=16, pady=(4, 10))
+
+        self._dl_size_label = ctk.CTkLabel(
+            dl_bottom,
+            text="0 B / 0 B",
+            font=ctk.CTkFont(size=10),
+            text_color="rgba(255,255,255,0.7)",
+            anchor="w",
+        )
+        self._dl_size_label.pack(side="left")
+
+        self._dl_pct_label = ctk.CTkLabel(
+            dl_bottom,
+            text="0%",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color="#ffffff",
+            anchor="e",
+        )
+        self._dl_pct_label.pack(side="right")
+
+        # Download speed tracking state
+        self._dl_start_time = 0.0
+        self._dl_last_bytes = 0
+        self._dl_last_time = 0.0
 
         # ── Title + Subtitle ──
         title_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -459,7 +528,22 @@ class HomeFrame(ctk.CTkFrame):
         if self._self_updating or not self._app_update_info:
             return
         self._self_updating = True
-        self._app_update_btn.configure(state="disabled", text="Downloading...")
+
+        # Switch banner to progress view
+        self._app_update_inner.pack_forget()
+        self._dl_progress_frame.pack(fill="x")
+
+        info = self._app_update_info
+        version = info.latest_version
+        self._dl_title_label.configure(text=f"Downloading v{version}...")
+        self._dl_progress_bar.set(0)
+        self._dl_pct_label.configure(text="0%")
+        self._dl_size_label.configure(text="Starting...")
+        self._dl_speed_label.configure(text="")
+        self._dl_start_time = time.monotonic()
+        self._dl_last_bytes = 0
+        self._dl_last_time = self._dl_start_time
+
         self.app.run_async(
             self._download_self_update_bg,
             on_done=self._on_self_update_downloaded,
@@ -467,12 +551,66 @@ class HomeFrame(ctk.CTkFrame):
         )
 
     def _download_self_update_bg(self):
-        """Background: download the new updater exe."""
+        """Background: download the new updater exe with progress reporting."""
         from ...core.self_update import download_app_update
-        return download_app_update(self._app_update_info)
+        return download_app_update(
+            self._app_update_info,
+            progress=self._on_dl_progress,
+        )
+
+    def _on_dl_progress(self, downloaded: int, total: int):
+        """Background thread: enqueue a progress update for the GUI."""
+        self.app._enqueue_gui(self._update_dl_progress, downloaded, total)
+
+    def _update_dl_progress(self, downloaded: int, total: int):
+        """GUI thread: update the download progress bar and labels."""
+        from ...patch.client import format_size
+
+        now = time.monotonic()
+
+        # Progress bar and percentage
+        if total > 0:
+            pct = min(downloaded / total, 1.0)
+            self._dl_progress_bar.set(pct)
+            self._dl_pct_label.configure(text=f"{pct * 100:.0f}%")
+        else:
+            self._dl_pct_label.configure(text="")
+
+        # Size display
+        size_text = format_size(downloaded)
+        if total > 0:
+            size_text += f" / {format_size(total)}"
+        self._dl_size_label.configure(text=size_text)
+
+        # Speed (calculate over short window to smooth out jitter)
+        elapsed_since_last = now - self._dl_last_time
+        if elapsed_since_last >= 0.5:
+            bytes_delta = downloaded - self._dl_last_bytes
+            speed = bytes_delta / elapsed_since_last if elapsed_since_last > 0 else 0
+            self._dl_last_bytes = downloaded
+            self._dl_last_time = now
+
+            if speed > 0:
+                speed_text = f"{format_size(int(speed))}/s"
+                # ETA
+                if total > 0 and downloaded < total:
+                    remaining = total - downloaded
+                    eta_seconds = remaining / speed
+                    if eta_seconds < 60:
+                        eta_text = f"~{eta_seconds:.0f}s left"
+                    else:
+                        eta_text = f"~{eta_seconds / 60:.0f}m left"
+                    speed_text += f"  {eta_text}"
+                self._dl_speed_label.configure(text=speed_text)
 
     def _on_self_update_downloaded(self, new_exe_path):
-        """GUI thread: apply the update (swap exe and relaunch)."""
+        """GUI thread: show completion then apply the update."""
+        # Show completed state briefly
+        self._dl_progress_bar.set(1)
+        self._dl_pct_label.configure(text="100%")
+        self._dl_title_label.configure(text="Download complete!")
+        self._dl_speed_label.configure(text="")
+
         import tkinter as tk
 
         confirm = tk.messagebox.askyesno(
@@ -484,7 +622,8 @@ class HomeFrame(ctk.CTkFrame):
         )
         if not confirm:
             self._self_updating = False
-            self._app_update_btn.configure(state="normal", text="Update Now")
+            self._dl_progress_frame.pack_forget()
+            self._app_update_inner.pack(fill="x", padx=16, pady=10)
             return
 
         from ...core.self_update import apply_app_update
@@ -499,8 +638,10 @@ class HomeFrame(ctk.CTkFrame):
         apply_app_update(new_exe_path)  # calls os._exit(0)
 
     def _on_self_update_error(self, error):
-        """GUI thread: show self-update error."""
+        """GUI thread: show self-update error and restore banner."""
         self._self_updating = False
+        self._dl_progress_frame.pack_forget()
+        self._app_update_inner.pack(fill="x", padx=16, pady=10)
         self._app_update_btn.configure(state="normal", text="Update Now")
         self._app_update_label.configure(
             text=f"Update failed: {error}",
