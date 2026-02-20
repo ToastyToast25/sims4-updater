@@ -166,13 +166,24 @@ if not errorlevel 1 (
     timeout /t 1 /nobreak >NUL
     goto wait
 )
+echo Process exited. Waiting for file lock release...
+timeout /t 2 /nobreak >NUL
 echo Applying update...
-move /Y "{new_exe}" "{current_exe}"
-if errorlevel 1 (
-    echo ERROR: Failed to replace exe. Try running as administrator.
+set RETRIES=0
+:retry
+move /Y "{new_exe}" "{current_exe}" >NUL 2>&1
+if not errorlevel 1 goto moved
+set /a RETRIES+=1
+if %RETRIES% GEQ 10 (
+    echo ERROR: Failed to replace exe after 10 attempts.
+    echo The file may be locked by antivirus or require administrator privileges.
     pause
     exit /b 1
 )
+echo Retry %RETRIES%/10 - file still locked, waiting...
+timeout /t 2 /nobreak >NUL
+goto retry
+:moved
 echo Starting updated Sims 4 Updater...
 start "" "{current_exe}"
 del "%~f0"
