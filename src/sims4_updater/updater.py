@@ -40,7 +40,7 @@ from .core.exceptions import (
 from .patch.client import PatchClient, UpdateInfo
 from .patch.planner import UpdatePlan
 from .dlc.manager import DLCManager
-from .config import Settings
+from .config import Settings, get_app_dir
 
 
 class UpdateState(Enum):
@@ -72,7 +72,7 @@ class Sims4Updater(BasePatcher):
         self._patch_client: PatchClient | None = None
         self._cancel = threading.Event()
         self._state = UpdateState.IDLE
-        self._download_dir = Path("sims4updater_downloads")
+        self._download_dir = get_app_dir() / "downloads"
 
     @property
     def state(self) -> UpdateState:
@@ -86,6 +86,7 @@ class Sims4Updater(BasePatcher):
                 download_dir=self._download_dir,
                 cancel_event=self._cancel,
                 learned_db=self._learned_db,
+                dlc_catalog=self._dlc_manager.catalog,
             )
         return self._patch_client
 

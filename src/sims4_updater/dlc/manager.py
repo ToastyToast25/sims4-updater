@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
-from .catalog import DLCCatalog, DLCInfo
+from .catalog import DLCCatalog, DLCInfo, DLCStatus
 from .formats import DLCConfigAdapter, detect_format
 from ..core.exceptions import NoCrackConfigError
 
@@ -22,16 +22,12 @@ class DLCManager:
 
     def get_dlc_states(
         self, game_dir: str | Path, locale: str = "en_US"
-    ) -> list[dict]:
+    ) -> list[DLCStatus]:
         """
         Get full DLC state info for display.
 
-        Returns list of dicts:
-            {
-                "dlc": DLCInfo,
-                "enabled": bool | None,  # None if not in config
-                "installed": bool,       # folder exists
-            }
+        Returns list of DLCStatus with installed, complete, registered,
+        enabled, owned, and file_count fields.
         """
         game_dir = Path(game_dir)
         adapter = detect_format(game_dir)
@@ -47,21 +43,41 @@ class DLCManager:
 
         results = []
         for dlc in self.catalog.all_dlcs():
-            installed = (game_dir / dlc.id / "SimulationFullBuild0.package").is_file()
+            dlc_dir = game_dir / dlc.id
+            installed = dlc_dir.is_dir()
+            complete = (dlc_dir / "SimulationFullBuild0.package").is_file()
 
+            # Count files in DLC folder
+            file_count = 0
+            if installed:
+                try:
+                    file_count = sum(1 for _ in dlc_dir.iterdir() if _.is_file())
+                except OSError:
+                    pass
+
+            # Check crack config
+            registered = False
             enabled = None
             if adapter and config_content:
                 states = adapter.read_enabled_dlcs(config_content, dlc.all_codes)
                 for code in dlc.all_codes:
                     if code in states:
+                        registered = True
                         enabled = states[code]
                         break
 
-            results.append({
-                "dlc": dlc,
-                "enabled": enabled,
-                "installed": installed,
-            })
+            # Owned = installed on disk but NOT in crack config (EA handles it)
+            owned = installed and not registered
+
+            results.append(DLCStatus(
+                dlc=dlc,
+                installed=installed,
+                complete=complete,
+                registered=registered,
+                enabled=enabled,
+                owned=owned,
+                file_count=file_count,
+            ))
 
         return results
 
@@ -117,13 +133,13 @@ class DLCManager:
         changes = {}
 
         for state in states:
-            dlc = state["dlc"]
-            if state["installed"]:
+            dlc = state.dlc
+            if state.installed:
                 enabled_set.add(dlc.id)
-                if state["enabled"] is False:
+                if state.enabled is False:
                     changes[dlc.id] = True
             else:
-                if state["enabled"] is True:
+                if state.enabled is True:
                     changes[dlc.id] = False
 
         if changes:
@@ -135,9 +151,9 @@ class DLCManager:
         """Export current DLC states for backup before patching."""
         states = self.get_dlc_states(game_dir)
         return {
-            s["dlc"].id: s["enabled"]
+            s.dlc.id: s.enabled
             for s in states
-            if s["enabled"] is not None
+            if s.enabled is not None
         }
 
     def import_states(self, game_dir: str | Path, saved_states: dict[str, bool]) -> None:

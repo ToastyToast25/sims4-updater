@@ -31,20 +31,24 @@ class HomeFrame(ctk.CTkFrame):
         self._entrance_played = False
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(5, weight=1)  # push content up
+        self.grid_rowconfigure(0, weight=1)  # scrollable content expands
 
-        # Row layout:
-        #   0 = app update banner (hidden by default)
-        #   1 = title
-        #   2 = info card
-        #   3 = banner area (patch pending / new DLC)
-        #   4 = status message
-        #   5 = spacer (weight=1)
-        #   6 = buttons
+        # Layout:
+        #   Row 0 = scrollable content (weight=1)
+        #   Row 1 = buttons (pinned to bottom, always visible)
+
+        # ── Scrollable content area ──
+        self._scroll = ctk.CTkScrollableFrame(
+            self, fg_color="transparent",
+            scrollbar_button_color=theme.COLORS["separator"],
+            scrollbar_button_hover_color=theme.COLORS["accent"],
+        )
+        self._scroll.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        self._scroll.grid_columnconfigure(0, weight=1)
 
         # ── App update banner (hidden by default) ──
         self._app_update_frame = ctk.CTkFrame(
-            self, corner_radius=8, fg_color=theme.COLORS["accent"],
+            self._scroll, corner_radius=8, fg_color=theme.COLORS["accent"],
         )
 
         # -- Info row: label + button (shown before download starts)
@@ -143,7 +147,7 @@ class HomeFrame(ctk.CTkFrame):
         self._dl_last_time = 0.0
 
         # ── Title + Subtitle ──
-        title_frame = ctk.CTkFrame(self, fg_color="transparent")
+        title_frame = ctk.CTkFrame(self._scroll, fg_color="transparent")
         title_frame.grid(row=1, column=0, padx=theme.SECTION_PAD, pady=(20, 4), sticky="ew")
 
         self._title = ctk.CTkLabel(
@@ -162,7 +166,7 @@ class HomeFrame(ctk.CTkFrame):
         self._subtitle.pack(anchor="w", pady=(2, 0))
 
         # ── Info card (with hover glow) ──
-        self._card = InfoCard(self)
+        self._card = InfoCard(self._scroll)
         self._card.grid(row=2, column=0, padx=30, pady=15, sticky="ew")
         self._card.grid_columnconfigure(1, weight=1)
 
@@ -244,18 +248,98 @@ class HomeFrame(ctk.CTkFrame):
         )
         self._dlc_label.grid(row=4, column=1, padx=theme.CARD_PAD_X, pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w")
 
+        # ── Pricing Summary Card (hidden until prices load) ──
+        self._pricing_card = InfoCard(self._scroll)
+        self._pricing_card.grid_columnconfigure(1, weight=1)
+        # Hidden initially — shown by update_pricing_card()
+
+        ctk.CTkLabel(
+            self._pricing_card,
+            text="DLC Pricing Summary",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=theme.COLORS["accent"],
+        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 6), sticky="w")
+
+        self._price_total_label_key = ctk.CTkLabel(
+            self._pricing_card, text="Total DLCs:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        )
+        self._price_total_label_key.grid(row=1, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+        self._price_total_label = ctk.CTkLabel(
+            self._pricing_card, text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+        )
+        self._price_total_label.grid(row=1, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+
+        self._price_patchable_key = ctk.CTkLabel(
+            self._pricing_card, text="Patchable:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        )
+        self._price_patchable_label = ctk.CTkLabel(
+            self._pricing_card, text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+        )
+
+        ctk.CTkLabel(
+            self._pricing_card, text="Total Original:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=3, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+        self._price_original_label = ctk.CTkLabel(
+            self._pricing_card, text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+        )
+        self._price_original_label.grid(row=3, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+
+        ctk.CTkLabel(
+            self._pricing_card, text="Current Total:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=4, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+        self._price_current_label = ctk.CTkLabel(
+            self._pricing_card, text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+        )
+        self._price_current_label.grid(row=4, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+
+        ctk.CTkLabel(
+            self._pricing_card, text="You Save:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=5, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+        self._price_savings_label = ctk.CTkLabel(
+            self._pricing_card, text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+            text_color=theme.COLORS["success"], anchor="w",
+        )
+        self._price_savings_label.grid(row=5, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+
+        ctk.CTkLabel(
+            self._pricing_card, text="DLCs On Sale:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=6, column=0, padx=theme.CARD_PAD_X, pady=(2, theme.CARD_PAD_Y), sticky="w")
+        self._price_on_sale_label = ctk.CTkLabel(
+            self._pricing_card, text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+            text_color=theme.COLORS["success"], anchor="w",
+        )
+        self._price_on_sale_label.grid(row=6, column=1, padx=theme.CARD_PAD_X, pady=(2, theme.CARD_PAD_Y), sticky="w")
+
         # ── Banner area (patch pending / new DLC notices) ──
-        self._banner_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self._banner_frame.grid(row=3, column=0, padx=30, pady=0, sticky="ew")
+        self._banner_frame = ctk.CTkFrame(self._scroll, fg_color="transparent")
+        self._banner_frame.grid(row=4, column=0, padx=30, pady=0, sticky="ew")
         self._banner_frame.grid_columnconfigure(0, weight=1)
 
         # ── Status badge ──
-        self._status_badge = StatusBadge(self, text="", style="muted")
-        self._status_badge.grid(row=4, column=0, padx=30, pady=(5, 5), sticky="w")
+        self._status_badge = StatusBadge(self._scroll, text="", style="muted")
+        self._status_badge.grid(row=5, column=0, padx=30, pady=(5, 15), sticky="w")
 
-        # ── Buttons ──
+        # ── Buttons (pinned to bottom, outside scroll) ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=6, column=0, padx=30, pady=10, sticky="ew")
+        btn_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
         btn_frame.grid_columnconfigure(0, weight=3)
         btn_frame.grid_columnconfigure(1, weight=1)
 
@@ -287,6 +371,9 @@ class HomeFrame(ctk.CTkFrame):
         if not self._entrance_played:
             self._entrance_played = True
             self._animate_entrance()
+        # Update pricing card if prices are available
+        if self.app.price_cache.is_valid:
+            self.update_pricing_card()
 
     def check_app_update(self):
         """Check for updater self-updates in background (silent)."""
@@ -316,6 +403,83 @@ class HomeFrame(ctk.CTkFrame):
             theme.ANIM_SLOW, tag="entrance",
         ))
 
+    def update_pricing_card(self):
+        """Update the pricing summary card from the shared price cache."""
+        cache = self.app.price_cache
+        prices = cache.get_all()
+
+        if not prices:
+            # Hide the card if no prices available
+            self._pricing_card.grid_forget()
+            return
+
+        # Show the card
+        self._pricing_card.grid(row=3, column=0, padx=30, pady=(0, 10), sticky="ew")
+
+        # Count DLCs with prices (excluding free ones)
+        paid_prices = [p for p in prices.values() if not p.is_free]
+        total_dlcs = len(paid_prices)
+        total_original = sum(p.initial_cents for p in paid_prices)
+        total_current = sum(p.final_cents for p in paid_prices)
+        savings = total_original - total_current
+        on_sale_count = sum(1 for p in paid_prices if p.on_sale)
+
+        # Determine currency symbol from first price
+        currency = "USD"
+        if paid_prices:
+            currency = paid_prices[0].currency
+
+        def fmt(cents: int) -> str:
+            if currency == "USD":
+                return f"${cents / 100:,.2f}"
+            return f"{cents / 100:,.2f} {currency}"
+
+        self._price_total_label.configure(text=str(total_dlcs))
+        self._price_original_label.configure(text=fmt(total_original))
+
+        # Current total — green if different from original
+        if savings > 0:
+            self._price_current_label.configure(
+                text=fmt(total_current),
+                text_color=theme.COLORS["success"],
+            )
+        else:
+            self._price_current_label.configure(
+                text=fmt(total_current),
+                text_color=theme.COLORS["text"],
+            )
+
+        # Savings
+        if savings > 0:
+            pct = savings / total_original * 100 if total_original > 0 else 0
+            self._price_savings_label.configure(
+                text=f"{fmt(savings)}  (-{pct:.0f}%)",
+                text_color=theme.COLORS["success"],
+            )
+        else:
+            self._price_savings_label.configure(
+                text="No active sales",
+                text_color=theme.COLORS["text_muted"],
+            )
+
+        self._price_on_sale_label.configure(
+            text=str(on_sale_count) if on_sale_count > 0 else "None",
+            text_color=theme.COLORS["success"] if on_sale_count > 0 else theme.COLORS["text_muted"],
+        )
+
+        # Patchable count — only show if manifest URL is configured
+        has_manifest = bool(self.app.settings.manifest_url)
+        if has_manifest:
+            catalog = self.app.updater._dlc_manager.catalog
+            patchable = sum(1 for d in catalog.dlcs if d.code)
+            total_cat = len(catalog.dlcs)
+            self._price_patchable_key.grid(row=2, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+            self._price_patchable_label.configure(text=f"{patchable} / {total_cat}")
+            self._price_patchable_label.grid(row=2, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+        else:
+            self._price_patchable_key.grid_forget()
+            self._price_patchable_label.grid_forget()
+
     def refresh(self):
         """Refresh game info in background."""
         self._set_status("Scanning...", "info")
@@ -337,8 +501,8 @@ class HomeFrame(ctk.CTkFrame):
             try:
                 states = updater._dlc_manager.get_dlc_states(game_dir)
                 total = len(states)
-                installed = sum(1 for s in states if s["installed"])
-                enabled = sum(1 for s in states if s["enabled"] is True)
+                installed = sum(1 for s in states if s.installed)
+                enabled = sum(1 for s in states if s.enabled is True)
                 dlc_info = f"{installed}/{total} installed, {enabled} enabled"
             except Exception:
                 dlc_info = "Error reading DLCs"

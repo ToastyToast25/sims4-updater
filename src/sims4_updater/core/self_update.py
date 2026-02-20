@@ -9,17 +9,16 @@ Flow:
 
 from __future__ import annotations
 
-import hashlib
 import os
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 import requests
 
 from .. import VERSION
+from ..config import get_app_dir
 from .exceptions import UpdaterError
 
 GITHUB_REPO = "ToastyToast25/sims4-updater"
@@ -104,7 +103,7 @@ def download_app_update(
     info: AppUpdateInfo,
     progress=None,
 ) -> Path:
-    """Download the new exe to a temp file next to the running exe.
+    """Download the new exe to the app data updates directory.
 
     Args:
         info: AppUpdateInfo from check_for_app_update().
@@ -119,11 +118,12 @@ def download_app_update(
             "The release may not have a Sims4Updater.exe asset."
         )
 
-    current_exe = _get_current_exe()
-    new_path = current_exe.with_name(f"Sims4Updater_v{info.latest_version}.exe")
+    updates_dir = get_app_dir() / "updates"
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    new_path = updates_dir / f"Sims4Updater_v{info.latest_version}.exe"
 
     try:
-        resp = requests.get(info.download_url, stream=True, timeout=(30, 120))
+        resp = requests.get(info.download_url, stream=True, timeout=(30, 300))
         resp.raise_for_status()
 
         total = int(resp.headers.get("Content-Length", 0)) or info.download_size
@@ -140,37 +140,57 @@ def download_app_update(
         new_path.unlink(missing_ok=True)
         raise SelfUpdateError(f"Download failed: {e}") from e
 
+    # Verify download integrity — a truncated exe will crash on launch
+    actual_size = new_path.stat().st_size
+    if total and actual_size != total:
+        new_path.unlink(missing_ok=True)
+        raise SelfUpdateError(
+            f"Download incomplete: got {actual_size:,} bytes, "
+            f"expected {total:,} bytes. Please try again."
+        )
+    # Minimum size sanity check (PyInstaller onefile exes are typically >10MB)
+    if actual_size < 5_000_000:
+        new_path.unlink(missing_ok=True)
+        raise SelfUpdateError(
+            f"Downloaded file is too small ({actual_size:,} bytes). "
+            f"The download may have been corrupted."
+        )
+
     return new_path
 
 
 def apply_app_update(new_exe: Path):
     """Replace the running exe with the new one and relaunch.
 
-    Writes a batch script + VBScript wrapper to %TEMP%. The VBScript launches
-    the batch with a hidden window (no console flash). The batch:
+    Writes a batch script + VBScript wrapper to the app data updates directory.
+    The VBScript launches the batch with a hidden window (no console flash).
+    The batch:
       1. Waits for our process to exit (with 60s timeout)
       2. Validates the downloaded exe (exists, size, PE header)
       3. Renames the old exe out of the way (NTFS allows rename on locked files)
       4. Moves the new exe into place
       5. Cleans up and relaunches
-      6. Logs everything to %TEMP%\\_sims4_updater_update.log
+      6. Logs everything to the updates directory
 
     On failure, attempts to restore the old exe so the user isn't stranded.
     """
     current_exe = _get_current_exe()
     old_exe = current_exe.with_name(current_exe.stem + "_old" + current_exe.suffix)
     pid = os.getpid()
+    ppid = os.getppid()  # PyInstaller bootloader parent PID
     expected_size = new_exe.stat().st_size
 
-    # Use full absolute paths — batch script runs from %TEMP%
+    # Use full absolute paths — batch script runs from the updates directory
     cur = str(current_exe)
+    cur_dir = str(current_exe.parent)
     old = str(old_exe)
     new = str(new_exe)
-    tmp = tempfile.gettempdir()
-    log_path = str(Path(tmp) / "_sims4_updater_update.log")
+    updates_dir = get_app_dir() / "updates"
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    log_path = str(updates_dir / "_self_update.log")
 
-    bat_path = Path(tmp) / "_sims4_updater_update.bat"
-    vbs_path = Path(tmp) / "_sims4_updater_update.vbs"
+    bat_path = updates_dir / "_self_update.bat"
+    vbs_path = updates_dir / "_self_update.vbs"
 
     script = f'''@echo off
 setlocal EnableDelayedExpansion
@@ -184,6 +204,13 @@ call :log "Old backup:  {old}"
 
 rem ── Clean up stale files from previous attempts ──
 del /F "{old}" >NUL 2>&1
+
+rem ── Clean up stale _MEI extraction dirs from previous os._exit() calls ──
+call :log "Cleaning stale _MEI directories..."
+for /d %%D in ("%TEMP%\\_MEI*") do (
+    rd /s /q "%%D" >NUL 2>&1
+)
+call :log "Stale _MEI cleanup done."
 
 rem ── Step 1: Wait for the updater process to exit (60s timeout) ──
 call :log "Waiting for process {pid} to exit..."
@@ -199,8 +226,13 @@ if not errorlevel 1 (
     timeout /t 1 /nobreak >NUL
     goto wait
 )
-call :log "Process exited after !WAIT!s. Waiting for file handle release..."
-timeout /t 2 /nobreak >NUL
+call :log "Process exited after !WAIT!s."
+
+rem ── Kill the PyInstaller bootloader parent to prevent cleanup warning dialog ──
+call :log "Killing bootloader parent (PID {ppid})..."
+taskkill /F /PID {ppid} >NUL 2>&1
+call :log "Waiting for file handle release..."
+timeout /t 3 /nobreak >NUL
 
 rem ── Step 2: Validate the downloaded exe ──
 if not exist "{new}" (
@@ -264,13 +296,48 @@ if exist "{old}" (
     call :log "Backup cleaned up."
 )
 
-rem ── Step 6: Relaunch ──
-call :log "Launching updated version..."
-start "" "{cur}"
-if errorlevel 1 (
-    call :log "WARNING: start command returned an error, but exe may still have launched."
+rem ── Step 6: Verify and Relaunch ──
+call :log "Verifying updated exe before launch..."
+for %%A in ("{cur}") do set "FINAL_SIZE=%%~zA"
+call :log "Final exe size: !FINAL_SIZE! bytes"
+
+rem Verify the final exe matches expected size
+if !FINAL_SIZE! NEQ {expected_size} (
+    call :log "ERROR: Final exe size mismatch (!FINAL_SIZE! vs {expected_size}). File may be corrupt."
+    goto fail_restore
 )
-call :log "===== Self-update completed successfully ====="
+
+rem ── Pre-launch: trigger antivirus scan and wait for it to complete ──
+call :log "Pre-scanning exe to trigger Defender cache..."
+powershell -NoProfile -Command "[System.IO.File]::ReadAllBytes('{cur}').Length" >NUL 2>&1
+call :log "Waiting 5 seconds for antivirus scan to complete..."
+timeout /t 5 /nobreak >NUL
+
+call :log "Launching updated version from: {cur_dir}"
+cd /d "{cur_dir}"
+call :log "Using explorer.exe to launch in user session..."
+explorer.exe "{cur}"
+
+rem Wait and check if the new process is running
+timeout /t 5 /nobreak >NUL
+tasklist /FI "IMAGENAME eq Sims4Updater.exe" 2>NUL | find /I "Sims4Updater" >NUL
+if errorlevel 1 (
+    call :log "WARNING: Updated exe does not appear to be running after launch."
+    call :log "Retrying launch..."
+    timeout /t 3 /nobreak >NUL
+    start "" "{cur}"
+    timeout /t 5 /nobreak >NUL
+    tasklist /FI "IMAGENAME eq Sims4Updater.exe" 2>NUL | find /I "Sims4Updater" >NUL
+    if errorlevel 1 (
+        call :log "ERROR: Updated exe failed to start after retry."
+        call :log "Try running it manually from: {cur}"
+    ) else (
+        call :log "Updated exe is running (after retry)."
+    )
+) else (
+    call :log "Updated exe is running."
+)
+call :log "===== Self-update completed ====="
 goto cleanup
 
 :fail_restore
@@ -318,7 +385,8 @@ exit /b 0
         close_fds=True,
     )
 
-    # Force-exit so the bootloader parent also terminates
+    # Force-exit the Python child. The batch script will kill the bootloader
+    # parent (via ppid) to prevent the "Failed to remove temporary directory" dialog.
     os._exit(0)
 
 

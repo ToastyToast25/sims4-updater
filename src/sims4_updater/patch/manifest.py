@@ -54,6 +54,18 @@ class PendingDLC:
 
 
 @dataclass
+class ManifestDLC:
+    """A DLC entry from the manifest for catalog updates."""
+
+    id: str
+    code: str = ""
+    code2: str = ""
+    pack_type: str = "other"
+    names: dict[str, str] = field(default_factory=dict)
+    description: str = ""
+
+
+@dataclass
 class Manifest:
     """Parsed manifest describing all available patches."""
 
@@ -66,6 +78,7 @@ class Manifest:
     game_latest: str = ""
     game_latest_date: str = ""
     new_dlcs: list[PendingDLC] = field(default_factory=list)
+    dlc_catalog: list[ManifestDLC] = field(default_factory=list)
 
     @property
     def patch_pending(self) -> bool:
@@ -130,6 +143,19 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                 status=dlc_raw.get("status", "pending"),
             ))
 
+    # Parse optional dlc_catalog list (remote catalog updates)
+    dlc_catalog = []
+    for dlc_raw in data.get("dlc_catalog", []):
+        if isinstance(dlc_raw, dict) and "id" in dlc_raw:
+            dlc_catalog.append(ManifestDLC(
+                id=dlc_raw["id"],
+                code=dlc_raw.get("code", ""),
+                code2=dlc_raw.get("code2", ""),
+                pack_type=dlc_raw.get("type", "other"),
+                names=dlc_raw.get("names", {}),
+                description=dlc_raw.get("description", ""),
+            ))
+
     return Manifest(
         latest=latest,
         patches=patches,
@@ -140,6 +166,7 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         game_latest=data.get("game_latest", ""),
         game_latest_date=data.get("game_latest_date", ""),
         new_dlcs=new_dlcs,
+        dlc_catalog=dlc_catalog,
     )
 
 

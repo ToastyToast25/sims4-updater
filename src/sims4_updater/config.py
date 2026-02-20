@@ -1,17 +1,47 @@
 import json
 import os
+import shutil
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
+_OLD_DIR_NAME = "anadius"
+_NEW_DIR_NAME = "ToastyToast25"
 
-def _get_settings_dir():
+
+def get_app_dir() -> Path:
+    """Return the app data directory, creating it if needed."""
     local = os.environ.get("LOCALAPPDATA", "")
     if local:
-        return Path(local) / "anadius" / "sims4_updater"
-    return Path.home() / ".config" / "sims4_updater"
+        p = Path(local) / _NEW_DIR_NAME / "sims4_updater"
+    else:
+        p = Path.home() / ".config" / "sims4_updater"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 
-SETTINGS_PATH = _get_settings_dir() / "settings.json"
+def _migrate_from_old_dir():
+    """One-time migration: copy settings from old anadius dir to new ToastyToast25 dir."""
+    local = os.environ.get("LOCALAPPDATA", "")
+    if not local:
+        return
+    old_dir = Path(local) / _OLD_DIR_NAME / "sims4_updater"
+    new_dir = Path(local) / _NEW_DIR_NAME / "sims4_updater"
+    if not old_dir.is_dir():
+        return
+    # Only migrate if new dir has no settings yet
+    if (new_dir / "settings.json").is_file():
+        return
+    for name in ("settings.json", "learned_hashes.json"):
+        src = old_dir / name
+        if src.is_file():
+            new_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, new_dir / name)
+
+
+# Run migration before anything else uses the directory
+_migrate_from_old_dir()
+
+SETTINGS_PATH = get_app_dir() / "settings.json"
 
 
 @dataclass

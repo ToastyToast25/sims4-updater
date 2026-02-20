@@ -104,24 +104,24 @@ def show_dlc_states(game_dir):
     }
 
     for pack_type in type_order:
-        type_states = [s for s in states if s["dlc"].pack_type == pack_type]
+        type_states = [s for s in states if s.dlc.pack_type == pack_type]
         if not type_states:
             continue
 
         print(f"--- {type_labels.get(pack_type, pack_type)} ---")
         for state in type_states:
-            dlc = state["dlc"]
+            dlc = state.dlc
             name = dlc.get_name(locale)
 
             status_parts = []
-            if state["enabled"] is True:
+            if state.enabled is True:
                 status_parts.append("ENABLED")
-            elif state["enabled"] is False:
+            elif state.enabled is False:
                 status_parts.append("DISABLED")
             else:
                 status_parts.append("N/A")
 
-            if state["installed"]:
+            if state.installed:
                 status_parts.append("installed")
             else:
                 status_parts.append("MISSING")
@@ -131,8 +131,8 @@ def show_dlc_states(game_dir):
         print()
 
     total = len(states)
-    installed = sum(1 for s in states if s["installed"])
-    enabled = sum(1 for s in states if s["enabled"] is True)
+    installed = sum(1 for s in states if s.installed)
+    enabled = sum(1 for s in states if s.enabled is True)
     print(f"Total: {total} DLCs | Installed: {installed} | Enabled: {enabled}")
 
 
@@ -321,8 +321,8 @@ def show_status(args):
     manager = DLCManager()
     states = manager.get_dlc_states(game_path)
     total = len(states)
-    installed = sum(1 for s in states if s["installed"])
-    enabled = sum(1 for s in states if s["enabled"] is True)
+    installed = sum(1 for s in states if s.installed)
+    enabled = sum(1 for s in states if s.enabled is True)
     print(f"DLCs: {installed}/{total} installed, {enabled} enabled")
 
     # Settings

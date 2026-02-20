@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from .manifest import Manifest, PatchEntry, PendingDLC, parse_manifest
+from .manifest import Manifest, ManifestDLC, PatchEntry, PendingDLC, parse_manifest
 from .planner import UpdatePlan, plan_update
 from .downloader import Downloader, DownloadResult, ProgressCallback
 from ..core.exceptions import ManifestError, DownloadError
@@ -62,6 +62,7 @@ class PatchClient:
         download_dir: str | Path = ".",
         cancel_event: threading.Event | None = None,
         learned_db: LearnedHashDB | None = None,
+        dlc_catalog=None,
     ):
         self.manifest_url = manifest_url
         self.download_dir = Path(download_dir)
@@ -69,6 +70,7 @@ class PatchClient:
         self._manifest: Manifest | None = None
         self._downloader: Downloader | None = None
         self._learned_db = learned_db
+        self._dlc_catalog = dlc_catalog  # DLCCatalog for remote DLC merging
 
     @property
     def downloader(self) -> Downloader:
@@ -131,6 +133,10 @@ class PatchClient:
         # Fetch crowd-sourced fingerprints if URL provided
         if self._learned_db and self._manifest.fingerprints_url:
             self._fetch_crowd_fingerprints(self._manifest.fingerprints_url)
+
+        # Merge DLC catalog updates from manifest
+        if self._dlc_catalog and self._manifest.dlc_catalog:
+            self._dlc_catalog.merge_remote(self._manifest.dlc_catalog)
 
         return self._manifest
 

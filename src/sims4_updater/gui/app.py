@@ -22,10 +22,12 @@ from .animations import Animator, ease_out_cubic
 from .components import ToastNotification
 from .frames.home_frame import HomeFrame
 from .frames.dlc_frame import DLCFrame
+from .frames.unlocker_frame import UnlockerFrame
 from .frames.settings_frame import SettingsFrame
 from .frames.progress_frame import ProgressFrame
 
 from ..config import Settings
+from ..dlc.steam import SteamPriceCache
 from ..updater import Sims4Updater, CallbackType
 
 
@@ -68,8 +70,9 @@ class App(ctk.CTk):
         self._lock = Lock()
         self._current_future = None
 
-        # Settings and updater
+        # Settings, shared state, and updater
         self.settings = Settings.load()
+        self.price_cache = SteamPriceCache()
         self.updater = Sims4Updater(
             ask_question=self._ask_question,
             callback=self._enqueue_callback,
@@ -126,6 +129,7 @@ class App(ctk.CTk):
         nav_items = [
             ("home", "Home"),
             ("dlc", "DLCs"),
+            ("unlocker", "Unlocker"),
             ("settings", "Settings"),
         ]
 
@@ -221,6 +225,7 @@ class App(ctk.CTk):
 
         self._frames["home"] = HomeFrame(self._content, self)
         self._frames["dlc"] = DLCFrame(self._content, self)
+        self._frames["unlocker"] = UnlockerFrame(self._content, self)
         self._frames["settings"] = SettingsFrame(self._content, self)
         self._frames["progress"] = ProgressFrame(self._content, self)
 

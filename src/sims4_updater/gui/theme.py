@@ -26,6 +26,7 @@ COLORS = {
     # Hover states
     "card_hover": "#143a6e",
     "sidebar_hover": "#1a3050",
+    "text_dim": "#6a6a8a",
     # Gradient endpoints
     "gradient_start": "#0f3460",
     "gradient_end": "#1a1a2e",

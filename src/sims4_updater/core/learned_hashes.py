@@ -7,7 +7,7 @@ Stores version fingerprints learned from:
   - Crowd-sourced reports (fetched from API)
   - Manual CLI 'learn' command
 
-Persisted at %LocalAppData%/anadius/sims4_updater/learned_hashes.json
+Persisted at %LocalAppData%/ToastyToast25/sims4_updater/learned_hashes.json
 """
 
 import json
@@ -15,12 +15,11 @@ import os
 import time
 from pathlib import Path
 
+from ..config import get_app_dir
+
 
 def _default_path() -> Path:
-    local = os.environ.get("LOCALAPPDATA", "")
-    if local:
-        return Path(local) / "anadius" / "sims4_updater" / "learned_hashes.json"
-    return Path.home() / ".config" / "sims4_updater" / "learned_hashes.json"
+    return get_app_dir() / "learned_hashes.json"
 
 
 class LearnedHashDB:
