@@ -148,15 +148,23 @@ def apply_app_update(new_exe: Path):
 
     Creates a batch script that:
       1. Waits for the current process to exit
-      2. Replaces the old exe with the new one
-      3. Launches the new exe
-      4. Deletes itself
+      2. Renames the old exe out of the way (NTFS allows rename on locked files)
+      3. Moves the new exe into place
+      4. Cleans up and relaunches
+
+    PyInstaller --onefile uses a parent bootloader process that holds the exe
+    lock even after the Python child exits. Renaming works around this because
+    NTFS allows renaming files with active image section mappings.
     """
     current_exe = _get_current_exe()
+    exe_dir = current_exe.parent
+    exe_name = current_exe.name
+    old_name = current_exe.stem + "_old" + current_exe.suffix
+    new_name = new_exe.name
     pid = os.getpid()
 
-    # Write the updater batch script next to the exe
-    bat_path = current_exe.with_name("_self_update.bat")
+    # Write batch script to %TEMP% to avoid stale file conflicts
+    bat_path = Path(tempfile.gettempdir()) / "_sims4_updater_update.bat"
     script = f'''@echo off
 title Sims 4 Updater - Self Update
 echo Waiting for updater to close...
@@ -166,39 +174,63 @@ if not errorlevel 1 (
     timeout /t 1 /nobreak >NUL
     goto wait
 )
-echo Process exited. Waiting for file lock release...
-timeout /t 2 /nobreak >NUL
-echo Applying update...
+echo Process exited. Applying update...
+timeout /t 1 /nobreak >NUL
+cd /d "{exe_dir}"
+
+rem Clean up any old exe from a previous update
+del /F "{old_name}" >NUL 2>&1
+
+rem Rename the current exe out of the way (works on locked NTFS files)
 set RETRIES=0
-:retry
-move /Y "{new_exe}" "{current_exe}" >NUL 2>&1
-if not errorlevel 1 goto moved
-set /a RETRIES+=1
-if %RETRIES% GEQ 10 (
-    echo ERROR: Failed to replace exe after 10 attempts.
-    echo The file may be locked by antivirus or require administrator privileges.
+:rename_old
+if exist "{exe_name}" (
+    ren "{exe_name}" "{old_name}" >NUL 2>&1
+    if errorlevel 1 (
+        set /a RETRIES+=1
+        if %RETRIES% GEQ 20 goto fail
+        echo   Waiting for file lock release... (%RETRIES%/20)
+        timeout /t 1 /nobreak >NUL
+        goto rename_old
+    )
+)
+
+rem Move the new exe into place (target no longer exists, no lock conflict)
+move /Y "{new_name}" "{exe_name}" >NUL 2>&1
+if errorlevel 1 (
+    echo ERROR: Failed to move new exe into place.
+    rem Try to restore the old exe
+    ren "{old_name}" "{exe_name}" >NUL 2>&1
     pause
     exit /b 1
 )
-echo Retry %RETRIES%/10 - file still locked, waiting...
-timeout /t 2 /nobreak >NUL
-goto retry
-:moved
+
+rem Clean up old exe (best effort - may fail if bootloader still holds it)
+del /F "{old_name}" >NUL 2>&1
+
 echo Starting updated Sims 4 Updater...
-start "" "{current_exe}"
+start "" "{exe_name}"
 del "%~f0"
+exit /b 0
+
+:fail
+echo ERROR: Could not rename exe after 20 attempts.
+echo The file may be locked by antivirus. Try closing other programs and retry.
+pause
+del "%~f0"
+exit /b 1
 '''
 
     bat_path.write_text(script, encoding="utf-8")
 
-    # Launch the batch script in a new console window
+    # Launch the batch script detached (no visible window)
     subprocess.Popen(
         ["cmd.exe", "/c", str(bat_path)],
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
         close_fds=True,
     )
 
-    # Force-exit the process so the batch script can replace the exe
+    # Force-exit so the bootloader parent also terminates
     os._exit(0)
 
 
