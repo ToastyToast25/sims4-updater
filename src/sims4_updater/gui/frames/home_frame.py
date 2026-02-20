@@ -99,7 +99,7 @@ class HomeFrame(ctk.CTkFrame):
             dl_top,
             text="",
             font=ctk.CTkFont(size=10),
-            text_color="rgba(255,255,255,0.7)",
+            text_color="#b3b3b3",
             anchor="e",
         )
         self._dl_speed_label.pack(side="right")
@@ -110,7 +110,7 @@ class HomeFrame(ctk.CTkFrame):
             height=8,
             corner_radius=4,
             progress_color="#ffffff",
-            fg_color="rgba(255,255,255,0.2)",
+            fg_color="#4a1a2a",
         )
         self._dl_progress_bar.pack(fill="x", padx=16, pady=(6, 0))
         self._dl_progress_bar.set(0)
@@ -123,7 +123,7 @@ class HomeFrame(ctk.CTkFrame):
             dl_bottom,
             text="0 B / 0 B",
             font=ctk.CTkFont(size=10),
-            text_color="rgba(255,255,255,0.7)",
+            text_color="#b3b3b3",
             anchor="w",
         )
         self._dl_size_label.pack(side="left")
