@@ -488,8 +488,15 @@ class HomeFrame(ctk.CTkFrame):
             return
 
         from ...core.self_update import apply_app_update
-        apply_app_update(new_exe_path)
-        self.app._on_close()
+
+        # Save settings before apply_app_update() force-exits the process
+        try:
+            self.app.settings.save()
+            self.app.updater.close()
+        except Exception:
+            pass
+
+        apply_app_update(new_exe_path)  # calls os._exit(0)
 
     def _on_self_update_error(self, error):
         """GUI thread: show self-update error."""

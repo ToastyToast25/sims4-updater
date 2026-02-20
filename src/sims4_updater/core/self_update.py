@@ -180,12 +180,15 @@ del "%~f0"
 
     bat_path.write_text(script, encoding="utf-8")
 
-    # Launch the batch script in a new detached console window
+    # Launch the batch script in a new console window
     subprocess.Popen(
         ["cmd.exe", "/c", str(bat_path)],
-        creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS,
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
         close_fds=True,
     )
+
+    # Force-exit the process so the batch script can replace the exe
+    os._exit(0)
 
 
 def _get_current_exe() -> Path:
