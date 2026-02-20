@@ -157,11 +157,13 @@ def apply_app_update(new_exe: Path):
     NTFS allows renaming files with active image section mappings.
     """
     current_exe = _get_current_exe()
-    exe_dir = current_exe.parent
-    exe_name = current_exe.name
-    old_name = current_exe.stem + "_old" + current_exe.suffix
-    new_name = new_exe.name
+    old_exe = current_exe.with_name(current_exe.stem + "_old" + current_exe.suffix)
     pid = os.getpid()
+
+    # Use full absolute paths everywhere — batch script runs from %TEMP%
+    cur = str(current_exe)
+    old = str(old_exe)
+    new = str(new_exe)
 
     # Write batch script to %TEMP% to avoid stale file conflicts
     bat_path = Path(tempfile.gettempdir()) / "_sims4_updater_update.bat"
@@ -176,16 +178,15 @@ if not errorlevel 1 (
 )
 echo Process exited. Applying update...
 timeout /t 1 /nobreak >NUL
-cd /d "{exe_dir}"
 
 rem Clean up any old exe from a previous update
-del /F "{old_name}" >NUL 2>&1
+del /F "{old}" >NUL 2>&1
 
 rem Rename the current exe out of the way (works on locked NTFS files)
 set RETRIES=0
 :rename_old
-if exist "{exe_name}" (
-    ren "{exe_name}" "{old_name}" >NUL 2>&1
+if exist "{cur}" (
+    move /Y "{cur}" "{old}" >NUL 2>&1
     if errorlevel 1 (
         set /a RETRIES+=1
         if %RETRIES% GEQ 20 goto fail
@@ -196,20 +197,20 @@ if exist "{exe_name}" (
 )
 
 rem Move the new exe into place (target no longer exists, no lock conflict)
-move /Y "{new_name}" "{exe_name}" >NUL 2>&1
+move /Y "{new}" "{cur}" >NUL 2>&1
 if errorlevel 1 (
     echo ERROR: Failed to move new exe into place.
     rem Try to restore the old exe
-    ren "{old_name}" "{exe_name}" >NUL 2>&1
+    move /Y "{old}" "{cur}" >NUL 2>&1
     pause
     exit /b 1
 )
 
 rem Clean up old exe (best effort - may fail if bootloader still holds it)
-del /F "{old_name}" >NUL 2>&1
+del /F "{old}" >NUL 2>&1
 
-echo Starting updated Sims 4 Updater...
-start "" "{exe_name}"
+echo Starting updated version...
+start "" "{cur}"
 del "%~f0"
 exit /b 0
 
@@ -223,10 +224,10 @@ exit /b 1
 
     bat_path.write_text(script, encoding="utf-8")
 
-    # Launch the batch script detached (no visible window)
+    # Launch the batch script in a visible console (for debugging/user feedback)
     subprocess.Popen(
         ["cmd.exe", "/c", str(bat_path)],
-        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
         close_fds=True,
     )
 
