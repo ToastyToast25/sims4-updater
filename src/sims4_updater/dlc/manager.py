@@ -67,7 +67,8 @@ class DLCManager:
                         break
 
             # Owned = installed on disk but NOT in crack config (EA handles it)
-            owned = installed and not registered
+            # Free packs are always owned when installed — they're free for everyone
+            owned = installed and (not registered or dlc.pack_type == "free_pack")
 
             results.append(DLCStatus(
                 dlc=dlc,

@@ -4,13 +4,13 @@ DLC Unlocker tab — install/uninstall the EA DLC Unlocker with real-time logs.
 
 from __future__ import annotations
 
+import tkinter as tk
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
 from .. import theme
-from ..components import InfoCard, StatusBadge, get_animator
-from ..animations import ease_out_cubic
+from ..components import InfoCard, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import App
@@ -70,10 +70,24 @@ class UnlockerFrame(ctk.CTkFrame):
             self._card, text="Status",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
-        ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 8), pady=(4, theme.CARD_PAD_Y), sticky="w")
+        ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
 
         self._status_badge = StatusBadge(self._card, text="Unknown", style="muted")
-        self._status_badge.grid(row=1, column=1, padx=0, pady=(4, theme.CARD_PAD_Y), sticky="w")
+        self._status_badge.grid(row=1, column=1, padx=0, pady=4, sticky="w")
+
+        # Row 2: Admin status
+        ctk.CTkLabel(
+            self._card, text="Admin",
+            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+            text_color=theme.COLORS["text"],
+        ).grid(row=2, column=0, padx=(theme.CARD_PAD_X, 8), pady=(4, theme.CARD_PAD_Y), sticky="w")
+
+        from ...core.unlocker import is_admin
+        self._is_admin = is_admin()
+        admin_text = "Elevated" if self._is_admin else "Not Elevated"
+        admin_style = "success" if self._is_admin else "warning"
+        self._admin_badge = StatusBadge(self._card, text=admin_text, style=admin_style)
+        self._admin_badge.grid(row=2, column=1, padx=0, pady=(4, theme.CARD_PAD_Y), sticky="w")
 
         # ── Action buttons ───────────────────────────────────────
         btn_frame = ctk.CTkFrame(top, fg_color="transparent")
@@ -221,6 +235,9 @@ class UnlockerFrame(ctk.CTkFrame):
         elif s.dll_installed:
             label = "Partial (config missing)"
             style = "warning"
+        elif s.config_installed:
+            label = "Partial (DLL missing)"
+            style = "warning"
         else:
             label = "Not Installed"
             style = "error"
@@ -237,6 +254,13 @@ class UnlockerFrame(ctk.CTkFrame):
 
     def _on_install(self):
         if self._busy:
+            return
+        if not self._is_admin:
+            self.app.show_toast(
+                "Run as Administrator to install the unlocker.", "warning"
+            )
+            self._log("Install requires administrator privileges. "
+                       "Right-click the app and select 'Run as administrator'.")
             return
         self._set_busy(True)
         self._log("--- Installing DLC Unlocker ---")
@@ -262,6 +286,24 @@ class UnlockerFrame(ctk.CTkFrame):
     def _on_uninstall(self):
         if self._busy:
             return
+        if not self._is_admin:
+            self.app.show_toast(
+                "Run as Administrator to uninstall the unlocker.", "warning"
+            )
+            self._log("Uninstall requires administrator privileges. "
+                       "Right-click the app and select 'Run as administrator'.")
+            return
+
+        # Confirmation dialog
+        confirmed = tk.messagebox.askyesno(
+            "Confirm Uninstall",
+            "Are you sure you want to uninstall the DLC Unlocker?\n\n"
+            "This will remove the unlocker DLL, config files, and scheduled task.",
+            parent=self.winfo_toplevel(),
+        )
+        if not confirmed:
+            return
+
         self._set_busy(True)
         self._log("--- Uninstalling DLC Unlocker ---")
 

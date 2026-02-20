@@ -66,6 +66,28 @@ class ManifestDLC:
 
 
 @dataclass
+class DLCDownloadEntry:
+    """A downloadable DLC content archive."""
+
+    dlc_id: str       # e.g. "EP01"
+    url: str          # direct download URL
+    size: int = 0     # archive size in bytes
+    md5: str = ""     # verification hash
+    filename: str = ""  # derived from URL if not specified
+
+    def __post_init__(self):
+        if not self.filename:
+            self.filename = self.url.rsplit("/", 1)[-1].split("?")[0]
+
+    def to_file_entry(self) -> FileEntry:
+        """Convert to FileEntry for use with Downloader."""
+        return FileEntry(
+            url=self.url, size=self.size,
+            md5=self.md5, filename=self.filename,
+        )
+
+
+@dataclass
 class Manifest:
     """Parsed manifest describing all available patches."""
 
@@ -79,6 +101,7 @@ class Manifest:
     game_latest_date: str = ""
     new_dlcs: list[PendingDLC] = field(default_factory=list)
     dlc_catalog: list[ManifestDLC] = field(default_factory=list)
+    dlc_downloads: dict[str, DLCDownloadEntry] = field(default_factory=dict)
 
     @property
     def patch_pending(self) -> bool:
@@ -156,6 +179,20 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                 description=dlc_raw.get("description", ""),
             ))
 
+    # Parse optional dlc_downloads: {dlc_id: {url, size, md5}}
+    dlc_downloads = {}
+    raw_dl = data.get("dlc_downloads", {})
+    if isinstance(raw_dl, dict):
+        for dlc_id, dl_data in raw_dl.items():
+            if isinstance(dl_data, dict) and "url" in dl_data:
+                dlc_downloads[dlc_id] = DLCDownloadEntry(
+                    dlc_id=dlc_id,
+                    url=dl_data["url"],
+                    size=int(dl_data.get("size", 0)),
+                    md5=dl_data.get("md5", ""),
+                    filename=dl_data.get("filename", ""),
+                )
+
     return Manifest(
         latest=latest,
         patches=patches,
@@ -167,6 +204,7 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         game_latest_date=data.get("game_latest_date", ""),
         new_dlcs=new_dlcs,
         dlc_catalog=dlc_catalog,
+        dlc_downloads=dlc_downloads,
     )
 
 

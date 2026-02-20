@@ -10,9 +10,11 @@ config, and creates a scheduled task for staged updates.
 
 from __future__ import annotations
 
+import ctypes
 import os
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -24,6 +26,16 @@ from ..constants import get_tools_dir
 _COMMON_DIR = r"ToastyToast25\EA DLC Unlocker"
 _ENTITLEMENTS_FILE = "entitlements.ini"
 _TASK_NAME = "copy_dlc_unlocker"
+
+
+# ── Admin Check ──────────────────────────────────────────────────
+
+def is_admin() -> bool:
+    """Check if the current process has administrator privileges."""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
 
 
 # ── Data ─────────────────────────────────────────────────────────
@@ -136,16 +148,23 @@ def _delete_task():
 # ── Kill Processes ───────────────────────────────────────────────
 
 def _stop_client_processes(log: Callable[[str], None]):
-    """Force-stop EA Desktop processes."""
+    """Force-stop EA Desktop processes and wait for file locks to release."""
+    killed_any = False
     for name in ("EADesktop", "EABackgroundService", "EALocalHostSvc"):
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["taskkill", "/F", "/IM", f"{name}.exe"],
                 capture_output=True, timeout=10,
             )
+            if result.returncode == 0:
+                killed_any = True
         except Exception:
             pass
-    log("Client processes stopped.")
+    if killed_any:
+        log("Client processes stopped. Waiting for file locks to release...")
+        time.sleep(2)
+    else:
+        log("No running client processes found.")
 
 
 # ── Remove Old Unlocker ─────────────────────────────────────────
@@ -154,14 +173,44 @@ def _remove_old_unlocker(client_path: Path, log: Callable[[str], None]):
     """Remove old unlocker files (version_o.dll, winhttp.dll, w_*.ini)."""
     for name in ("version_o.dll", "winhttp.dll", "winhttp_o.dll"):
         p = client_path / name
-        if p.is_file():
-            p.unlink()
-            log(f"Removed old file: {name}")
+        try:
+            if p.is_file():
+                p.unlink()
+                log(f"Removed old file: {name}")
+        except PermissionError:
+            log(f"Warning: Could not remove {name} (file locked)")
 
-    for f in client_path.iterdir():
-        if f.name.endswith(".ini") and f.name.startswith("w_"):
-            f.unlink()
-            log(f"Removed old config: {f.name}")
+    try:
+        for f in client_path.iterdir():
+            if f.name.endswith(".ini") and f.name.startswith("w_"):
+                try:
+                    f.unlink()
+                    log(f"Removed old config: {f.name}")
+                except PermissionError:
+                    log(f"Warning: Could not remove {f.name}")
+    except PermissionError:
+        log("Warning: Could not scan client directory for old configs")
+
+
+# ── Copy with Retry ──────────────────────────────────────────────
+
+def _copy_with_retry(src: Path, dst: Path, log: Callable[[str], None],
+                     retries: int = 3, delay: float = 2.0):
+    """Copy a file with retry logic for locked files."""
+    for attempt in range(retries):
+        try:
+            shutil.copy2(src, dst)
+            return
+        except PermissionError:
+            if attempt < retries - 1:
+                log(f"File locked, retrying in {delay}s... "
+                    f"(attempt {attempt + 1}/{retries})")
+                time.sleep(delay)
+            else:
+                raise PermissionError(
+                    f"Cannot copy to {dst} — file is locked by another process. "
+                    f"Close EA Desktop and try again."
+                )
 
 
 # ── Public API ───────────────────────────────────────────────────
@@ -193,6 +242,12 @@ def get_status(log: Callable[[str], None] | None = None) -> UnlockerStatus:
 
 def install(log: Callable[[str], None]) -> None:
     """Install the DLC Unlocker."""
+    if not is_admin():
+        raise PermissionError(
+            "Administrator privileges required.\n"
+            "Please run the application as Administrator."
+        )
+
     client_name, client_path = _detect_client()
     log(f"Detected {client_name} at: {client_path}")
 
@@ -229,17 +284,17 @@ def install(log: Callable[[str], None]) -> None:
     appdata_dir.mkdir(parents=True, exist_ok=True)
     log(f"Config directory: {appdata_dir}")
 
-    # Copy entitlements config
+    # Copy entitlements config (appdata — no admin needed)
     shutil.copy2(src_entitlements, dst_entitlements)
     log("Entitlements config copied.")
 
-    # Copy version.dll to client directory
-    shutil.copy2(src_dll, dst_dll)
+    # Copy version.dll to client directory (Program Files — needs admin)
+    _copy_with_retry(src_dll, dst_dll, log)
     log(f"version.dll installed to: {dst_dll}")
 
     # Staged directory + scheduled task
     if staged_dir.is_dir():
-        shutil.copy2(src_dll, dst_dll2)
+        _copy_with_retry(src_dll, dst_dll2, log)
         log("version.dll copied to staged directory.")
 
     if _create_task(dst_dll, staged_dir):
@@ -249,22 +304,35 @@ def install(log: Callable[[str], None]) -> None:
             "You may need to reinstall after EA app updates.")
 
     # Disable background standalone in machine.ini
+    _BG_STANDALONE_LINE = "machine.bgsstandaloneenabled=0"
     machine_ini = (
         Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
         / "EA Desktop" / "machine.ini"
     )
     try:
-        with open(machine_ini, "a", encoding="utf-8") as f:
-            f.write("machine.bgsstandaloneenabled=0\n")
-        log("Background standalone disabled in machine.ini.")
+        existing = ""
+        if machine_ini.is_file():
+            existing = machine_ini.read_text(encoding="utf-8", errors="ignore")
+        if _BG_STANDALONE_LINE not in existing:
+            with open(machine_ini, "a", encoding="utf-8") as f:
+                f.write(_BG_STANDALONE_LINE + "\n")
+            log("Background standalone disabled in machine.ini.")
+        else:
+            log("Background standalone already disabled.")
     except Exception:
-        pass
+        log("Warning: Could not update machine.ini.")
 
     log("DLC Unlocker installed successfully!")
 
 
 def uninstall(log: Callable[[str], None]) -> None:
     """Uninstall the DLC Unlocker."""
+    if not is_admin():
+        raise PermissionError(
+            "Administrator privileges required.\n"
+            "Please run the application as Administrator."
+        )
+
     client_name, client_path = _detect_client()
     log(f"Detected {client_name} at: {client_path}")
 
@@ -291,14 +359,22 @@ def uninstall(log: Callable[[str], None]) -> None:
         except Exception:
             pass
 
-    # Delete version.dll
-    if dst_dll.is_file():
-        dst_dll.unlink()
-        log("version.dll removed from client directory.")
-
-    if dst_dll2.is_file():
-        dst_dll2.unlink()
-        log("version.dll removed from staged directory.")
+    # Delete version.dll (retry in case file is still locked)
+    for dll_path, label in [(dst_dll, "client"), (dst_dll2, "staged")]:
+        if dll_path.is_file():
+            for attempt in range(3):
+                try:
+                    dll_path.unlink()
+                    log(f"version.dll removed from {label} directory.")
+                    break
+                except PermissionError:
+                    if attempt < 2:
+                        log(f"File locked, retrying in 2s... "
+                            f"(attempt {attempt + 1}/3)")
+                        time.sleep(2)
+                    else:
+                        log(f"Warning: Could not remove version.dll from "
+                            f"{label} directory (file locked)")
 
     # Delete scheduled task
     _delete_task()

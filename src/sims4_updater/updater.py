@@ -40,6 +40,7 @@ from .core.exceptions import (
 from .patch.client import PatchClient, UpdateInfo
 from .patch.planner import UpdatePlan
 from .dlc.manager import DLCManager
+from .dlc.downloader import DLCDownloader
 from .config import Settings, get_app_dir
 
 
@@ -70,6 +71,7 @@ class Sims4Updater(BasePatcher):
         self._detector = VersionDetector(learned_db=self._learned_db)
         self._dlc_manager = DLCManager()
         self._patch_client: PatchClient | None = None
+        self._dlc_downloader: DLCDownloader | None = None
         self._cancel = threading.Event()
         self._state = UpdateState.IDLE
         self._download_dir = get_app_dir() / "downloads"
@@ -90,6 +92,15 @@ class Sims4Updater(BasePatcher):
             )
         return self._patch_client
 
+    def create_dlc_downloader(self, game_dir: str) -> DLCDownloader:
+        """Create a new DLCDownloader for the given game directory."""
+        return DLCDownloader(
+            download_dir=self._download_dir,
+            game_dir=game_dir,
+            dlc_manager=self._dlc_manager,
+            cancel_event=self._cancel,
+        )
+
     def exiting_extra(self):
         """Cancel downloads and save settings on exit."""
         try:
@@ -97,6 +108,8 @@ class Sims4Updater(BasePatcher):
             if self._patch_client:
                 self._patch_client.cancel()
                 self._patch_client.close()
+            if self._dlc_downloader:
+                self._dlc_downloader.close()
             self.settings.save()
         except Exception:
             # May fail during interpreter shutdown when builtins are gone
@@ -397,11 +410,15 @@ class Sims4Updater(BasePatcher):
             # Check files and get DLC list
             all_dlcs, missing_dlcs = self.check_files_quick(game_dir)
 
+            # Save DLC enabled/disabled states before patching
+            # so user's manual toggles are preserved across updates
+            saved_dlc_states = self._dlc_manager.export_states(game_dir)
+
             # Select all available DLCs
             selected_dlcs = [d for d in all_dlcs if d not in missing_dlcs]
             self.patch(selected_dlcs)
 
-            # Step 5: Learn new version hashes + auto-toggle DLCs
+            # Step 5: Learn new version hashes + restore DLC states
             self._state = UpdateState.FINALIZING
 
             # Learn the new version's sentinel hashes
@@ -412,11 +429,30 @@ class Sims4Updater(BasePatcher):
                 self.learn_version(game_dir, target_version)
 
             if status:
-                status("Auto-toggling DLCs...")
+                status("Restoring DLC states...")
 
-            changes = self._dlc_manager.auto_toggle(game_dir)
-            if changes and status:
-                status(f"Toggled {len(changes)} DLC(s)")
+            # Restore previous DLC states, then enable any genuinely new DLCs
+            if saved_dlc_states:
+                self._dlc_manager.import_states(game_dir, saved_dlc_states)
+
+            # Enable DLCs that are newly installed (not in saved states)
+            current_states = self._dlc_manager.get_dlc_states(game_dir)
+            new_enabled = set()
+            changes = {}
+            for state in current_states:
+                if state.dlc.id in saved_dlc_states:
+                    # Existed before — keep whatever the user had
+                    if saved_dlc_states[state.dlc.id]:
+                        new_enabled.add(state.dlc.id)
+                elif state.installed:
+                    # New DLC added by this patch — enable it
+                    new_enabled.add(state.dlc.id)
+                    changes[state.dlc.id] = True
+
+            if changes:
+                self._dlc_manager.apply_changes(game_dir, new_enabled)
+                if status:
+                    status(f"Enabled {len(changes)} new DLC(s)")
 
             # Update stored version
             new_detection = self.detect_version(game_dir)

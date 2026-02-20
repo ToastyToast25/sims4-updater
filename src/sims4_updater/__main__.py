@@ -7,6 +7,7 @@ Usage:
     python -m sims4_updater check [game_dir]        # Check for updates
     python -m sims4_updater dlc <game_dir>          # Show DLC states
     python -m sims4_updater dlc-auto <game_dir>     # Auto-toggle DLCs
+    python -m sims4_updater pack-dlc <game_dir> ... # Pack DLC zip archives
     python -m sims4_updater language                 # Show current language
     python -m sims4_updater language <code> [dir]    # Set language
     python -m sims4_updater manifest <url|file>     # Inspect a manifest
@@ -409,6 +410,71 @@ def show_language(args):
             print(f"  {code}: {name}{marker}")
 
 
+def pack_dlc(args):
+    """Create standard zip archives for individual DLCs."""
+    import json
+    from pathlib import Path
+    from sims4_updater.dlc.catalog import DLCCatalog
+    from sims4_updater.dlc.packer import DLCPacker
+
+    game_dir = Path(args.game_dir)
+    output_dir = Path(args.output or ".")
+    dlc_ids = args.dlc_ids
+
+    if not game_dir.is_dir():
+        print(f"ERROR: Game directory not found: {game_dir}")
+        sys.exit(1)
+
+    catalog = DLCCatalog()
+    packer = DLCPacker(catalog)
+
+    # Resolve DLC IDs
+    if dlc_ids == ["all"]:
+        targets = []
+        for dlc in catalog.all_dlcs():
+            if (game_dir / dlc.id).is_dir():
+                targets.append(dlc)
+        if not targets:
+            print("No installed DLCs found.")
+            sys.exit(1)
+        print(f"Packing all {len(targets)} installed DLC(s)...")
+    else:
+        targets = []
+        for dlc_id in dlc_ids:
+            dlc = catalog.get_by_id(dlc_id.upper())
+            if not dlc:
+                print(f"WARNING: Unknown DLC ID: {dlc_id}")
+                continue
+            if not (game_dir / dlc.id).is_dir():
+                print(f"WARNING: {dlc.id} not installed (no folder at {game_dir / dlc.id})")
+                continue
+            targets.append(dlc)
+
+        if not targets:
+            print("No valid DLCs to pack.")
+            sys.exit(1)
+
+    def progress(idx, total, dlc_id, msg):
+        if dlc_id:
+            print(f"\n[{idx + 1}/{total}] {msg}")
+
+    results = packer.pack_multiple(game_dir, targets, output_dir, progress_cb=progress)
+
+    for r in results:
+        size_mb = r.size / (1024 * 1024)
+        print(f"  {r.dlc_id}: {r.file_count} files, {size_mb:.1f} MB, MD5: {r.md5}")
+
+    # Generate manifest
+    if results:
+        manifest_path = packer.generate_manifest(results, output_dir)
+        print(f"\n{'=' * 60}")
+        print(f"Manifest written to: {manifest_path}")
+        print(f"{'=' * 60}")
+        with open(manifest_path, encoding="utf-8") as f:
+            print(f.read())
+        print("Replace <UPLOAD_URL> with the actual hosting URL.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sims4-updater",
@@ -441,6 +507,20 @@ def main():
     dlc_auto_parser = subparsers.add_parser("dlc-auto", help="Auto-toggle DLCs")
     dlc_auto_parser.add_argument("game_dir", help="Path to The Sims 4 installation directory")
 
+    # pack-dlc
+    pack_parser = subparsers.add_parser(
+        "pack-dlc", help="Create standard zip archives for DLCs",
+    )
+    pack_parser.add_argument("game_dir", help="Path to The Sims 4 installation directory")
+    pack_parser.add_argument(
+        "dlc_ids", nargs="+",
+        help="DLC IDs to pack (e.g. EP01 GP01) or 'all' for all installed",
+    )
+    pack_parser.add_argument(
+        "-o", "--output", default=".",
+        help="Output directory for zip files (default: current dir)",
+    )
+
     # learn
     learn_parser = subparsers.add_parser("learn", help="Learn version hashes from game directory")
     learn_parser.add_argument("game_dir", help="Path to The Sims 4 installation directory")
@@ -465,6 +545,8 @@ def main():
         show_dlc_states(args.game_dir)
     elif args.command == "dlc-auto":
         auto_toggle_dlcs(args.game_dir)
+    elif args.command == "pack-dlc":
+        pack_dlc(args)
     elif args.command == "learn":
         learn_hashes(args)
     elif args.command == "language":
@@ -485,6 +567,7 @@ def main():
             print('  manifest <url|file>       Inspect a patch manifest')
             print('  dlc <game_dir>            Show DLC states')
             print('  dlc-auto <game_dir>       Auto-toggle DLCs')
+            print('  pack-dlc <dir> <ids...>   Pack DLC zip archives')
             print('  learn <game_dir> <ver>    Learn version hashes')
             print('  language [code]           Show or set language')
     else:
