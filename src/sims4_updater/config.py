@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 _OLD_DIR_NAME = "anadius"
@@ -53,6 +53,14 @@ class Settings:
     enabled_dlcs: list[str] = field(default_factory=list)
     manifest_url: str = ""
     theme: str = "dark"
+    download_concurrency: int = 3
+    download_speed_limit: int = 0  # MB/s, 0 = unlimited
+    steam_username: str = ""  # Steam username for depot downloads (password NOT stored)
+    steam_path: str = ""  # Steam installation directory (auto-detected or manual)
+    greenluma_archive_path: str = ""  # Path to GreenLuma 7z archive
+    greenluma_auto_backup: bool = True  # Backup config.vdf/AppList before modifications
+    greenluma_lua_path: str = ""  # Path to .lua manifest file
+    greenluma_manifest_dir: str = ""  # Path to directory containing .manifest files
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

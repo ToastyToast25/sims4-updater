@@ -76,6 +76,7 @@
     - 11.7 [Action Buttons and Threading](#117-action-buttons-and-threading)
     - 11.8 [Download Progress UI](#118-download-progress-ui)
     - 11.9 [Status Bar](#119-status-bar)
+    - 11.10 [GreenLuma Readiness Indicators](#1110-greenluma-readiness-indicators)
 12. [GUI Integration — Unlocker Frame](#12-gui-integration--unlocker-frame)
 13. [Data Flow Diagrams](#13-data-flow-diagrams)
     - 13.1 [State Detection Flow](#131-state-detection-flow)
@@ -121,7 +122,7 @@ src/sims4_updater/
 │   ├── unlocker.py              — EA DLC Unlocker install/uninstall
 │   └── exceptions.py            — NoCrackConfigError, DownloadError, etc.
 ├── gui/frames/
-│   ├── dlc_frame.py             — DLCFrame (main DLC management tab)
+│   ├── dlc_frame.py             — DLCFrame (main DLC management tab; deferred imports from greenluma.orchestrator, greenluma.steam, dlc.catalog for GL readiness)
 │   └── unlocker_frame.py        — UnlockerFrame (unlocker install/uninstall tab)
 ├── constants.py                 — APP_NAME, registry paths, get_data_dir(), get_tools_dir()
 └── data/
@@ -1458,8 +1459,9 @@ Each DLC row is built by `_build_dlc_row()`. The row is a `CTkFrame` with a `bor
 3. **Price display** (optional) — shown if Steam price data is available. On sale shows discount badge, strikethrough original price, and sale price. Otherwise shows current price in muted text.
 4. **Steam link button** (`arrow`) — opens `https://store.steampowered.com/app/<steam_app_id>` in the default browser.
 5. **Status pill badge** — colored border with status label text (Owned, Patched, etc.).
-6. **Download button** — shown only if the DLC has a download available in the manifest AND its status is `Not installed`, `Missing files`, or `Incomplete`.
-7. **Download progress label** — replaces the download button during an active download; shows percentage, phase name, or completion indicator.
+6. **GreenLuma readiness pill** (optional) — a small "GL" pill badge placed immediately after the status pill. Appears only when GreenLuma is configured (Steam path set and GL detected) and the DLC has a `steam_app_id`. Color indicates completeness: green when all three components (AppList entry, depot decryption key, and `.manifest` file) are present; yellow when one or more are missing. Hovering displays a tooltip listing the missing components. See [Section 11.10](#1110-greenluma-readiness-indicators) for full details.
+7. **Download button** — shown only if the DLC has a download available in the manifest AND its status is `Not installed`, `Missing files`, or `Incomplete`.
+8. **Download progress label** — replaces the download button during an active download; shows percentage, phase name, or completion indicator.
 
 **Description panel:** A `CTkFrame` below the row (in the content frame's grid) containing the `description` text and, if the DLC has a `steam_app_id`, a "View on Steam Store" link. If the DLC is on sale, the sale details are also shown.
 
@@ -1546,6 +1548,117 @@ The status label at the bottom of the frame provides an aggregate summary:
 ```
 
 This is recomputed by `_apply_filter()` every time the filter runs, using the full `_all_states` list (not the filtered subset). This means the counts always reflect the full installation, not just what is visible in the current filter view.
+
+### 11.10 GreenLuma Readiness Indicators
+
+The DLC frame supplements the standard status pill with a secondary "GL" pill that communicates whether each DLC is fully configured for use with GreenLuma. This feature is entirely additive and non-intrusive: if GreenLuma is not configured, no GL pills are rendered and no GL-related code runs in the hot path.
+
+#### Data Loading
+
+GL readiness data is fetched as part of the same background call that loads DLC states. `_get_dlc_states()` returns a three-element tuple rather than a bare state dict:
+
+```python
+# Background thread — called via app.run_async()
+def _get_dlc_states(self) -> tuple[dict, dict, bool]:
+    states = app.updater._dlc_manager.get_dlc_states(game_dir)
+    gl_readiness, gl_installed = {}, False
+    try:
+        from greenluma.orchestrator import GreenLumaOrchestrator
+        from dlc.catalog import DLCCatalog
+        catalog = DLCCatalog.load()
+        gl_readiness, gl_installed = GreenLumaOrchestrator.check_readiness(catalog)
+    except Exception:
+        pass  # GL not configured or not installed — silently suppress
+    return states, gl_readiness, gl_installed
+```
+
+The `try/except` block makes the check best-effort. If GreenLuma's modules are not importable, the Steam path is not set, or any other error occurs, `gl_readiness` stays as an empty dict and no pills are shown. This ensures the DLC tab degrades gracefully on installations without GreenLuma.
+
+The `on_done` callback unpacks the tuple and stores both values as instance attributes before triggering a row rebuild:
+
+```python
+def _on_states_loaded(self, result):
+    states, gl_readiness, gl_installed = result
+    self._all_states = states
+    self._gl_readiness = gl_readiness    # dict[str, DLCReadiness]
+    self._gl_installed = gl_installed    # bool
+    self._rebuild_rows()
+```
+
+#### What `check_readiness()` Checks
+
+`GreenLumaOrchestrator.check_readiness(catalog)` iterates over every DLC in the catalog that has a `steam_app_id` and checks three independent components for each one:
+
+| Component | What is checked | Typical location |
+|-----------|-----------------|------------------|
+| **AppList** | Whether the DLC's Steam App ID has a corresponding entry file in GreenLuma's `AppList/` directory | `<GreenLuma_dir>/AppList/<app_id>.txt` |
+| **Key** | Whether a depot decryption key for the DLC's depot is present in Steam's `config.vdf` | `<Steam_dir>/config/config.vdf` — `depots/<depot_id>/DecryptionKey` |
+| **Manifest** | Whether a `.manifest` file for the DLC's depot exists in Steam's `depotcache` | `<Steam_dir>/steamapps/depotcache/<depot_id>_<manifest_id>.manifest` |
+
+The result for each DLC is a `DLCReadiness` object:
+
+```python
+@dataclass
+class DLCReadiness:
+    has_applist: bool
+    has_key: bool
+    has_manifest: bool
+
+    @property
+    def is_ready(self) -> bool:
+        return self.has_applist and self.has_key and self.has_manifest
+
+    @property
+    def missing(self) -> list[str]:
+        parts = []
+        if not self.has_applist: parts.append("AppList")
+        if not self.has_key:     parts.append("Key")
+        if not self.has_manifest: parts.append("Manifest")
+        return parts
+```
+
+#### Visual Indicators
+
+The GL pill is a small `CTkLabel` placed in the row grid immediately after the status pill (column index 5, with the download button pushed to column 6). It is only created when both conditions hold: `dlc.steam_app_id is not None` and `self._gl_installed` is `True`.
+
+| Pill appearance | Condition | Tooltip on hover |
+|----------------|-----------|-----------------|
+| Green `"GL"` pill | `readiness.is_ready` — all three components present | `"GreenLuma ready"` |
+| Yellow `"GL"` pill | `not readiness.is_ready` — one or more components missing | `"Missing: AppList, Key"` (lists only absent components) |
+| No pill | DLC has no `steam_app_id`, or GreenLuma is not installed | — |
+
+Colors come from `theme.COLORS` following the standard badge palette: `success` (green, `#2ECC71`) for a fully ready DLC and `warning` (yellow, `#F39C12`) for a partial configuration.
+
+#### Hover Tooltips
+
+Tooltips are implemented without any third-party library. When the user's cursor enters the GL pill label, a `CTkToplevel` window is created near the cursor position and destroyed on leave:
+
+```python
+def _show_gl_tooltip(self, event, text: str):
+    self._gl_tooltip = ctk.CTkToplevel(self)
+    self._gl_tooltip.wm_overrideredirect(True)
+    self._gl_tooltip.geometry(f"+{event.x_root + 12}+{event.y_root + 4}")
+    ctk.CTkLabel(self._gl_tooltip, text=text, ...).pack()
+
+def _hide_gl_tooltip(self, event):
+    if self._gl_tooltip:
+        self._gl_tooltip.destroy()
+        self._gl_tooltip = None
+```
+
+Each GL pill label binds `<Enter>` to `_show_gl_tooltip` and `<Leave>` to `_hide_gl_tooltip`. The tooltip window has no title bar (`wm_overrideredirect(True)`) and is positioned 12 pixels to the right of and 4 pixels below the cursor so it does not obscure the pill itself.
+
+#### Header Badge
+
+When `self._gl_installed` is `True`, a `"GreenLuma Installed"` badge is rendered in the DLC tab header alongside the existing action buttons. This badge uses `StatusBadge.set_status("GreenLuma Installed", "success")` and serves as a top-level confirmation that the GL readiness column is active. The badge is created once in `_build_header()` and toggled visible/hidden in `_on_states_loaded()` based on the `gl_installed` flag.
+
+#### Instance Attributes
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `self._gl_readiness` | `dict[str, DLCReadiness]` | Maps DLC ID (e.g. `"EP01"`) to its `DLCReadiness` result. Empty dict when GL is not configured. |
+| `self._gl_installed` | `bool` | `True` when GreenLuma was detected as installed during the last data load. Controls whether GL pills and the header badge are rendered at all. |
+| `self._gl_tooltip` | `ctk.CTkToplevel \| None` | Reference to the currently visible tooltip window, if any. Held so `_hide_gl_tooltip` can destroy it. |
 
 ---
 

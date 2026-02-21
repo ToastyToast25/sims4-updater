@@ -54,6 +54,13 @@ def get_tools_dir():
     return Path(__file__).resolve().parent.parent.parent / "tools"
 
 
+def get_mods_dir():
+    """Get the bundled mods directory (works frozen and from source)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "mods"
+    return Path(__file__).resolve().parent.parent.parent / "mods"
+
+
 def get_icon_path():
     """Get path to the application icon (works frozen and from source)."""
     if getattr(sys, "frozen", False):

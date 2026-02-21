@@ -394,14 +394,19 @@ def show_language(args):
     from sims4_updater.language.changer import get_current_language, set_language, LANGUAGES
 
     if args.code:
-        ok = set_language(args.code, args.game_dir)
-        if ok:
+        result = set_language(args.code, game_dir=args.game_dir)
+        if result.success:
             print(f"Language set to: {LANGUAGES.get(args.code, args.code)} ({args.code})")
+            if result.anadius_updated:
+                print(f"  Updated {len(result.anadius_updated)} anadius config(s)")
+            if result.registry_ok:
+                print(f"  Registry updated")
+            if result.rld_updated:
+                print(f"  Updated {len(result.rld_updated)} RldOrigin config(s)")
         else:
-            print(f"Failed to set registry. Try running as administrator.")
-            print(f"RldOrigin.ini configs were still updated (if game_dir provided).")
+            print(f"Failed to update any config. Try running as administrator.")
     else:
-        current = get_current_language()
+        current = get_current_language(game_dir=args.game_dir)
         print(f"Current language: {LANGUAGES.get(current, current)} ({current})")
         print()
         print("Available languages:")

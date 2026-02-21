@@ -1,6 +1,6 @@
 # Sims 4 Updater
 
-A standalone Windows application for updating, managing, and maintaining cracked installations of The Sims 4. Detects your installed version, downloads and applies binary delta patches, manages DLC toggles across 5 crack config formats, and handles language settings — all from a single 21 MB executable with a modern dark-mode GUI.
+A standalone Windows application for updating, managing, and maintaining cracked installations of The Sims 4. Detects your installed version, downloads and applies binary delta patches, manages DLC toggles across 5 crack config formats, integrates with GreenLuma 2025 for Steam DLC unlocking, handles language settings, and manages mods — all from a single portable executable with a modern dark-mode GUI.
 
 Built on top of anadius's patcher engine using xdelta3 binary delta patching.
 
@@ -22,6 +22,7 @@ Built on top of anadius's patcher engine using xdelta3 binary delta patching.
   - [Auto-Learning Hash System](#auto-learning-hash-system)
   - [Update Pipeline](#update-pipeline)
   - [DLC Management](#dlc-management)
+  - [GreenLuma Integration](#greenluma-integration)
   - [Language Changer](#language-changer)
   - [Configuration](#configuration)
 - [Building from Source](#building-from-source)
@@ -58,8 +59,14 @@ PYTHONPATH=src python -m sims4_updater
 Double-click `Sims4Updater.exe` or run it with no arguments. The GUI provides:
 
 - **Home** — Displays detected game directory, installed version, latest available version, and DLC count. One-click "Check for Updates" / "Update Now" button.
-- **DLCs** — Scrollable checkbox list of all 103 DLCs grouped by type (Expansions, Game Packs, Stuff Packs, Kits). Auto-toggle to enable installed DLCs and disable missing ones.
-- **Settings** — Configure game directory, manifest URL, language, and theme (dark/light/system).
+- **DLCs** — Scrollable checkbox list of all 103 DLCs grouped by type (Expansions, Game Packs, Stuff Packs, Kits). Auto-toggle, per-DLC downloads, Steam pricing, and GreenLuma readiness indicators.
+- **DLC Packer** — Pack installed DLCs into distributable ZIP archives or import DLC archives from others.
+- **DLC Unlocker** — Install/uninstall the EA DLC Unlocker with status detection and admin elevation.
+- **GreenLuma** — Install/uninstall GreenLuma 2025, apply LUA manifests, verify configuration, manage AppList, and launch Steam via DLLInjector.
+- **DLC Downloader** — Download DLC content from Steam depots using DepotDownloader with progress tracking.
+- **Language** — Change game language with Steam depot-based language file downloads.
+- **Mods** — Manage game modifications.
+- **Settings** — Configure game directory, patch manifest URL, GreenLuma paths (Steam, archive, LUA, manifests), language, and theme.
 - **Progress** — Download and patch progress bars, scrollable log, and cancel button during updates.
 
 ### CLI Mode
@@ -435,7 +442,7 @@ The version database stays up to date through 4 complementary sources:
 | **Self-learning** | After successful patch | Hashes sentinel files automatically, saves locally |
 | **Crowd-sourced** | On update check | Fetches validated hashes from `fingerprints_url` |
 
-Learned hashes are stored at `%LocalAppData%\anadius\sims4_updater\learned_hashes.json` and persist across sessions. The local database takes priority over the bundled database for overlapping versions.
+Learned hashes are stored at `%LocalAppData%\ToastyToast25\sims4_updater\learned_hashes.json` and persist across sessions. The local database takes priority over the bundled database for overlapping versions.
 
 After every successful patch, the updater automatically hashes the sentinel files, saves them locally, and reports them to the `report_url` (if configured) as a fire-and-forget background request.
 
@@ -471,6 +478,19 @@ The format is auto-detected by scanning for config files in the game directory (
 
 The DLC catalog contains **103 DLCs** with localized names in 18 languages, categorized as Expansions, Game Packs, Stuff Packs, Kits, and Free Packs.
 
+### GreenLuma Integration
+
+Full integration with [GreenLuma 2025](https://cs.rin.ru/forum/viewtopic.php?f=29&t=103825) for Steam DLC unlocking. The GreenLuma tab provides:
+
+- **Install/Uninstall** — Extract GreenLuma from a `.7z` archive into the Steam directory (normal or stealth mode). Tracks installed files for clean uninstall.
+- **Apply LUA Manifest** — Parse `.lua` manifest files to automatically add depot decryption keys to `config.vdf`, copy `.manifest` files to `depotcache`, and populate the `AppList` directory.
+- **Verify Configuration** — Cross-reference keys, manifests, and AppList entries against a LUA file to identify missing or mismatched components.
+- **Fix AppList** — Remove duplicates and add missing DLC entries to the numbered `AppList/*.txt` files.
+- **Launch via GreenLuma** — Launch Steam through `DLLInjector.exe` with automatic Steam-restart dialog if Steam is already running.
+- **DLC Readiness Indicators** — The DLCs tab shows green/yellow "GL" pill badges next to each DLC indicating whether AppList, decryption key, and manifest are all present.
+
+**Backend modules:** `greenluma/steam.py` (Steam detection), `greenluma/installer.py` (install/uninstall/launch), `greenluma/applist.py` (AppList management), `greenluma/config_vdf.py` (depot key management), `greenluma/lua_parser.py` (LUA parsing), `greenluma/manifest_cache.py` (depotcache), `greenluma/orchestrator.py` (high-level operations).
+
 ### Language Changer
 
 Supports 18 languages with native display names:
@@ -491,7 +511,7 @@ Sets the `Locale` registry value and updates `RldOrigin.ini` config files in bot
 
 ### Configuration
 
-Persistent settings stored at `%LocalAppData%\anadius\sims4_updater\settings.json`:
+Persistent settings stored at `%LocalAppData%\ToastyToast25\sims4_updater\settings.json`:
 
 | Setting | Description |
 |---------|-------------|
@@ -502,6 +522,16 @@ Persistent settings stored at `%LocalAppData%\anadius\sims4_updater\settings.jso
 | `check_updates_on_start` | Auto-check for updates on launch |
 | `last_known_version` | Last detected version (cached) |
 | `enabled_dlcs` | List of enabled DLC IDs |
+| `steam_path` | Steam installation directory |
+| `steam_username` | Steam username for depot downloads |
+| `greenluma_archive_path` | Path to GreenLuma `.7z` archive |
+| `greenluma_lua_path` | Path to `.lua` manifest file |
+| `greenluma_manifest_dir` | Directory containing `.manifest` files |
+| `greenluma_auto_backup` | Auto-backup config.vdf/AppList before changes |
+| `download_concurrency` | Number of parallel download segments |
+| `download_speed_limit` | Download speed cap in MB/s (0 = unlimited) |
+
+The Settings tab is organized into two cards: **Game & Updates** (game path, patch manifest URL, language, theme) and **GreenLuma** (Steam path, archive, LUA manifest, manifest directory, auto-backup).
 
 ---
 
@@ -521,16 +551,17 @@ pip install -r requirements-dev.txt
 ### Build
 
 ```bash
-pyinstaller --clean --noconfirm sims4_updater.spec
+pyinstaller --clean --noconfirm Sims4Updater.spec
 ```
 
-The executable is output to `dist/Sims4Updater.exe` (~21 MB). It bundles:
+The executable is output to `dist/Sims4Updater.exe`. It bundles:
 
 - CustomTkinter GUI assets
 - xdelta3 binaries (x64 and x86)
 - unrar executable
-- Version hash database (135 versions)
+- Version hash database (135+ versions)
 - DLC catalog (103 DLCs)
+- Bundled mod resources
 
 ### CI/CD
 
@@ -550,6 +581,9 @@ sims4-updater/
 │   ├── core/
 │   │   ├── version_detect.py    # Hash-based version detection
 │   │   ├── learned_hashes.py    # Local writable hash database
+│   │   ├── self_update.py       # GitHub Releases self-update pipeline
+│   │   ├── unlocker.py          # EA DLC Unlocker install/uninstall/status
+│   │   ├── rate_limiter.py      # Download rate limiting
 │   │   ├── exceptions.py        # Exception hierarchy
 │   │   ├── files.py             # File hashing, copying utilities
 │   │   ├── myzipfile.py         # ZIP with LZMA metadata
@@ -564,25 +598,65 @@ sims4-updater/
 │   ├── dlc/
 │   │   ├── catalog.py           # DLC info + localized names
 │   │   ├── formats.py           # 5 crack config format adapters
-│   │   └── manager.py           # DLC state management
+│   │   ├── manager.py           # DLC state management
+│   │   ├── downloader.py        # DLC download/extract/register pipeline
+│   │   ├── packer.py            # DLC Packer — ZIP creation + manifest gen
+│   │   └── steam.py             # Steam price cache + batch fetching
+│   ├── greenluma/
+│   │   ├── steam.py             # Steam path detection, process checks, SteamInfo
+│   │   ├── installer.py         # GreenLuma install/uninstall/launch, install manifest
+│   │   ├── applist.py           # AppList (numbered .txt files) read/write/backup
+│   │   ├── config_vdf.py        # Steam config.vdf parsing, depot key management
+│   │   ├── lua_parser.py        # LUA manifest file parser
+│   │   ├── manifest_cache.py    # depotcache .manifest file management
+│   │   └── orchestrator.py      # High-level GL operations (readiness, apply, verify)
 │   ├── language/
-│   │   └── changer.py           # Registry + INI language setter
+│   │   ├── changer.py           # Registry + INI language setter
+│   │   ├── downloader.py        # Steam depot-based language file downloads
+│   │   ├── packer.py            # Language file packing
+│   │   └── steam.py             # Steam language depot configuration
+│   ├── mods/
+│   │   └── manager.py           # Mod management
 │   └── gui/
 │       ├── app.py               # Main CustomTkinter window
 │       ├── theme.py             # Colors, fonts, dimensions
+│       ├── components.py        # InfoCard, StatusBadge, ToastNotification
+│       ├── animations.py        # Animator, color interpolation, easing
 │       └── frames/
 │           ├── home_frame.py    # Version display, update button
-│           ├── dlc_frame.py     # DLC checkboxes
-│           ├── settings_frame.py # Configuration UI
+│           ├── dlc_frame.py     # DLC catalog, filters, GL readiness
+│           ├── packer_frame.py  # Pack/import DLC archives
+│           ├── unlocker_frame.py # EA DLC Unlocker management
+│           ├── greenluma_frame.py # GreenLuma install/apply/verify
+│           ├── downloader_frame.py # DLC download interface
+│           ├── language_frame.py # Language management
+│           ├── mods_frame.py    # Mod management
+│           ├── settings_frame.py # Configuration UI (2-card layout)
 │           └── progress_frame.py # Progress bars, log, cancel
 ├── data/
 │   ├── version_hashes.json      # Bundled version fingerprints
 │   └── dlc_catalog.json         # DLC database with names
-├── sims4_updater.spec           # PyInstaller build config
+├── mods/                        # Bundled mod resources
+├── Sims4Updater.spec            # PyInstaller build config
 ├── requirements.txt             # Runtime dependencies
 ├── requirements-dev.txt         # Dev/build dependencies
 └── .github/workflows/build.yml  # CI/CD pipeline
 ```
+
+---
+
+## Documentation
+
+Full technical documentation is available in the `Documentation/` directory:
+
+| Document | Scope |
+| -------- | ----- |
+| [User Guide](Documentation/User_Guide.md) | End-user reference — all tabs, CLI, troubleshooting, FAQ |
+| [Architecture & Developer Guide](Documentation/Architecture_and_Developer_Guide.md) | 3-layer architecture, module map, threading, GUI patterns, build system |
+| [Update & Patching System](Documentation/Update_and_Patching_System.md) | Version detection, manifest format, BFS planning, downloads, hash learning |
+| [DLC Management System](Documentation/DLC_Management_System.md) | DLC catalog, 5 crack formats, download pipeline, unlocker, Steam pricing, GL readiness |
+| [DLC Packer & Distribution](Documentation/DLC_Packer_and_Distribution.md) | Packer class, ZIP format, manifest generation, import flow |
+| [GreenLuma Integration](Documentation/GreenLuma_Integration.md) | Steam detection, AppList, config.vdf keys, LUA parsing, manifest cache, orchestrator |
 
 ---
 

@@ -1,23 +1,24 @@
 """
 DLC frame — card-style DLC rows with collapsible groups, ownership indicators,
 search filtering, filter chips, Steam pricing, store links, hover effects,
-pill status badges, and widget-reuse-based filtering.
+pill status badges, GreenLuma readiness indicators, and widget-reuse-based filtering.
 """
 
 from __future__ import annotations
 
 import threading
 import webbrowser
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
-from .. import theme
-from ..components import get_animator
 from ...dlc.catalog import DLCInfo, DLCStatus
 from ...dlc.downloader import DLCDownloadState
 from ...dlc.steam import SteamPrice, fetch_prices_batch
 from ...patch.manifest import DLCDownloadEntry
+from .. import theme
+from ..components import get_animator
 
 if TYPE_CHECKING:
     from ..app import App
@@ -85,6 +86,10 @@ class DLCFrame(ctk.CTkFrame):
         self._dlc_downloads: dict[str, DLCDownloadEntry] = {}
         self._is_downloading: bool = False
 
+        # GreenLuma readiness state
+        self._gl_readiness: dict = {}
+        self._gl_installed: bool = False
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(3, weight=1)
 
@@ -98,6 +103,14 @@ class DLCFrame(ctk.CTkFrame):
             text="DLC Management",
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).grid(row=0, column=0, sticky="w")
+
+        self._gl_badge = ctk.CTkLabel(
+            header_frame,
+            text="\u2714 GreenLuma Installed",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=theme.COLORS["success"],
+        )
+        # Hidden by default — shown when GreenLuma is detected
 
         btn_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         btn_frame.grid(row=0, column=1, sticky="e")
@@ -288,11 +301,51 @@ class DLCFrame(ctk.CTkFrame):
     def _get_dlc_states(self):
         game_dir = self.app.updater.find_game_dir()
         if not game_dir:
-            return None
-        return self.app.updater._dlc_manager.get_dlc_states(game_dir)
+            return None, {}, False
+        states = self.app.updater._dlc_manager.get_dlc_states(game_dir)
 
-    def _on_states_loaded(self, states):
+        # GreenLuma readiness (best-effort, don't fail if GL not configured)
+        gl_readiness = {}
+        gl_installed = False
+        try:
+            from ...dlc.catalog import DLCCatalog
+            from ...greenluma.orchestrator import GreenLumaOrchestrator
+            from ...greenluma.steam import detect_steam_path, get_steam_info
+
+            steam_path_str = self.app.settings.steam_path
+            steam_path = (
+                Path(steam_path_str) if steam_path_str else detect_steam_path()
+            )
+            if steam_path and steam_path.is_dir():
+                info = get_steam_info(steam_path)
+                gl_installed = info.greenluma_installed
+                orch = GreenLumaOrchestrator(info)
+                catalog = DLCCatalog()
+                for r in orch.check_readiness(catalog):
+                    gl_readiness[r.dlc_id] = r
+        except Exception:
+            pass
+
+        return states, gl_readiness, gl_installed
+
+    def _on_states_loaded(self, result):
         self._destroy_skeleton()
+
+        # Unpack tuple from _get_dlc_states
+        if isinstance(result, tuple):
+            states, gl_readiness, gl_installed = result
+        else:
+            states, gl_readiness, gl_installed = result, {}, False
+
+        self._gl_readiness = gl_readiness
+        self._gl_installed = gl_installed
+
+        # Update GL badge in header
+        if gl_installed:
+            self._gl_badge.grid(row=1, column=0, sticky="w", pady=(2, 0))
+        else:
+            self._gl_badge.grid_remove()
+
         if states is None:
             self._all_states = []
             self._show_no_game()
@@ -820,6 +873,68 @@ class DLCFrame(ctk.CTkFrame):
             text_color=color,
         ).pack(padx=8, pady=2)
         next_col += 1
+
+        # GreenLuma readiness indicator
+        gl_r = self._gl_readiness.get(dlc.id)
+        if gl_r is not None:
+            gl_color = (
+                theme.COLORS["success"] if gl_r.ready else theme.COLORS["warning"]
+            )
+            gl_pill = ctk.CTkFrame(
+                row_frame,
+                corner_radius=8,
+                border_width=1,
+                border_color=gl_color,
+                fg_color="transparent",
+                height=20,
+            )
+            gl_pill.grid(row=0, column=next_col, padx=(4, 0), pady=6, sticky="e")
+            gl_lbl = ctk.CTkLabel(
+                gl_pill,
+                text="GL",
+                font=ctk.CTkFont(size=8, weight="bold"),
+                text_color=gl_color,
+            )
+            gl_lbl.pack(padx=5, pady=1)
+
+            # Tooltip-style detail on hover
+            detail_parts = []
+            if not gl_r.in_applist:
+                detail_parts.append("AppList")
+            if not gl_r.has_key:
+                detail_parts.append("Key")
+            if not gl_r.has_manifest:
+                detail_parts.append("Manifest")
+            if detail_parts:
+                missing_text = "Missing: " + ", ".join(detail_parts)
+            else:
+                missing_text = "GreenLuma Ready"
+
+            def _show_tip(e, w=gl_pill, txt=missing_text, clr=gl_color):
+                tip = ctk.CTkLabel(
+                    w.winfo_toplevel(),
+                    text=txt,
+                    font=ctk.CTkFont(size=9),
+                    text_color=clr,
+                    fg_color=theme.COLORS["bg_dark"],
+                    corner_radius=4,
+                )
+                x = w.winfo_rootx()
+                y = w.winfo_rooty() - 22
+                tip.place(x=x, y=y)
+                w._gl_tip = tip
+
+            def _hide_tip(e, w=gl_pill):
+                tip = getattr(w, "_gl_tip", None)
+                if tip:
+                    tip.destroy()
+                    w._gl_tip = None
+
+            gl_pill.bind("<Enter>", _show_tip)
+            gl_pill.bind("<Leave>", _hide_tip)
+            gl_lbl.bind("<Enter>", _show_tip)
+            gl_lbl.bind("<Leave>", _hide_tip)
+            next_col += 1
 
         # Download button (for uninstalled DLCs with available downloads)
         has_download = dlc.id in self._dlc_downloads

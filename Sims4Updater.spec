@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('data', 'data'), ('sims4.png', '.'), ('tools', 'tools')]
+datas = [('data', 'data'), ('sims4.png', '.'), ('tools', 'tools'), ('mods', 'mods')]
 binaries = [('C:/Python314/DLLs/tcl86t.dll', '.'), ('C:/Python314/DLLs/tk86t.dll', '.')]
-hiddenimports = ['customtkinter', 'patcher', '_tkinter']
+hiddenimports = ['customtkinter', 'patcher', '_tkinter', 'py7zr']
 tmp_ret = collect_all('customtkinter')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('tkinter')
@@ -44,4 +44,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='sims4.ico',
 )

@@ -1,6 +1,7 @@
 """
-DLC Packer frame — pack DLC folders into distributable ZIP archives,
-generate manifest JSON, and import archives into the game directory.
+DLC & Language Packer frame — pack DLC folders and language Strings files
+into distributable ZIP archives, generate manifest JSON, and import archives
+into the game directory.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import customtkinter as ctk
 from .. import theme
 from ...config import get_app_dir
 from ...dlc.packer import DLCPacker, PackResult
+from ...language.packer import LanguagePacker, LangPackResult
 
 if TYPE_CHECKING:
     from ..app import App
@@ -36,10 +38,16 @@ class PackerFrame(ctk.CTkFrame):
         super().__init__(parent, fg_color="transparent")
         self.app = app
         self._packer = DLCPacker(app.updater._dlc_manager.catalog)
+        self._lang_packer = LanguagePacker()
 
         self._dlc_vars: dict[str, ctk.BooleanVar] = {}
         self._dlc_sizes: dict[str, int] = {}  # dlc_id -> folder size in bytes
         self._dlc_rows: list[ctk.CTkFrame] = []
+
+        self._lang_vars: dict[str, ctk.BooleanVar] = {}
+        self._lang_rows: list[ctk.CTkFrame] = []
+        self._lang_header: ctk.CTkFrame | None = None
+
         self._busy = False
 
         self._output_dir = get_app_dir() / "packed_dlcs"
@@ -54,13 +62,13 @@ class PackerFrame(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="DLC Packer",
+            text="DLC & Language Packer",
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkLabel(
             header,
-            text="Pack DLC files for distribution or import archives",
+            text="Pack DLC and language files for distribution or import archives",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=1, column=0, sticky="w", pady=(0, 8))
@@ -126,7 +134,7 @@ class PackerFrame(ctk.CTkFrame):
         )
         self._pack_all_btn.grid(row=0, column=4)
 
-        # ── Scrollable DLC list ──
+        # ── Scrollable list (DLCs + Languages) ──
         self._scroll_frame = ctk.CTkScrollableFrame(
             self,
             corner_radius=8,
@@ -228,10 +236,10 @@ class PackerFrame(ctk.CTkFrame):
     # ── Lifecycle ─────────────────────────────────────────────────
 
     def on_show(self):
-        self._load_installed_dlcs()
+        self._load_all()
 
-    def _load_installed_dlcs(self):
-        self._status_label.configure(text="Scanning installed DLCs...")
+    def _load_all(self):
+        self._status_label.configure(text="Scanning installed DLCs and language packs...")
         self.app.run_async(
             self._scan_bg,
             on_done=self._on_scan_done,
@@ -242,7 +250,10 @@ class PackerFrame(ctk.CTkFrame):
         game_dir = self.app.updater.find_game_dir()
         if not game_dir:
             return None
-        return self._packer.get_installed_dlcs(Path(game_dir))
+        game_path = Path(game_dir)
+        dlcs = self._packer.get_installed_dlcs(game_path)
+        langs = self._lang_packer.get_installed_packs(game_path)
+        return {"dlcs": dlcs, "langs": langs}
 
     def _on_scan_done(self, results):
         # Clear existing rows
@@ -252,6 +263,15 @@ class PackerFrame(ctk.CTkFrame):
         self._dlc_vars.clear()
         self._dlc_sizes.clear()
 
+        for row in self._lang_rows:
+            row.destroy()
+        self._lang_rows.clear()
+        self._lang_vars.clear()
+
+        if self._lang_header:
+            self._lang_header.destroy()
+            self._lang_header = None
+
         if results is None:
             self._empty_label.grid(row=0, column=0, padx=10, pady=20)
             self._status_label.configure(text="")
@@ -259,12 +279,60 @@ class PackerFrame(ctk.CTkFrame):
 
         self._empty_label.grid_remove()
 
-        for i, (dlc, file_count, folder_size) in enumerate(results):
-            self._dlc_sizes[dlc.id] = folder_size
-            self._build_dlc_row(i, dlc, file_count, folder_size)
+        dlcs = results["dlcs"]
+        langs = results["langs"]
 
-        total = len(results)
-        self._status_label.configure(text=f"{total} installed DLC(s) found")
+        # ── DLC section header ──
+        grid_row = 0
+        if dlcs:
+            dlc_hdr = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
+            dlc_hdr.grid(row=grid_row, column=0, padx=8, pady=(8, 4), sticky="ew")
+            ctk.CTkLabel(
+                dlc_hdr,
+                text=f"DLC PACKS ({len(dlcs)})",
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=theme.COLORS["accent"],
+            ).pack(side="left")
+            self._dlc_rows.append(dlc_hdr)
+            grid_row += 1
+
+        for i, (dlc, file_count, folder_size) in enumerate(dlcs):
+            self._dlc_sizes[dlc.id] = folder_size
+            self._build_dlc_row(grid_row, dlc, file_count, folder_size)
+            grid_row += 1
+
+        # ── Language Packs section ──
+        if langs:
+            # Separator
+            sep = ctk.CTkFrame(
+                self._scroll_frame,
+                height=1,
+                fg_color=theme.COLORS["separator"],
+            )
+            sep.grid(row=grid_row, column=0, padx=5, pady=(12, 0), sticky="ew")
+            self._lang_rows.append(sep)
+            grid_row += 1
+
+            lang_hdr = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
+            lang_hdr.grid(row=grid_row, column=0, padx=8, pady=(8, 4), sticky="ew")
+            ctk.CTkLabel(
+                lang_hdr,
+                text=f"LANGUAGE PACKS ({len(langs)})",
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=theme.COLORS["success"],
+            ).pack(side="left")
+            self._lang_header = lang_hdr
+            grid_row += 1
+
+            for i, (locale_code, lang_name, pkg_filename, file_size) in enumerate(langs):
+                self._build_lang_row(grid_row, locale_code, lang_name, pkg_filename, file_size)
+                grid_row += 1
+
+        total_dlcs = len(dlcs)
+        total_langs = len(langs)
+        self._status_label.configure(
+            text=f"{total_dlcs} DLC(s) and {total_langs} language pack(s) found"
+        )
 
     def _on_scan_error(self, error):
         self._status_label.configure(
@@ -274,8 +342,8 @@ class PackerFrame(ctk.CTkFrame):
 
     # ── Row Building ──────────────────────────────────────────────
 
-    def _build_dlc_row(self, idx, dlc, file_count, folder_size):
-        bg = theme.COLORS["bg_card"] if idx % 2 == 0 else theme.COLORS["bg_card_alt"]
+    def _build_dlc_row(self, grid_row, dlc, file_count, folder_size):
+        bg = theme.COLORS["bg_card"] if grid_row % 2 == 0 else theme.COLORS["bg_card_alt"]
         row = ctk.CTkFrame(
             self._scroll_frame,
             fg_color=bg,
@@ -283,7 +351,7 @@ class PackerFrame(ctk.CTkFrame):
             border_width=1,
             border_color=theme.COLORS["border"],
         )
-        row.grid(row=idx, column=0, padx=4, pady=2, sticky="ew")
+        row.grid(row=grid_row, column=0, padx=4, pady=2, sticky="ew")
         row.grid_columnconfigure(1, weight=1)
 
         var = ctk.BooleanVar(value=True)
@@ -308,33 +376,73 @@ class PackerFrame(ctk.CTkFrame):
         self._dlc_vars[dlc.id] = var
         self._dlc_rows.append(row)
 
+    def _build_lang_row(self, grid_row, locale_code, lang_name, pkg_filename, file_size):
+        bg = theme.COLORS["bg_card"] if grid_row % 2 == 0 else theme.COLORS["bg_card_alt"]
+        row = ctk.CTkFrame(
+            self._scroll_frame,
+            fg_color=bg,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            border_width=1,
+            border_color=theme.COLORS["border"],
+        )
+        row.grid(row=grid_row, column=0, padx=4, pady=2, sticky="ew")
+        row.grid_columnconfigure(1, weight=1)
+
+        var = ctk.BooleanVar(value=True)
+        cb = ctk.CTkCheckBox(
+            row,
+            text=f"{lang_name}  ({locale_code})",
+            variable=var,
+            font=ctk.CTkFont(size=12),
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=4,
+        )
+        cb.grid(row=0, column=0, padx=(10, 0), pady=6, sticky="w", columnspan=2)
+
+        size_text = f"{pkg_filename}, {_format_size(file_size)}"
+        ctk.CTkLabel(
+            row,
+            text=size_text,
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=0, column=2, padx=(0, 12), pady=6, sticky="e")
+
+        self._lang_vars[locale_code] = var
+        self._lang_rows.append(row)
+
     # ── Selection ─────────────────────────────────────────────────
 
     def _select_all(self):
         for var in self._dlc_vars.values():
             var.set(True)
+        for var in self._lang_vars.values():
+            var.set(True)
 
     def _deselect_all(self):
         for var in self._dlc_vars.values():
+            var.set(False)
+        for var in self._lang_vars.values():
             var.set(False)
 
     # ── Pack Actions ──────────────────────────────────────────────
 
     def _on_pack_selected(self):
-        selected = [dlc_id for dlc_id, var in self._dlc_vars.items() if var.get()]
-        if not selected:
-            self.app.show_toast("No DLCs selected", "warning")
+        selected_dlcs = [dlc_id for dlc_id, var in self._dlc_vars.items() if var.get()]
+        selected_langs = [code for code, var in self._lang_vars.items() if var.get()]
+        if not selected_dlcs and not selected_langs:
+            self.app.show_toast("Nothing selected", "warning")
             return
-        self._start_pack(selected)
+        self._start_pack(selected_dlcs, selected_langs)
 
     def _on_pack_all(self):
-        all_ids = list(self._dlc_vars.keys())
-        if not all_ids:
-            self.app.show_toast("No DLCs available to pack", "warning")
+        all_dlcs = list(self._dlc_vars.keys())
+        all_langs = list(self._lang_vars.keys())
+        if not all_dlcs and not all_langs:
+            self.app.show_toast("No DLCs or language packs available", "warning")
             return
-        self._start_pack(all_ids)
+        self._start_pack(all_dlcs, all_langs)
 
-    def _start_pack(self, dlc_ids: list[str]):
+    def _start_pack(self, dlc_ids: list[str], lang_codes: list[str]):
         if self._busy:
             return
 
@@ -358,105 +466,143 @@ class PackerFrame(ctk.CTkFrame):
             if not answer:
                 return
         elif free_space > 0 and estimated_size > free_space * 0.9:
-            # Warn if packing would use more than 90% of remaining space
             self.app.show_toast(
                 f"Warning: packing will use ~{_format_size(estimated_size)} "
                 f"of {_format_size(free_space)} free",
                 "warning",
             )
 
-        # Check which zips already exist
+        # Check which DLC zips already exist
         catalog = self._packer._catalog
-        existing = []
+        existing_dlcs = []
         for dlc_id in dlc_ids:
             dlc = catalog.get_by_id(dlc_id)
             if dlc and self._packer.get_zip_path(dlc, self._output_dir).is_file():
-                existing.append(dlc_id)
+                existing_dlcs.append(dlc_id)
 
+        # Check which language zips already exist
+        existing_langs = []
+        for code in lang_codes:
+            if self._lang_packer.get_zip_path(code, self._output_dir).is_file():
+                existing_langs.append(code)
+
+        existing = existing_dlcs + existing_langs
         if existing:
             names = ", ".join(existing)
             answer = tk.messagebox.askyesnocancel(
                 "Overwrite Existing?",
-                f"The following DLC zips already exist:\n{names}\n\n"
+                f"The following archives already exist:\n{names}\n\n"
                 "Yes = Overwrite existing\n"
                 "No = Skip existing, pack the rest\n"
                 "Cancel = Abort",
                 parent=self,
             )
             if answer is None:
-                # Cancel
                 return
             if not answer:
-                # No — skip existing
-                dlc_ids = [d for d in dlc_ids if d not in existing]
-                if not dlc_ids:
-                    self.app.show_toast("All selected DLCs already packed", "success")
+                dlc_ids = [d for d in dlc_ids if d not in existing_dlcs]
+                lang_codes = [c for c in lang_codes if c not in existing_langs]
+                if not dlc_ids and not lang_codes:
+                    self.app.show_toast("All selected items already packed", "success")
                     return
 
+        total_items = len(dlc_ids) + len(lang_codes)
         self._busy = True
         self._set_buttons_state("disabled")
         self._progress_bar.set(0)
         self._status_label.configure(
-            text=f"Packing 0/{len(dlc_ids)} DLCs...",
+            text=f"Packing 0/{total_items} item(s)...",
             text_color=theme.COLORS["text_muted"],
         )
 
         self.app.run_async(
-            self._pack_bg, dlc_ids,
+            self._pack_bg, dlc_ids, lang_codes,
             on_done=self._on_pack_done,
             on_error=self._on_pack_error,
         )
 
-    def _pack_bg(self, dlc_ids: list[str]):
+    def _pack_bg(self, dlc_ids: list[str], lang_codes: list[str]):
         game_dir = self.app.updater.find_game_dir()
         if not game_dir:
             raise RuntimeError("No game directory found")
 
-        game_dir = Path(game_dir)
+        game_path = Path(game_dir)
         catalog = self._packer._catalog
+        total = len(dlc_ids) + len(lang_codes)
 
+        # Pack DLCs
         dlcs = []
         for dlc_id in dlc_ids:
             dlc = catalog.get_by_id(dlc_id)
             if dlc:
                 dlcs.append(dlc)
 
-        def progress_cb(idx, total, dlc_id, msg):
+        def dlc_progress_cb(idx, count, dlc_id, msg):
             pct = idx / total if total > 0 else 0
-            self.app._enqueue_gui(self._update_pack_progress, idx, total, dlc_id, pct)
+            self.app._enqueue_gui(self._update_pack_progress, idx, total, dlc_id or msg, pct)
 
-        results = self._packer.pack_multiple(game_dir, dlcs, self._output_dir, progress_cb)
+        dlc_results = self._packer.pack_multiple(
+            game_path, dlcs, self._output_dir, dlc_progress_cb,
+        )
 
-        # Generate manifest
-        if results:
-            self._packer.generate_manifest(results, self._output_dir)
+        # Pack Languages
+        offset = len(dlc_ids)
 
-        return results
+        def lang_progress_cb(idx, count, code, msg):
+            pct = (offset + idx) / total if total > 0 else 0
+            label = code or msg
+            self.app._enqueue_gui(self._update_pack_progress, offset + idx, total, label, pct)
 
-    def _update_pack_progress(self, idx, total, dlc_id, pct):
+        lang_results = self._lang_packer.pack_multiple(
+            game_path, lang_codes, self._output_dir, lang_progress_cb,
+        )
+
+        # Generate manifests
+        if dlc_results:
+            self._packer.generate_manifest(dlc_results, self._output_dir)
+        if lang_results:
+            self._lang_packer.generate_manifest(lang_results, self._output_dir)
+
+        return {"dlc_results": dlc_results, "lang_results": lang_results}
+
+    def _update_pack_progress(self, idx, total, label, pct):
         self._progress_bar.set(pct)
-        if dlc_id:
-            self._status_label.configure(text=f"Packing {idx + 1}/{total}: {dlc_id}")
+        if label:
+            self._status_label.configure(text=f"Packing {idx + 1}/{total}: {label}")
         else:
             self._status_label.configure(text=f"Packing {idx}/{total}...")
 
-    def _on_pack_done(self, results: list[PackResult]):
+    def _on_pack_done(self, results):
         self._busy = False
         self._set_buttons_state("normal")
         self._progress_bar.set(1.0)
 
-        if not results:
-            self._status_label.configure(text="No DLCs were packed")
-            self.app.show_toast("No DLCs were packed", "warning")
+        dlc_results = results["dlc_results"]
+        lang_results = results["lang_results"]
+        total_count = len(dlc_results) + len(lang_results)
+
+        if total_count == 0:
+            self._status_label.configure(text="Nothing was packed")
+            self.app.show_toast("Nothing was packed", "warning")
             return
 
-        total_size = sum(r.size for r in results)
+        total_size = (
+            sum(r.size for r in dlc_results) +
+            sum(r.size for r in lang_results)
+        )
+
+        parts = []
+        if dlc_results:
+            parts.append(f"{len(dlc_results)} DLC(s)")
+        if lang_results:
+            parts.append(f"{len(lang_results)} language pack(s)")
+
         self._status_label.configure(
-            text=f"Packed {len(results)} DLC(s), {_format_size(total_size)} total. "
-                 f"Manifest saved to {self._output_dir}",
+            text=f"Packed {', '.join(parts)}, {_format_size(total_size)} total. "
+                 f"Output: {self._output_dir}",
         )
         self.app.show_toast(
-            f"Packed {len(results)} DLC(s) successfully", "success",
+            f"Packed {', '.join(parts)} successfully", "success",
         )
 
     def _on_pack_error(self, error):

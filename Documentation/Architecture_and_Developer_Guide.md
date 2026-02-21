@@ -38,6 +38,7 @@
    - 5.17 [DLC: Packer](#517-dlc-packer)
    - 5.18 [DLC: Steam Price Service](#518-dlc-steam-price-service)
    - 5.19 [Language Changer](#519-language-changer)
+   - 5.20 [GreenLuma Package](#520-greenluma-package)
 6. [Layer 3: GUI](#6-layer-3-gui)
    - 6.1 [App Class and Window Structure](#61-app-class-and-window-structure)
    - 6.2 [Threading Model](#62-threading-model)
@@ -50,8 +51,9 @@
    - 6.9 [Frame Reference: DLCFrame](#69-frame-reference-dlcframe)
    - 6.10 [Frame Reference: PackerFrame](#610-frame-reference-packerframe)
    - 6.11 [Frame Reference: UnlockerFrame](#611-frame-reference-unlockerframe)
-   - 6.12 [Frame Reference: SettingsFrame](#612-frame-reference-settingsframe)
-   - 6.13 [Frame Reference: ProgressFrame](#613-frame-reference-progressframe)
+   - 6.12 [Frame Reference: GreenLumaFrame](#612-frame-reference-greenlumaframe)
+   - 6.13 [Frame Reference: SettingsFrame](#613-frame-reference-settingsframe)
+   - 6.14 [Frame Reference: ProgressFrame](#614-frame-reference-progressframe)
 7. [Configuration and App Data](#7-configuration-and-app-data)
    - 7.1 [App Data Directory](#71-app-data-directory)
    - 7.2 [Settings Dataclass](#72-settings-dataclass)
@@ -142,11 +144,30 @@ sims4-updater/                         # Project root
           dlc_frame.py                 # DLC list, filter, per-DLC download
           packer_frame.py              # Pack/import DLC archives
           unlocker_frame.py            # Install/uninstall EA DLC Unlocker
+          greenluma_frame.py           # GreenLuma install/uninstall/apply/verify
+          downloader_frame.py          # DLC download interface
+          language_frame.py            # Language management with Steam depot downloads
+          mods_frame.py                # Mod management
           settings_frame.py            # Edit Settings fields
           progress_frame.py            # Live update progress log
+      greenluma/
+        __init__.py
+        steam.py                       # Steam path detection, process checks, SteamInfo
+        installer.py                   # GreenLuma install/uninstall/launch, install manifest
+        applist.py                     # AppList (numbered .txt files) read/write/backup
+        config_vdf.py                  # Steam config.vdf parsing, depot key management
+        lua_parser.py                  # LUA manifest file parser (addappid/setManifestid)
+        manifest_cache.py              # depotcache .manifest file management
+        orchestrator.py                # High-level GL operations (readiness, apply LUA, verify)
       language/
         __init__.py
         changer.py                     # LANGUAGES dict, get/set registry + RldOrigin.ini
+        downloader.py                  # Steam depot-based language file downloads
+        packer.py                      # Language file packing
+        steam.py                       # Steam language depot configuration
+      mods/
+        __init__.py
+        manager.py                     # Mod management
       ea_api/
         __init__.py                    # (stub/reserved for EA OAuth integration)
     patch_maker/
@@ -204,7 +225,16 @@ The system is organized into three distinct layers, each depending only on the l
 |   | unlocker         |   +------------------+   | packer      | |
 |   +------------------+                          | steam       | |
 |                                                 +-------------+ |
-|   language/changer                                               |
+|   +------------------+   +------------------+   +-------------+ |
+|   |   greenluma/     |   |   language/      |   |   mods/     | |
+|   | steam            |   | changer          |   | manager     | |
+|   | installer        |   | downloader       |   +-------------+ |
+|   | applist          |   | packer / steam   |                   |
+|   | config_vdf       |   +------------------+                   |
+|   | lua_parser       |                                          |
+|   | manifest_cache   |                                          |
+|   | orchestrator     |                                          |
+|   +------------------+                                          |
 +------------------------------------------------------------------+
            |
            v
@@ -1015,6 +1045,189 @@ LANGUAGES = {
 1. Writes `Locale` to the registry in both 32-bit and 64-bit views.
 2. If `game_dir` is provided, updates `Language = <code>` in all `RldOrigin.ini` variants found in `Game/Bin/`, `Game-cracked/Bin/`, `Game/Bin_LE/`, and `Game-cracked/Bin_LE/`.
 
+### 5.20 GreenLuma Package
+
+**Directory:** `src/sims4_updater/greenluma/`
+
+The `greenluma/` package provides all backend logic for integrating with GreenLuma 2025, the Steam-compatible DLC unlocking tool. It is a self-contained sub-package with no dependencies on the patching or DLC-toggling subsystems. The GUI (`GreenLumaFrame`) is the only consumer of these modules; all six modules can also be used independently via the CLI or tests.
+
+#### greenluma/steam.py
+
+Responsible for locating the Steam installation and gathering GreenLuma presence information into a single `SteamInfo` dataclass.
+
+```python
+@dataclass
+class SteamInfo:
+    steam_path: Path
+    applist_dir: Path         # steam_path / "AppList"
+    config_vdf_path: Path     # steam_path / "config" / "config.vdf"
+    depotcache_dir: Path      # steam_path / "depotcache"
+    steamapps_dir: Path       # steam_path / "steamapps"
+    greenluma_installed: bool
+    greenluma_mode: str       # "normal" | "stealth" | "none"
+```
+
+`detect_steam_path()` checks the Windows registry (`SOFTWARE\Valve\Steam`, both 64-bit and 32-bit views) and then falls back to a list of hard-coded common paths (`C:\Program Files (x86)\Steam`, etc.), returning the first directory that contains `steam.exe`.
+
+GreenLuma presence is detected by checking for the DLL files `GreenLuma_2025_x64.dll` and `GreenLuma_2025_x86.dll` in the Steam directory. Stealth mode is distinguished from normal mode by the absence of the standard `DLLInjector.exe` entry point.
+
+`is_steam_running()` enumerates running processes via `tasklist` subprocess output and returns `True` if any `steam.exe` process is found. This guard is checked before any mutation of Steam configuration files.
+
+#### greenluma/applist.py
+
+Manages GreenLuma's `AppList/` directory, which contains one numbered text file per registered Steam App/Depot ID (e.g., `0.txt` contains `"1222670"`).
+
+```python
+@dataclass
+class AppListState:
+    entries: dict[str, str]           # filename -> app_id ("0.txt" -> "1222670")
+    unique_ids: set[str]              # deduplicated set of all IDs
+    count: int                        # total file count
+    duplicates: list[tuple[str, str]] # (filename, duplicate_id) pairs
+```
+
+**Public API:**
+
+| Function | Description |
+|---|---|
+| `read_applist(applist_dir)` | Parse all `N.txt` files into an `AppListState` |
+| `write_applist(applist_dir, ids)` | Write a set of IDs as consecutively numbered files |
+| `backup_applist(applist_dir)` | Copy the directory to `AppList_backup_YYYYMMDD_HHMMSS/` |
+| `add_ids(applist_dir, new_ids)` | Add IDs not already present; returns count added |
+| `remove_ids(applist_dir, ids_to_remove)` | Remove specific IDs and renumber remaining files |
+
+The hard limit `APPLIST_LIMIT = 130` enforces GreenLuma's maximum supported entry count. `add_ids()` raises `ValueError` if adding the requested IDs would exceed this limit.
+
+#### greenluma/config_vdf.py
+
+Parses and mutates Steam's `config/config.vdf` file to read and write per-depot decryption keys. The VDF format uses brace-depth nesting with quoted string keys and values.
+
+```python
+@dataclass
+class VdfKeyState:
+    keys: dict[str, str]  # depot_id -> hex_key
+    total_keys: int
+```
+
+The parser locates the `"depots"` block using a brace-depth counter (`_find_depots_section()`), validates balanced braces before writing (`_validate_braces()`), and uses regex substitution to insert or update individual depot key entries. Backups (`config_backup_YYYYMMDD_HHMMSS.vdf`) are written before any mutation when `greenluma_auto_backup` is `True`.
+
+All writes are guarded by a `is_steam_running()` check — writing `config.vdf` while Steam is open risks Steam overwriting the changes on exit.
+
+#### greenluma/lua_parser.py
+
+Parses GreenLuma/SteamTools LUA manifest files that declare app IDs, depot decryption keys, and manifest IDs via two LUA function calls:
+
+- `addappid(ID, FLAGS, "HEX_KEY")` — registers an App or Depot ID with a 64-character hex decryption key
+- `addappid(ID)` / `addappid(ID, FLAGS)` — registers an ID without a key
+- `setManifestid(DEPOT_ID, "MANIFEST_ID")` — pins a specific depot manifest version
+
+```python
+@dataclass
+class DepotEntry:
+    depot_id: str
+    decryption_key: str  # 64-char hex string, empty if none
+    manifest_id: str     # large numeric string, empty if none
+
+@dataclass
+class LuaManifest:
+    app_id: str                          # first addappid = base game
+    entries: dict[str, DepotEntry]       # depot_id -> DepotEntry
+    all_app_ids: list[str]               # all IDs in declaration order
+```
+
+`parse_lua_file(path)` reads the file, applies the three compiled regex patterns, and assembles the `LuaManifest`. It is tolerant of comments, whitespace variations, and mixed `addappid`/`setManifestid` ordering. The `keys_count` and `manifests_count` computed properties give quick summary statistics.
+
+#### greenluma/manifest_cache.py
+
+Manages binary `.manifest` files in Steam's `depotcache/` directory. These files are named `{depot_id}_{manifest_id}.manifest` and are required for Steam to recognize specific depot versions without downloading them. The module does not parse binary content — it copies and verifies files by name only.
+
+```python
+@dataclass
+class ManifestState:
+    files: dict[str, str]  # depot_id -> full filename
+    depot_ids: set[str]    # set of all depot IDs present
+    total_count: int
+```
+
+**Public API:**
+
+| Function | Description |
+|---|---|
+| `read_manifest_state(depotcache_dir)` | Scan directory and return `ManifestState` |
+| `copy_manifests(src_dir, depotcache_dir, depot_ids)` | Copy matching `.manifest` files from a source directory |
+| `get_manifest_filename(depot_id, manifest_id)` | Canonical filename for a depot/manifest pair |
+| `has_manifest(depotcache_dir, depot_id)` | Check whether a depot's manifest is present |
+
+#### greenluma/installer.py
+
+Manages GreenLuma installation and launch lifecycle. GreenLuma is distributed as a 7z archive and extracted into the Steam root directory.
+
+**Install flow (`install_greenluma(archive_path, steam_path, stealth)`):**
+
+1. Confirm Steam is not running (`is_steam_running()`)
+2. Extract the 7z archive using the `7z` command-line tool
+3. Copy extracted files to the Steam root directory
+4. Record installed file paths in an install manifest (`greenluma_install.json`) saved to the app data directory
+5. In stealth mode, the `DLLInjector.exe` entry point is omitted and only the core DLLs are installed
+
+**Uninstall flow (`uninstall_greenluma(steam_path)`):**
+
+1. Load the install manifest to determine exactly which files were installed
+2. Delete those files from the Steam directory
+3. Remove the install manifest
+4. Gracefully handle missing files (already deleted by the user)
+
+**Launch (`launch_via_greenluma(steam_path)`):**
+
+Spawns `DLLInjector.exe` as a detached subprocess. Steam is not pre-started — the injector handles that. Returns immediately; the caller is responsible for monitoring the process if needed.
+
+`kill_steam(timeout)` terminates all `steam.exe` processes via `taskkill /F /IM steam.exe` and waits for up to `timeout` seconds for them to exit.
+
+#### greenluma/orchestrator.py
+
+The high-level facade that combines all five modules into coherent operations for the GUI. All methods are designed to be called from a background thread and return result dataclasses that can be safely handed back to the GUI thread.
+
+```python
+@dataclass
+class DLCReadiness:
+    dlc_id: str
+    name: str
+    steam_app_id: int
+    in_applist: bool
+    has_key: bool
+    has_manifest: bool
+
+    @property
+    def ready(self) -> bool:
+        return self.in_applist and self.has_key and self.has_manifest
+
+@dataclass
+class ApplyResult:
+    keys_added: int
+    keys_updated: int
+    manifests_copied: int
+    manifests_skipped: int
+    applist_entries_added: int
+    lua_total_keys: int
+    lua_total_manifests: int
+    errors: list[str]
+
+@dataclass
+class VerifyResult:
+    # Cross-reference report of AppList, config.vdf, and depotcache consistency
+    ...
+```
+
+**Operations:**
+
+`check_readiness(steam_info, catalog)` — For each DLC in the catalog that has a `steam_app_id`, checks whether the ID appears in the AppList, whether a decryption key is present in `config.vdf`, and whether a `.manifest` file exists in `depotcache/`. Returns a `list[DLCReadiness]` sorted by ready status.
+
+`apply_lua(lua_path, steam_info, manifest_src_dir, log)` — The primary user-facing operation. Parses the LUA file, optionally backs up AppList and `config.vdf`, writes all depot keys into `config.vdf`, copies matching `.manifest` files from `manifest_src_dir` into `depotcache/`, and adds all app IDs to the AppList. Returns `ApplyResult` with counts of each action taken and any non-fatal errors.
+
+`verify(lua_path, steam_info)` — Parses the LUA file and cross-references its declared depot IDs against the current AppList, `config.vdf`, and `depotcache/`. Returns a `VerifyResult` detailing any discrepancies.
+
+`fix_applist(steam_info, catalog)` — Reads the AppList, removes duplicates, and adds any DLC Steam App IDs from the catalog that are missing. Returns `(added_count, removed_duplicates_count)`.
+
 ---
 
 ## 6. Layer 3: GUI
@@ -1402,22 +1615,62 @@ Features:
 
 If not running as administrator, the install/uninstall buttons show an error message asking the user to relaunch as administrator.
 
-### 6.12 Frame Reference: SettingsFrame
+### 6.12 Frame Reference: GreenLumaFrame
+
+**File:** `src/sims4_updater/gui/frames/greenluma_frame.py`
+
+The GreenLuma Manager tab is the primary interface for all GreenLuma operations.
+
+**Status card** (always visible at the top):
+
+- Steam Path — detected path with install status badge
+- GreenLuma — installed/not-installed badge with mode indicator (Normal or Stealth)
+- Steam — running/not-running badge (mutations are blocked while Steam is running)
+- Summary — count of ready DLCs vs. total catalog entries
+
+**Action button bar** (six buttons, full-width):
+
+| Button | Action |
+| --- | --- |
+| Install (Normal) | Extract GL archive to Steam dir in normal mode |
+| Install (Stealth) | Extract GL archive to Steam dir in stealth mode |
+| Uninstall GL | Remove all installed GL files using the install manifest |
+| Launch via GL | Spawn `DLLInjector.exe` as a detached process |
+| Apply LUA | Run the full `orchestrator.apply_lua()` pipeline |
+| Fix AppList | Deduplicate AppList and fill in any missing catalog IDs |
+
+**DLC Readiness list** — a scrollable list showing every catalog DLC that has a `steam_app_id`, with three inline indicators (AppList, Key, Manifest) displayed as colored checkmarks or dashes. A filter segmented control allows switching between All / Ready / Incomplete views.
+
+**Activity log** — a `CTkTextbox` below the readiness list that receives timestamped log output from all background operations.
+
+All operations follow the standard async pattern: `self.app.run_async(bg_func, on_done=..., on_error=...)`. Buttons are disabled while any operation is in progress (`self._busy = True`) to prevent concurrent mutations.
+
+### 6.13 Frame Reference: SettingsFrame
 
 **File:** `src/sims4_updater/gui/frames/settings_frame.py`
 
-The Settings tab exposes all `Settings` fields for editing.
+The Settings tab is structured as two `InfoCard` sections within a scrollable body.
 
-Fields:
-- **Game Path** — text entry with "Browse" button
+#### Card 1: Game & Updates
+
+- **Game Directory** — text entry with "Browse", "Auto Detect" buttons. "Auto Detect" invokes the same registry + filesystem probe used by `VersionDetector`.
+- **Patch Manifest URL** — text entry for the patch manifest endpoint
 - **Language** — dropdown of all 18 language codes
-- **Manifest URL** — text entry for the patch manifest endpoint
+- **Theme** — appearance mode selector
 - **Check Updates on Start** — checkbox
-- "Save" button: writes `Settings.save()`, shows toast confirmation
 
-`on_show()` calls `Settings.load()` to refresh the displayed values each time the tab is opened.
+#### Card 2: GreenLuma
 
-### 6.13 Frame Reference: ProgressFrame
+- **Steam Path** — text entry with "Browse" button (leave blank for auto-detection)
+- **Steam Username** — text entry for DepotDownloader authentication (password is never stored)
+- **GreenLuma Archive** — file picker for the `.7z` distribution archive
+- **LUA Manifest Path** — file picker for the `.lua` file to apply
+- **Manifest Files Directory** — directory picker for `.manifest` binary files
+- **Auto Backup** — checkbox that controls whether `config.vdf` and AppList are backed up before modification
+
+"Save" button writes `Settings.save()` and shows a toast confirmation. `on_show()` calls `Settings.load()` to refresh the displayed values each time the tab is opened.
+
+### 6.14 Frame Reference: ProgressFrame
 
 **File:** `src/sims4_updater/gui/frames/progress_frame.py`
 
@@ -1482,6 +1735,14 @@ class Settings:
     enabled_dlcs: list[str] = field(default_factory=list)
     manifest_url: str = ""
     theme: str = "dark"
+    steam_username: str = ""              # Steam username for depot downloads (password NOT stored)
+    steam_path: str = ""                  # Steam installation directory (auto-detected or manual)
+    greenluma_archive_path: str = ""      # Path to GreenLuma 7z archive
+    greenluma_auto_backup: bool = True    # Backup config.vdf/AppList before modifications
+    greenluma_lua_path: str = ""          # Path to .lua manifest file
+    greenluma_manifest_dir: str = ""      # Path to directory containing .manifest files
+    download_concurrency: int = 3         # Number of parallel segment downloads
+    download_speed_limit: int = 0         # MB/s cap; 0 = unlimited
 ```
 
 `Settings.load()` reads `settings.json`, ignores any unknown keys (forward-compatibility), and returns a default `Settings()` instance on any parse error.
@@ -1490,7 +1751,7 @@ class Settings:
 
 ### 7.3 Settings Migration
 
-When the app data directory was renamed from `anadius` to `ToastyToast25`, a one-time migration was added in `config.py`:
+When the app data directory was renamed from `anadius` to `ToastyToast25`, a one-time migration was added in `config.py`. The migration runs at module import time and is transparent to the rest of the application.
 
 ```python
 _OLD_DIR_NAME = "anadius"

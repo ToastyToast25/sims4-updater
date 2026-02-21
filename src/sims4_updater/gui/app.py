@@ -22,8 +22,12 @@ from .animations import Animator, ease_out_cubic
 from .components import ToastNotification
 from .frames.home_frame import HomeFrame
 from .frames.dlc_frame import DLCFrame
+from .frames.downloader_frame import DownloaderFrame
+from .frames.greenluma_frame import GreenLumaFrame
+from .frames.language_frame import LanguageFrame
 from .frames.packer_frame import PackerFrame
 from .frames.unlocker_frame import UnlockerFrame
+from .frames.mods_frame import ModsFrame
 from .frames.settings_frame import SettingsFrame
 from .frames.progress_frame import ProgressFrame
 
@@ -130,8 +134,12 @@ class App(ctk.CTk):
         nav_items = [
             ("home", "Home"),
             ("dlc", "DLCs"),
+            ("downloader", "DLC Downloader"),
             ("packer", "DLC Packer"),
             ("unlocker", "Unlocker"),
+            ("greenluma", "GreenLuma"),
+            ("language", "Language"),
+            ("mods", "Mods"),
             ("settings", "Settings"),
         ]
 
@@ -227,8 +235,12 @@ class App(ctk.CTk):
 
         self._frames["home"] = HomeFrame(self._content, self)
         self._frames["dlc"] = DLCFrame(self._content, self)
+        self._frames["downloader"] = DownloaderFrame(self._content, self)
         self._frames["packer"] = PackerFrame(self._content, self)
         self._frames["unlocker"] = UnlockerFrame(self._content, self)
+        self._frames["greenluma"] = GreenLumaFrame(self._content, self)
+        self._frames["language"] = LanguageFrame(self._content, self)
+        self._frames["mods"] = ModsFrame(self._content, self)
         self._frames["settings"] = SettingsFrame(self._content, self)
         self._frames["progress"] = ProgressFrame(self._content, self)
 

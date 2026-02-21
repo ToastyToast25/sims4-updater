@@ -8,7 +8,10 @@ Also checks for updater self-updates from GitHub Releases.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -366,6 +369,42 @@ class HomeFrame(ctk.CTkFrame):
         )
         self._refresh_btn.grid(row=0, column=1, sticky="ew")
 
+        # ── Launch buttons row ──
+        launch_frame = ctk.CTkFrame(self, fg_color="transparent")
+        launch_frame.grid(row=2, column=0, padx=30, pady=(0, 10), sticky="ew")
+        launch_frame.grid_columnconfigure(0, weight=1)
+        launch_frame.grid_columnconfigure(1, weight=1)
+
+        self._legit_launch_btn = ctk.CTkButton(
+            launch_frame,
+            text="Legit Launch",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["success"],
+            hover_color="#26b863",
+            command=self._on_legit_launch,
+            state="disabled",
+        )
+        self._legit_launch_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+
+        self._cracked_launch_btn = ctk.CTkButton(
+            launch_frame,
+            text="Cracked Launch",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._on_cracked_launch,
+            state="disabled",
+        )
+        self._cracked_launch_btn.grid(row=0, column=1, padx=(5, 0), sticky="ew")
+
+        # Track detected exe paths
+        self._legit_exe: Path | None = None
+        self._cracked_exe: Path | None = None
+
     def on_show(self):
         """Play staggered entrance animation on first show only."""
         if not self._entrance_played:
@@ -542,6 +581,9 @@ class HomeFrame(ctk.CTkFrame):
             text="Check for Updates",
             command=self._on_check_updates,
         )
+
+        # Detect launch executables
+        self._detect_launchers(game_dir)
 
     def _on_check_updates(self):
         """Check for updates button handler."""
@@ -810,6 +852,80 @@ class HomeFrame(ctk.CTkFrame):
         self._app_update_label.configure(
             text=f"Update failed: {error}",
         )
+
+    # ── Game Launchers ─────────────────────────────────────────
+
+    # Possible executable names in order of preference
+    _GAME_EXES = ["TS4_x64.exe", "TS4_DX9_x64.exe"]
+
+    def _detect_launchers(self, game_dir):
+        """Detect legit and cracked game executables."""
+        self._legit_exe = None
+        self._cracked_exe = None
+
+        if not game_dir:
+            self._legit_launch_btn.configure(state="disabled")
+            self._cracked_launch_btn.configure(state="disabled")
+            return
+
+        game_dir = Path(game_dir)
+
+        # Legit: Game/Bin/TS4_x64.exe
+        for exe_name in self._GAME_EXES:
+            for bin_dir in ("Game/Bin", "Game/Bin_LE"):
+                candidate = game_dir / bin_dir.replace("/", os.sep) / exe_name
+                if candidate.is_file():
+                    self._legit_exe = candidate
+                    break
+            if self._legit_exe:
+                break
+
+        # Cracked: Game-cracked/Bin/TS4_x64.exe
+        for exe_name in self._GAME_EXES:
+            for bin_dir in ("Game-cracked/Bin", "Game-cracked/Bin_LE"):
+                candidate = game_dir / bin_dir.replace("/", os.sep) / exe_name
+                if candidate.is_file():
+                    self._cracked_exe = candidate
+                    break
+            if self._cracked_exe:
+                break
+
+        # Update button states
+        if self._legit_exe:
+            self._legit_launch_btn.configure(state="normal")
+        else:
+            self._legit_launch_btn.configure(state="disabled")
+
+        if self._cracked_exe:
+            self._cracked_launch_btn.configure(state="normal")
+        else:
+            self._cracked_launch_btn.configure(state="disabled")
+
+    def _on_legit_launch(self):
+        """Launch the legit game executable."""
+        if not self._legit_exe or not self._legit_exe.is_file():
+            self.app.show_toast("Legit game executable not found.", "warning")
+            return
+        self._launch_game(self._legit_exe, "Legit")
+
+    def _on_cracked_launch(self):
+        """Launch the cracked game executable."""
+        if not self._cracked_exe or not self._cracked_exe.is_file():
+            self.app.show_toast("Cracked game executable not found.", "warning")
+            return
+        self._launch_game(self._cracked_exe, "Cracked")
+
+    def _launch_game(self, exe_path: Path, label: str):
+        """Launch a game executable."""
+        try:
+            subprocess.Popen(
+                [str(exe_path)],
+                cwd=str(exe_path.parent),
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            )
+            self.app.show_toast(f"{label} game launched!", "success")
+        except OSError as e:
+            self.app.show_toast(f"Failed to launch: {e}", "error")
 
     # ── Banner helpers ──────────────────────────────────────────
 

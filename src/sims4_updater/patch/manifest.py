@@ -88,6 +88,28 @@ class DLCDownloadEntry:
 
 
 @dataclass
+class LanguageDownloadEntry:
+    """A downloadable language pack (Strings file) archive."""
+
+    locale_code: str   # e.g. "da_DK"
+    url: str           # direct download URL
+    size: int = 0      # archive size in bytes
+    md5: str = ""      # verification hash
+    filename: str = ""  # derived from URL if not specified
+
+    def __post_init__(self):
+        if not self.filename:
+            self.filename = self.url.rsplit("/", 1)[-1].split("?")[0]
+
+    def to_file_entry(self) -> FileEntry:
+        """Convert to FileEntry for use with Downloader."""
+        return FileEntry(
+            url=self.url, size=self.size,
+            md5=self.md5, filename=self.filename,
+        )
+
+
+@dataclass
 class Manifest:
     """Parsed manifest describing all available patches."""
 
@@ -102,6 +124,7 @@ class Manifest:
     new_dlcs: list[PendingDLC] = field(default_factory=list)
     dlc_catalog: list[ManifestDLC] = field(default_factory=list)
     dlc_downloads: dict[str, DLCDownloadEntry] = field(default_factory=dict)
+    language_downloads: dict[str, LanguageDownloadEntry] = field(default_factory=dict)
 
     @property
     def patch_pending(self) -> bool:
@@ -193,6 +216,20 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                     filename=dl_data.get("filename", ""),
                 )
 
+    # Parse optional language_downloads: {locale_code: {url, size, md5}}
+    language_downloads = {}
+    raw_lang = data.get("language_downloads", {})
+    if isinstance(raw_lang, dict):
+        for locale_code, lang_data in raw_lang.items():
+            if isinstance(lang_data, dict) and "url" in lang_data:
+                language_downloads[locale_code] = LanguageDownloadEntry(
+                    locale_code=locale_code,
+                    url=lang_data["url"],
+                    size=int(lang_data.get("size", 0)),
+                    md5=lang_data.get("md5", ""),
+                    filename=lang_data.get("filename", ""),
+                )
+
     return Manifest(
         latest=latest,
         patches=patches,
@@ -205,6 +242,7 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         new_dlcs=new_dlcs,
         dlc_catalog=dlc_catalog,
         dlc_downloads=dlc_downloads,
+        language_downloads=language_downloads,
     )
 
 

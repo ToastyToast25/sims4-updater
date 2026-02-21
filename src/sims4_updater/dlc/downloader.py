@@ -5,10 +5,14 @@ Each DLC goes through a 3-phase pipeline:
   1. Download: HTTP with resume + MD5 verification (reuses patch Downloader)
   2. Extract: standard zip → game directory
   3. Register: enable in crack config via DLCManager
+
+ParallelDLCDownloader adds concurrent execution using a thread pool with
+a shared token-bucket rate limiter for global speed control.
 """
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import threading
 import zipfile
@@ -20,6 +24,7 @@ from typing import Callable
 from ..patch.downloader import Downloader, ProgressCallback
 from ..patch.manifest import DLCDownloadEntry
 from ..core.exceptions import DownloadError
+from ..core.rate_limiter import TokenBucketRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +65,15 @@ class DLCDownloader:
         game_dir: str | Path,
         dlc_manager,  # DLCManager — avoids circular import
         cancel_event: threading.Event | None = None,
+        downloader: Downloader | None = None,
+        register_lock: threading.Lock | None = None,
     ):
         self.download_dir = Path(download_dir) / "dlcs"
         self.game_dir = Path(game_dir)
         self._dlc_manager = dlc_manager
         self._cancel = cancel_event or threading.Event()
-        self._downloader = Downloader(
+        self._register_lock = register_lock
+        self._downloader = downloader or Downloader(
             download_dir=self.download_dir,
             cancel_event=self._cancel,
         )
@@ -222,7 +230,15 @@ class DLCDownloader:
     # ── Registration ────────────────────────────────────────────
 
     def _register_dlc(self, dlc_id: str) -> bool:
-        """Enable the DLC in the crack config. Returns True on success."""
+        """Enable the DLC in the crack config. Returns True on success.
+
+        If a ``register_lock`` was provided at construction, the lock is
+        held for the entire read-modify-write cycle to prevent concurrent
+        workers from clobbering each other's config writes.
+        """
+        lock = self._register_lock
+        if lock:
+            lock.acquire()
         try:
             states = self._dlc_manager.get_dlc_states(self.game_dir)
             enabled_set = set()
@@ -237,6 +253,9 @@ class DLCDownloader:
             # Registration failure is non-fatal — files are on disk
             logger.warning("Could not register DLC %s: %s", dlc_id, e)
             return False
+        finally:
+            if lock:
+                lock.release()
 
     # ── Cleanup ─────────────────────────────────────────────────
 
@@ -248,3 +267,112 @@ class DLCDownloader:
 
     def __exit__(self, *args):
         self.close()
+
+
+class ParallelDLCDownloader:
+    """Orchestrates parallel DLC downloads with shared rate limiting.
+
+    Each worker thread gets its own ``Downloader`` (and ``requests.Session``)
+    but shares a single ``TokenBucketRateLimiter`` for global speed control
+    and a ``threading.Lock`` for serialising crack-config writes.
+    """
+
+    def __init__(
+        self,
+        download_dir: str | Path,
+        game_dir: str | Path,
+        dlc_manager,
+        cancel_event: threading.Event | None = None,
+        max_workers: int = 3,
+        speed_limit_bytes: int = 0,
+    ):
+        self._download_dir = Path(download_dir)
+        self._dlcs_dir = self._download_dir / "dlcs"
+        self._game_dir = Path(game_dir)
+        self._dlc_manager = dlc_manager
+        self._cancel = cancel_event or threading.Event()
+        self._max_workers = max(1, min(max_workers, 10))
+        self._rate_limiter = TokenBucketRateLimiter(speed_limit_bytes)
+        self._register_lock = threading.Lock()
+
+    def set_speed_limit(self, bytes_per_sec: int) -> None:
+        """Update the global speed limit at runtime."""
+        self._rate_limiter.set_limit(bytes_per_sec)
+
+    def cancel(self) -> None:
+        self._cancel.set()
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancel.is_set()
+
+    def download_parallel(
+        self,
+        entries: list[DLCDownloadEntry],
+        progress: DLCStatusCallback | None = None,
+    ) -> list[DLCDownloadTask]:
+        """Download multiple DLCs concurrently using a thread pool.
+
+        Returns a list of ``DLCDownloadTask`` objects (one per entry),
+        including any that failed or were cancelled.
+        """
+        results: list[DLCDownloadTask] = []
+        results_lock = threading.Lock()
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self._max_workers,
+        ) as pool:
+            future_to_entry: dict[concurrent.futures.Future, DLCDownloadEntry] = {}
+            for entry in entries:
+                if self._cancel.is_set():
+                    break
+                future = pool.submit(self._download_one, entry, progress)
+                future_to_entry[future] = entry
+
+            for future in concurrent.futures.as_completed(future_to_entry):
+                entry = future_to_entry[future]
+                try:
+                    task = future.result()
+                except Exception as e:
+                    task = DLCDownloadTask(
+                        entry=entry,
+                        state=DLCDownloadState.FAILED,
+                        error=str(e),
+                    )
+                    if progress:
+                        progress(
+                            entry.dlc_id, DLCDownloadState.FAILED,
+                            0, 0, str(e),
+                        )
+                with results_lock:
+                    results.append(task)
+
+        return results
+
+    def _download_one(
+        self,
+        entry: DLCDownloadEntry,
+        progress: DLCStatusCallback | None,
+    ) -> DLCDownloadTask:
+        """Download a single DLC in its own thread."""
+        # Each worker gets its own Downloader + Session (not thread-safe to share)
+        dl = Downloader(
+            download_dir=self._dlcs_dir,
+            cancel_event=self._cancel,
+            rate_limiter=self._rate_limiter,
+        )
+        worker = DLCDownloader(
+            download_dir=self._download_dir,
+            game_dir=self._game_dir,
+            dlc_manager=self._dlc_manager,
+            cancel_event=self._cancel,
+            downloader=dl,
+            register_lock=self._register_lock,
+        )
+        try:
+            return worker.download_dlc(entry, progress=progress)
+        finally:
+            dl.close()
+
+    def close(self) -> None:
+        """No persistent resources to clean up (workers close their own)."""

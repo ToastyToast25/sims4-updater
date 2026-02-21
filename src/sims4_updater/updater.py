@@ -101,6 +101,34 @@ class Sims4Updater(BasePatcher):
             cancel_event=self._cancel,
         )
 
+    def create_language_downloader(self, game_dir: str):
+        """Create a LanguagePackDownloader for the given game directory."""
+        from .language.downloader import LanguagePackDownloader
+
+        return LanguagePackDownloader(
+            download_dir=self._download_dir,
+            game_dir=game_dir,
+            cancel_event=self._cancel,
+        )
+
+    def create_parallel_dlc_downloader(
+        self,
+        game_dir: str,
+        max_workers: int = 3,
+        speed_limit_bytes: int = 0,
+    ):
+        """Create a ParallelDLCDownloader for concurrent DLC downloads."""
+        from .dlc.downloader import ParallelDLCDownloader
+
+        return ParallelDLCDownloader(
+            download_dir=self._download_dir,
+            game_dir=game_dir,
+            dlc_manager=self._dlc_manager,
+            cancel_event=self._cancel,
+            max_workers=max_workers,
+            speed_limit_bytes=speed_limit_bytes,
+        )
+
     def exiting_extra(self):
         """Cancel downloads and save settings on exit."""
         try:

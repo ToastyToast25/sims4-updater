@@ -46,11 +46,13 @@ class Downloader:
         self,
         download_dir: str | Path,
         cancel_event: threading.Event | None = None,
+        rate_limiter: "TokenBucketRateLimiter | None" = None,
     ):
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self._cancel = cancel_event or threading.Event()
         self._session: requests.Session | None = None
+        self._rate_limiter = rate_limiter
 
     @property
     def session(self) -> requests.Session:
@@ -154,6 +156,8 @@ class Downloader:
                     if self.cancelled:
                         raise DownloadError("Download cancelled.")
                     f.write(chunk)
+                    if self._rate_limiter:
+                        self._rate_limiter.acquire(len(chunk))
                     downloaded += len(chunk)
                     if progress:
                         progress(downloaded, total_size, entry.filename)

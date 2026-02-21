@@ -30,14 +30,15 @@
 6. [DLCs Tab](#6-dlcs-tab)
    - 6.1 [DLC List Layout](#61-dlc-list-layout)
    - 6.2 [Status Pills Explained](#62-status-pills-explained)
-   - 6.3 [Collapsible Section Headers](#63-collapsible-section-headers)
-   - 6.4 [Expanding DLC Descriptions](#64-expanding-dlc-descriptions)
-   - 6.5 [Steam Pricing Display](#65-steam-pricing-display)
-   - 6.6 [Search and Filter Chips](#66-search-and-filter-chips)
-   - 6.7 [Downloading Missing DLCs](#67-downloading-missing-dlcs)
-   - 6.8 [Auto-Toggle](#68-auto-toggle)
-   - 6.9 [Apply Changes](#69-apply-changes)
-   - 6.10 [Status Bar](#610-status-bar)
+   - 6.3 [GreenLuma Readiness Indicators](#63-greenluma-readiness-indicators)
+   - 6.4 [Collapsible Section Headers](#64-collapsible-section-headers)
+   - 6.5 [Expanding DLC Descriptions](#65-expanding-dlc-descriptions)
+   - 6.6 [Steam Pricing Display](#66-steam-pricing-display)
+   - 6.7 [Search and Filter Chips](#67-search-and-filter-chips)
+   - 6.8 [Downloading Missing DLCs](#68-downloading-missing-dlcs)
+   - 6.9 [Auto-Toggle](#69-auto-toggle)
+   - 6.10 [Apply Changes](#610-apply-changes)
+   - 6.11 [Status Bar](#611-status-bar)
 7. [DLC Packer Tab](#7-dlc-packer-tab)
    - 7.1 [Purpose and Use Cases](#71-purpose-and-use-cases)
    - 7.2 [Selecting DLCs to Pack](#72-selecting-dlcs-to-pack)
@@ -54,31 +55,40 @@
    - 8.4 [Uninstalling the Unlocker](#84-uninstalling-the-unlocker)
    - 8.5 [Activity Log](#85-activity-log)
    - 8.6 [Open Configs Button](#86-open-configs-button)
-9. [Settings Tab](#9-settings-tab)
-   - 9.1 [Game Directory](#91-game-directory)
-   - 9.2 [Manifest URL](#92-manifest-url)
-   - 9.3 [Language](#93-language)
-   - 9.4 [Theme](#94-theme)
-   - 9.5 [Check for Updates on Startup](#95-check-for-updates-on-startup)
-   - 9.6 [Saving Settings](#96-saving-settings)
-10. [Command-Line Interface (CLI)](#10-command-line-interface-cli)
-    - 10.1 [When to Use the CLI](#101-when-to-use-the-cli)
-    - 10.2 [Available Commands](#102-available-commands)
-    - 10.3 [CLI Examples](#103-cli-examples)
-11. [Crack Config Format Support](#11-crack-config-format-support)
-12. [Version Detection System](#12-version-detection-system)
-13. [Supported Languages](#13-supported-languages)
-14. [Troubleshooting](#14-troubleshooting)
-    - 14.1 [Game Directory Not Detected](#141-game-directory-not-detected)
-    - 14.2 [Version Shows as Unknown](#142-version-shows-as-unknown)
-    - 14.3 [Update Button Remains Disabled](#143-update-button-remains-disabled)
-    - 14.4 [DLCs Not Showing Correct Status](#144-dlcs-not-showing-correct-status)
-    - 14.5 [Unlocker Installation Fails](#145-unlocker-installation-fails)
-    - 14.6 [Downloads Failing or Stalling](#146-downloads-failing-or-stalling)
-    - 14.7 [Settings Not Saving](#147-settings-not-saving)
-15. [Frequently Asked Questions](#15-frequently-asked-questions)
-16. [Glossary](#16-glossary)
-17. [Disclaimer](#17-disclaimer)
+9. [GreenLuma Tab](#9-greenluma-tab)
+   - 9.1 [Overview](#91-overview)
+   - 9.2 [Status Card](#92-status-card)
+   - 9.3 [DLC Readiness List](#93-dlc-readiness-list)
+   - 9.4 [Install GL](#94-install-gl)
+   - 9.5 [Uninstall GL](#95-uninstall-gl)
+   - 9.6 [Launch via GL](#96-launch-via-gl)
+   - 9.7 [Apply LUA](#97-apply-lua)
+   - 9.8 [Fix AppList](#98-fix-applist)
+   - 9.9 [Activity Log](#99-activity-log)
+10. [Settings Tab](#10-settings-tab)
+    - 10.1 [Card 1: Game and Updates](#101-card-1-game-and-updates)
+    - 10.2 [Card 2: GreenLuma](#102-card-2-greenluma)
+    - 10.3 [Saving Settings](#103-saving-settings)
+    - 10.4 [Settings Field Reference](#104-settings-field-reference)
+11. [Command-Line Interface (CLI)](#11-command-line-interface-cli)
+    - 11.1 [When to Use the CLI](#111-when-to-use-the-cli)
+    - 11.2 [Available Commands](#112-available-commands)
+    - 11.3 [CLI Examples](#113-cli-examples)
+12. [Crack Config Format Support](#12-crack-config-format-support)
+13. [Version Detection System](#13-version-detection-system)
+14. [Supported Languages](#14-supported-languages)
+15. [Troubleshooting](#15-troubleshooting)
+    - 15.1 [Game Directory Not Detected](#151-game-directory-not-detected)
+    - 15.2 [Version Shows as Unknown](#152-version-shows-as-unknown)
+    - 15.3 [Update Button Remains Disabled](#153-update-button-remains-disabled)
+    - 15.4 [DLCs Not Showing Correct Status](#154-dlcs-not-showing-correct-status)
+    - 15.5 [Unlocker Installation Fails](#155-unlocker-installation-fails)
+    - 15.6 [Downloads Failing or Stalling](#156-downloads-failing-or-stalling)
+    - 15.7 [Settings Not Saving](#157-settings-not-saving)
+    - 15.8 [GreenLuma Not Detected](#158-greenluma-not-detected)
+16. [Frequently Asked Questions](#16-frequently-asked-questions)
+17. [Glossary](#17-glossary)
+18. [Disclaimer](#18-disclaimer)
 
 ---
 
@@ -93,7 +103,7 @@ Sims 4 Updater is a standalone Windows desktop application that serves as a sing
 
 The application is distributed as a single portable executable (`Sims4Updater.exe`) with no installer required. It bundles all dependencies internally, including the patching engine (xdelta3), archive extraction tools (unrar), and the full DLC catalog database.
 
-> **Note:** The Sims 4 Updater requires a manifest URL to check for updates. The application ships without a pre-configured URL. You must obtain a manifest URL from the community or patch server host and enter it in the Settings tab before the update functionality will operate. See [Section 9.2](#92-manifest-url) for details.
+> **Note:** The Sims 4 Updater requires a manifest URL to check for updates. The application ships without a pre-configured URL. You must obtain a manifest URL from the community or patch server host and enter it in the Settings tab before the update functionality will operate. See [Section 10.1](#101-card-1-game-and-updates) for details.
 
 ---
 
@@ -135,7 +145,7 @@ On first launch, the application performs the following steps automatically:
 
 4. **DLC state scan:** The application reads the crack configuration file to build an initial picture of which DLCs are enabled and which are disabled.
 
-If the game directory is not found automatically, the Home and DLCs tabs will show placeholder messages prompting you to configure the path in Settings. See [Section 9.1](#91-game-directory) for instructions.
+If the game directory is not found automatically, the Home and DLCs tabs will show placeholder messages prompting you to configure the path in Settings. See [Section 10.1](#101-card-1-game-and-updates) for instructions.
 
 ### 3.3 Application Data Location
 
@@ -152,6 +162,7 @@ Files created in this directory:
 | `settings.json` | All user preferences (game path, manifest URL, language, theme) |
 | `learned_hashes.json` | Locally accumulated version fingerprints from self-learning |
 | `packed_dlcs\` | Output folder for DLC archives created in the DLC Packer tab |
+| `greenluma_install.json` | Manifest of installed GreenLuma files for clean uninstall |
 
 > **Migration note:** If you previously used an older version of this tool that stored data under `AppData\Local\anadius\sims4_updater\`, the application will automatically migrate your `settings.json` and `learned_hashes.json` to the new location on first launch. The original files are not deleted.
 
@@ -163,13 +174,17 @@ The application window is divided into two areas: a dark sidebar on the left and
 
 ### 4.1 Sidebar Navigation
 
-The sidebar contains five navigation entries, each corresponding to a tab:
+The sidebar contains navigation entries, each corresponding to a tab:
 
 | Tab | Purpose |
 |---|---|
 | **Home** | Game version status and update controls |
 | **DLCs** | Full DLC catalog with enable/disable management |
+| **DLC Downloader** | Download individual DLC content from CDN |
+| **GreenLuma** | GreenLuma 2025 Steam DLC integration |
 | **DLC Packer** | Pack DLCs into ZIP archives or import archives |
+| **Language** | Game language settings with Steam depot downloads |
+| **Mods** | Mod management |
 | **Unlocker** | Install or uninstall the EA DLC Unlocker |
 | **Settings** | Application configuration |
 
@@ -329,9 +344,12 @@ Each row contains, from left to right:
 - Steam price information (if prices have been loaded)
 - A Steam store link icon (if the DLC has a Steam App ID)
 - A status pill badge
+- A GreenLuma readiness pill badge (if GreenLuma is configured — see [Section 6.3](#63-greenluma-readiness-indicators))
 - A download button (if the DLC is downloadable and not installed)
 
 Hovering over any row causes the row border to animate from grey to the application accent color. Moving the cursor away reverses the animation.
+
+When GreenLuma is detected as installed in the Steam directory, a "GreenLuma Installed" label appears in the DLC tab header alongside the title, providing a persistent at-a-glance confirmation of GreenLuma's presence.
 
 ### 6.2 Status Pills Explained
 
@@ -352,7 +370,20 @@ Rows with "Patched" or "Patched (disabled)" status have an active checkbox that 
 
 Rows with "Not installed", "Missing files", or "Incomplete" status have a disabled, unchecked checkbox. To enable these DLCs, you must first obtain and install their content.
 
-### 6.3 Collapsible Section Headers
+### 6.3 GreenLuma Readiness Indicators
+
+When GreenLuma is configured (Steam path set in Settings and GreenLuma detected as installed), each DLC row that has a known Steam App ID displays a small **"GL"** pill badge immediately to the right of the status pill. This badge communicates at a glance whether the full set of GreenLuma requirements is in place for that DLC.
+
+| Badge appearance | Meaning |
+|---|---|
+| Green **"GL"** | GreenLuma ready — an AppList entry exists, a decryption key is present in `config.vdf`, and a manifest file is present in the depotcache |
+| Yellow **"GL"** | GreenLuma incomplete — one or more requirements are missing |
+
+When a yellow "GL" badge is displayed, hovering the mouse cursor over it shows a small tooltip above the badge identifying exactly which components are absent. The tooltip text takes the form: `Missing: AppList, Key, Manifest` — listing only the items that are actually missing.
+
+DLCs with no Steam App ID (such as certain free packs) do not receive a GL badge regardless of GreenLuma's installation state, since they have no corresponding Steam depot identity.
+
+### 6.4 Collapsible Section Headers
 
 Each pack type group has a header bar showing:
 - A triangle arrow indicator
@@ -363,7 +394,7 @@ Clicking anywhere on the header bar collapses or expands that group. When collap
 
 The counts in the header update dynamically when filters or searches narrow the visible list.
 
-### 6.4 Expanding DLC Descriptions
+### 6.5 Expanding DLC Descriptions
 
 DLC rows that have a description show a small triangular arrow on the far left of the row (before the checkbox). Clicking this arrow expands an additional panel below the row containing:
 
@@ -373,7 +404,7 @@ DLC rows that have a description show a small triangular arrow on the far left o
 
 Clicking the arrow again collapses the description panel.
 
-### 6.5 Steam Pricing Display
+### 6.6 Steam Pricing Display
 
 Steam prices are fetched automatically in the background when you first navigate to the DLCs tab. The fetching is performed as a batch request to the Steam store API. Once prices are retrieved, they are cached for the session and shared with the Home tab pricing summary card.
 
@@ -384,7 +415,7 @@ Each DLC row with a known Steam App ID and a non-free price displays pricing inf
 
 Free DLCs (such as the Holiday Celebration Pack) do not display price information since they have no cost on Steam.
 
-### 6.6 Search and Filter Chips
+### 6.7 Search and Filter Chips
 
 **Search Box**
 
@@ -409,7 +440,7 @@ Active filter chips are highlighted in the accent color (for most categories) or
 
 When the search and filters together produce no matching DLCs, the list area displays a centered message: "No DLCs match your filters / Try adjusting your search or filters."
 
-### 6.7 Downloading Missing DLCs
+### 6.8 Downloading Missing DLCs
 
 If the manifest includes download entries for DLC content (a `dlc_downloads` section), the DLC tab gains download capabilities.
 
@@ -432,7 +463,7 @@ Downloads support resumption. If a download is interrupted (network loss, applic
 
 Once all downloads complete, the DLC list automatically refreshes to reflect the newly installed content.
 
-### 6.8 Auto-Toggle
+### 6.9 Auto-Toggle
 
 The **Auto-Toggle** button (in the header row, accent-colored) scans the game directory for DLC folder presence and automatically adjusts the crack configuration:
 
@@ -443,7 +474,7 @@ This is useful after manually copying DLC folders into the game directory, after
 
 After running, a toast notification reports how many DLCs were toggled. If everything was already correctly configured, the toast reads "All DLCs already correctly configured." The DLC list automatically refreshes after Auto-Toggle completes.
 
-### 6.9 Apply Changes
+### 6.10 Apply Changes
 
 The **Apply Changes** button saves whatever checkbox states are currently set in the DLC list to the crack configuration file on disk. Use this workflow when you want to manually select which DLCs to enable or disable:
 
@@ -454,7 +485,7 @@ The **Apply Changes** button saves whatever checkbox states are currently set in
 
 Note that changes to checkboxes are not saved automatically — they are only applied when you explicitly press Apply Changes. Navigating away from the tab without pressing Apply Changes discards any unsaved checkbox state changes.
 
-### 6.10 Status Bar
+### 6.11 Status Bar
 
 A status bar at the bottom of the DLC tab shows a running count of DLC states:
 
@@ -668,57 +699,199 @@ If the unlocker has not been installed and the folder does not exist, a warning 
 
 ---
 
-## 9. Settings Tab
+## 9. GreenLuma Tab
 
-The Settings tab stores your application preferences to disk when you explicitly press Save. All settings are written to `settings.json` in the application data directory.
+### 9.1 Overview
 
-### 9.1 Game Directory
+The GreenLuma tab provides an integrated management interface for GreenLuma 2025, a Steam DLC unlock tool. It covers the full lifecycle: installing GreenLuma into the Steam directory from a `.7z` archive, configuring DLC unlock data by applying a LUA manifest file, maintaining the AppList, and launching Steam through GreenLuma's DLL injector.
 
-A text field showing the current game directory path, with a **Browse** button that opens a folder selection dialog.
+GreenLuma works by injecting DLLs into Steam at launch time. When a LUA manifest is applied, the tab writes decryption keys to Steam's `config.vdf`, copies `.manifest` files into the Steam `depotcache` directory, and registers each DLC's Steam App ID into the AppList. This allows Steam to believe the associated DLC depots have already been downloaded and are entitled.
 
-The path should point to the root of The Sims 4 installation — the folder that contains the `Game` and `Data` subdirectories and the main executable at `Game\Bin\TS4_x64.exe`.
+> **Note:** The Steam path must be correctly configured in Settings (Section 10.2) before any GreenLuma operations will function. If the path is not set, the application attempts to auto-detect it from the Windows registry on first load of this tab and saves the detected value automatically.
 
-Correct example:
+### 9.2 Status Card
+
+The top of the GreenLuma tab displays a status card with four rows of information:
+
+**Steam Path**
+The detected or configured Steam installation directory, shown truncated if long (e.g., `...Program Files (x86)\Steam`). Displays "Not Found" in red if Steam cannot be located.
+
+**GreenLuma**
+The installation state and version of GreenLuma in the configured Steam directory. Possible values:
+
+| Status | Meaning |
+|---|---|
+| `v1.7.0 (Normal)` in green | GreenLuma is installed in Normal mode at the shown version |
+| `v1.7.0 (Stealth)` in green | GreenLuma is installed in Stealth mode |
+| **Not Installed** in yellow | GreenLuma DLLs were not found in the Steam directory |
+
+**Steam**
+Whether the Steam process is currently running on the system.
+
+| Status | Meaning |
+|---|---|
+| **Running** in orange | Steam.exe process is active |
+| **Not Running** in green | Steam is not running (preferred state before launch via GL) |
+
+**Summary**
+A cross-reference count of DLC readiness, for example `14/103 DLCs ready`. When all DLCs are ready the badge turns green; otherwise it is orange. If GreenLuma data has not yet been loaded, this row shows "No DLC data."
+
+### 9.3 DLC Readiness List
+
+Below the status card, a scrollable text area labeled **DLC Readiness** displays a tabular report of every DLC's GreenLuma completion state. The list has three filter buttons in its header:
+
+| Filter | Shows |
+|---|---|
+| **All** | Every DLC with a Steam App ID |
+| **Ready** | Only DLCs where AppList, Key, and Manifest are all present |
+| **Incomplete** | Only DLCs missing at least one requirement |
+
+Each row in the table contains the following columns:
+
 ```
-C:\Program Files\EA Games\The Sims 4
+DLC      Name                             App  Key  Man  Status
+----------------------------------------------------------------------
+EP01     Get to Work                        Y    Y    Y  Ready
+EP02     Get Together                       Y    -    Y  Incomplete
 ```
 
-If the auto-detection on startup found the correct path, this field is pre-populated. If it is wrong or empty, use Browse to navigate to the correct location.
+- **App** — `Y` if the DLC's Steam App ID appears in the GreenLuma AppList; `-` if absent.
+- **Key** — `Y` if a decryption key for the DLC's depot is present in `config.vdf`; `-` if absent.
+- **Man** — `Y` if a `.manifest` file for the DLC is present in the Steam `depotcache`; `-` if absent.
+- **Status** — `Ready` when all three are `Y`; `Incomplete` otherwise.
+
+The readiness list is populated each time the tab is shown and refreshed automatically after any GreenLuma operation completes.
+
+### 9.4 Install GL
+
+The **Install (Normal)** and **Install (Stealth)** buttons install GreenLuma from a `.7z` archive into the Steam directory.
+
+**Normal mode** installs GreenLuma with its standard DLL configuration. **Stealth mode** installs the variant designed to be less detectable by Steam's anti-cheat mechanisms.
+
+When either button is pressed:
+
+1. If no GreenLuma archive path is saved in Settings, a file browser dialog opens to select the `.7z` archive. The selected path is saved to Settings automatically for future use.
+2. The archive is extracted into the Steam directory. The installer tracks all files it places using an internal manifest stored at `greenluma_install.json` in the application data directory.
+3. A toast confirms the installed version and mode (e.g., "GreenLuma v1.7.0 installed (Normal)!").
+4. The status card refreshes to reflect the new installation.
+
+If the `greenluma_archive_path` setting is already populated from a previous session, the dialog is skipped and installation proceeds immediately with the saved archive.
+
+### 9.5 Uninstall GL
+
+The **Uninstall GL** button removes all GreenLuma files from the Steam directory. This operation:
+
+1. Requires that GreenLuma is currently detected as installed. If it is not, a toast informs you and nothing proceeds.
+2. Displays a confirmation dialog:
+   > "Remove all GreenLuma files from Steam? This will delete GreenLuma DLLs, DLLInjector, and AppList entries."
+3. Upon confirmation, removes every file recorded in `greenluma_install.json`. Any file that cannot be removed (for example, if Steam is running and has a DLL loaded) is counted as failed and reported in a warning toast.
+4. The status card refreshes after completion.
+
+The activity log records the number of files removed and any failures.
+
+### 9.6 Launch via GL
+
+The **Launch via GL** button starts Steam through GreenLuma's `DLLInjector.exe`, which injects the GreenLuma DLLs into the Steam process so that the unlock behaviour takes effect for that session.
+
+**If Steam is not running:** The injector is launched immediately. A success toast and a "Running" badge in the status card confirm the launch.
+
+**If Steam is already running:** A dialog appears:
+> "Steam must be closed to launch via GreenLuma. Would you like to close Steam and relaunch via GreenLuma?"
+
+Confirming causes the application to terminate the running Steam process in the background and then launch via the injector. Declining cancels the operation without touching Steam.
+
+This button is disabled if GreenLuma is not installed or the `DLLInjector.exe` file is not found in the Steam directory.
+
+### 9.7 Apply LUA
+
+The **Apply LUA** button processes a LUA manifest file to configure Steam's local DLC unlock data. This is the primary mechanism for adding decryption keys and manifests for DLC depots.
+
+When clicked, the operation proceeds in two steps requiring user input via file dialogs:
+
+1. **Select LUA file** — A file browser opens, pre-populated from the `greenluma_lua_path` setting if one has been saved. Select the `.lua` manifest file. The selected path is saved to Settings automatically.
+
+2. **Select manifest source directory** — A directory browser opens, pre-populated from `greenluma_manifest_dir` if set, or defaulting to the Steam `depotcache` directory. Select the directory containing `.manifest` files to copy. This step can be cancelled to skip manifest copying (useful if you only want to apply keys and AppList entries without copying manifests).
+
+With both inputs provided, the application performs the following operations in the background:
+
+- Parses the LUA file to extract depot decryption keys and manifest IDs.
+- If `greenluma_auto_backup` is enabled in Settings, creates a timestamped backup of `config.vdf` and the AppList directory before making any changes.
+- Writes all decryption keys into Steam's `config.vdf` under the `depots` section.
+- Copies `.manifest` files from the selected source directory to the Steam `depotcache` directory.
+- Adds the corresponding Steam App IDs to the GreenLuma AppList.
+
+Upon completion, the activity log reports a summary: keys added, keys updated, manifests copied, and AppList entries added. The DLC readiness list refreshes automatically.
+
+> **Note on backups:** When auto-backup is enabled, backups are placed in the same directory as the file being backed up with a timestamp suffix. Backups are not automatically deleted and accumulate over time. It is advisable to periodically clear old backups from the Steam directory.
+
+### 9.8 Fix AppList
+
+The **Fix AppList** button performs a maintenance operation on the GreenLuma AppList directory:
+
+- **Removes duplicates** — Scans for App ID entries that appear more than once in the AppList and removes the redundant copies.
+- **Adds missing entries** — Cross-references the full DLC catalog against the current AppList and adds entries for any DLC Steam App IDs that are absent.
+
+Upon completion, a toast and activity log entry report the counts: `Fixed: X duplicates removed, Y missing IDs added`. The DLC readiness list refreshes to reflect the updated AppList state.
+
+This button is useful after partial or incremental LUA applications that may have left the AppList inconsistent, or after manually editing AppList files.
+
+### 9.9 Activity Log
+
+The scrollable **Activity Log** at the bottom of the GreenLuma tab records all operations in real time with timestamps:
+
+```
+[14:23:01] --- Applying LUA Manifest ---
+[14:23:01] Backing up config.vdf...
+[14:23:02] Writing 47 depot keys to config.vdf
+[14:23:02] Copying 47 manifest files to depotcache
+[14:23:03] Adding 47 AppList entries
+[14:23:03] Done: 45 keys added, 2 updated, 47 manifests copied, 47 AppList entries
+```
+
+The log persists across multiple operations within the same session. A **Clear** button in the log header erases all entries.
+
+All action buttons are disabled while a background operation is running to prevent concurrent modifications to Steam's configuration files.
+
+---
+
+## 10. Settings Tab
+
+The Settings tab stores your application preferences to disk when you explicitly press Save. All settings are written to `settings.json` in the application data directory. The tab is organized into two cards: **Game and Updates** and **GreenLuma**.
+
+### 10.1 Card 1: Game and Updates
+
+The first card groups all settings related to game detection, patch access, language, appearance, and startup behaviour.
+
+**Game Directory**
+A text field showing the current game directory path. Three controls accompany this field:
+
+- **Browse** — Opens a folder selection dialog to navigate to the installation directory manually.
+- **Auto Detect** — Queries the Windows registry for the Sims 4 installation path and populates the field automatically. If no registry key is found, a warning toast appears.
+
+The path should point to the root of The Sims 4 installation — the folder that contains the `Game` and `Data` subdirectories and the main executable at `Game\Bin\TS4_x64.exe`. The placeholder text shows the typical Steam path: `C:\Program Files (x86)\Steam\steamapps\common\The Sims 4`.
+
+If the auto-detection on startup found the correct path, this field is pre-populated. If it is wrong or empty, use Browse or Auto Detect.
 
 > **Tip:** After changing the game directory, navigate to the Home tab and press Refresh to have the application re-detect the game version from the new path.
 
-### 9.2 Manifest URL
-
-A text field for the URL of the patch manifest JSON file. This must be a fully qualified HTTPS URL pointing to a JSON file in the [manifest format](../README.md#manifest-format) supported by the application.
+**Patch Manifest URL**
+A text field for the URL of the patch manifest JSON file, with subtitle "URL for game patches and DLC content updates." This must be a fully qualified HTTPS URL pointing to a JSON file in the manifest format supported by the application. The placeholder text shows: `https://example.com/manifest.json`.
 
 The application ships without a default manifest URL. You must obtain this URL from the patch server or community source providing updates for your version of the game and paste it here.
 
-Example format:
-```
-https://example.com/ts4/manifest.json
-```
+Leave this field empty if you do not have a patch server URL. The update check functionality will not work without it, but all other features (DLC management, DLC Packer, Unlocker, GreenLuma) operate independently of this URL.
 
-Leave this field empty if you do not have a patch server URL. The update check functionality will not work without it, but all other features (DLC management, DLC Packer, Unlocker) operate independently of the manifest URL.
-
-### 9.3 Language
-
+**Language**
 A dropdown menu for selecting the game language. The selection applies in two ways:
 
 1. The game's `Locale` registry value is updated to the chosen language code, which controls the language the game loads on next launch.
 2. The `RldOrigin.ini` configuration file in the game directory (and its `Bin_LE` counterpart if present) is updated with the language setting.
 
-The dropdown displays languages in the format `{code} — {native name}`, for example:
-```
-fr_FR — Francais
-de_DE — Deutsch
-```
-
-See [Section 13](#13-supported-languages) for the full list of supported languages.
+The dropdown displays languages in the format `{code} — {native name}`, for example `fr_FR — Francais`. See [Section 14](#14-supported-languages) for the full list of supported languages.
 
 > **Note:** Changing the language here changes it for the game. It does not affect the Sims 4 Updater's own interface language, which is English only.
 
-### 9.4 Theme
-
+**Theme**
 Three radio buttons select the application's color theme:
 
 | Option | Effect |
@@ -729,25 +902,67 @@ Three radio buttons select the application's color theme:
 
 Theme changes take effect immediately when you save settings — you do not need to restart the application.
 
-### 9.5 Check for Updates on Startup
-
+**Check for updates on startup**
 A checkbox that controls whether the application automatically contacts the manifest URL on startup to check for a game update. When enabled, the Home tab refreshes game information and checks the manifest in the background immediately after launch. When disabled, you must press "Check for Updates" manually.
 
 This setting does not affect the updater self-update check — that check always runs silently on startup regardless of this toggle.
 
-### 9.6 Saving Settings
+### 10.2 Card 2: GreenLuma
 
-Press **Save Settings** to write all current field values to `settings.json`. The button briefly flashes green upon success. A success toast also confirms the save. If a write error occurs (for example, the file is locked by another process), an error message appears below the Save button with the specific reason.
+The second card groups all settings required for the GreenLuma tab to function. All fields have placeholder text showing example paths.
+
+**Steam Path**
+The Steam installation directory. Populated automatically by the GreenLuma tab on first load if Steam is detected from the registry. Use **Browse** to set or override it manually. The placeholder text shows: `C:\Program Files (x86)\Steam`.
+
+**GreenLuma Archive**
+Path to the GreenLuma `.7z` archive file used for installation. When you press **Install (Normal)** or **Install (Stealth)** on the GreenLuma tab and no archive is configured, the tab's file dialog saves the chosen path here automatically. Use **Browse** to select the file directly from this field. The placeholder text shows: `C:\path\to\GreenLuma_2025_1.7.0.7z`.
+
+**LUA Manifest File**
+Path to the `.lua` manifest file used by the **Apply LUA** operation. Populated automatically when you select a file through the GreenLuma tab's Apply LUA dialog. Use **Browse** to select it directly here. The placeholder text shows: `C:\path\to\manifest.lua`.
+
+**Manifest Files Directory**
+Path to the directory containing `.manifest` files that are copied to the Steam `depotcache` during **Apply LUA**. When not set, the Apply LUA operation defaults to suggesting the Steam `depotcache` directory itself. The placeholder text shows: `C:\Program Files (x86)\Steam\depotcache`.
+
+> **Note:** The subtitle for this field reads "Directory containing .manifest files (defaults to Steam depotcache)." If you store `.manifest` files in a separate location before copying them to Steam, configure that location here so the Apply LUA dialog opens to it automatically.
+
+**Auto-backup before changes**
+A checkbox that controls whether the application creates timestamped backups of `config.vdf` and the GreenLuma AppList directory before any **Apply LUA** or **Fix AppList** operation modifies them. Enabled by default. Disabling this option is not recommended unless you are managing backups externally.
+
+### 10.3 Saving Settings
+
+Press **Save Settings** to write all current field values from both cards to `settings.json`. The button briefly flashes green upon success. A success toast also confirms the save. If a write error occurs (for example, the file is locked by another process), an error message appears below the Save button with the specific reason.
 
 Settings are not auto-saved as you edit fields. Navigating away from the Settings tab without pressing Save discards any changes you made in that session.
 
+### 10.4 Settings Field Reference
+
+The complete set of fields stored in `settings.json` is listed below. Fields not visible in the GUI are set programmatically or via CLI flags.
+
+| Field | Description |
+|---|---|
+| `game_path` | Absolute path to The Sims 4 installation directory |
+| `manifest_url` | HTTPS URL of the patch manifest JSON file |
+| `language` | Game language code (e.g., `en_US`, `de_DE`) |
+| `theme` | UI color theme: `dark`, `light`, or `system` |
+| `check_updates_on_start` | Whether to check for game updates automatically on startup |
+| `last_known_version` | Cached version string from the last successful detection |
+| `enabled_dlcs` | List of DLC IDs explicitly enabled in the crack config |
+| `steam_path` | Steam installation directory (auto-detected or manually set) |
+| `steam_username` | Steam username for depot downloads (password is not stored) |
+| `greenluma_archive_path` | Path to the GreenLuma `.7z` archive used for installation |
+| `greenluma_auto_backup` | Whether to auto-backup `config.vdf` and AppList before modifications |
+| `greenluma_lua_path` | Path to the `.lua` manifest file used by Apply LUA |
+| `greenluma_manifest_dir` | Path to directory containing `.manifest` files for Apply LUA |
+| `download_concurrency` | Number of concurrent patch/DLC downloads (default: 3) |
+| `download_speed_limit` | Download speed limit in MB/s; 0 means unlimited (default: 0) |
+
 ---
 
-## 10. Command-Line Interface (CLI)
+## 11. Command-Line Interface (CLI)
 
 `Sims4Updater.exe` can also be run from the command prompt or PowerShell with subcommand arguments. CLI mode is useful for automation, scripting, or when you need quick answers without opening the GUI.
 
-### 10.1 When to Use the CLI
+### 11.1 When to Use the CLI
 
 - Checking the status of a game installation in a batch script.
 - Automating DLC toggling after scripted operations.
@@ -755,7 +970,7 @@ Settings are not auto-saved as you edit fields. Navigating away from the Setting
 - Teaching the updater new version hashes after a manual patch.
 - Changing the game language from a terminal.
 
-### 10.2 Available Commands
+### 11.2 Available Commands
 
 | Command | Syntax | Description |
 |---|---|---|
@@ -771,7 +986,7 @@ Settings are not auto-saved as you edit fields. Navigating away from the Setting
 
 For commands that accept `[game_dir]` as optional, the application falls back to auto-detection from the registry and default paths if no directory is supplied. The `--manifest-url` flag on the `check` command overrides the URL stored in `settings.json` for a one-time check without changing your saved configuration.
 
-### 10.3 CLI Examples
+### 11.3 CLI Examples
 
 Check the status of a game installation at a non-default path:
 
@@ -853,7 +1068,7 @@ Sims4Updater.exe language de_DE
 
 ---
 
-## 11. Crack Config Format Support
+## 12. Crack Config Format Support
 
 The Sims 4 Updater automatically detects which crack configuration format your installation uses. It does this by scanning the game directory (and the `Bin_LE` subdirectory) for known configuration filenames and structures.
 
@@ -875,7 +1090,7 @@ You do not need to know or specify which format your installation uses — detec
 
 ---
 
-## 12. Version Detection System
+## 13. Version Detection System
 
 The application identifies your installed game version through a hash-based fingerprinting system rather than reading a version number from a text file. This approach is more reliable because cracked installations may have version strings that do not accurately reflect the patched binary state.
 
@@ -906,7 +1121,7 @@ Detection returns one of three confidence levels:
 
 ---
 
-## 13. Supported Languages
+## 14. Supported Languages
 
 The language changer supports 18 languages:
 
@@ -935,15 +1150,15 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
-### 14.1 Game Directory Not Detected
+### 15.1 Game Directory Not Detected
 
 **Symptom:** The Home tab shows "Not found" for Game Directory, and the DLCs tab shows "No game directory found."
 
 **Causes and solutions:**
 
-- **Non-standard installation path.** If The Sims 4 is installed in a location other than the probed default paths and your registry key is absent or points to a different path, auto-detection will fail. Solution: Open the Settings tab, type or browse to the correct path, and save.
+- **Non-standard installation path.** If The Sims 4 is installed in a location other than the probed default paths and your registry key is absent or points to a different path, auto-detection will fail. Solution: Open the Settings tab, use **Auto Detect** to attempt a registry lookup, or type/browse to the correct path manually, then save.
 
 - **Moved game files.** If you moved the game directory after installation, the registry key still points to the old location. Solution: Set the path manually in Settings.
 
@@ -951,7 +1166,7 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Drive not connected.** If the game is installed on an external or secondary drive that is not connected at launch time, detection fails. Connect the drive and restart the application, or set the path manually.
 
-### 14.2 Version Shows as Unknown
+### 15.2 Version Shows as Unknown
 
 **Symptom:** The Home tab displays "Unknown" for Installed Version.
 
@@ -963,7 +1178,7 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Incorrect game directory.** If the path in Settings points to a folder that contains some game files but not the correct sentinel files, detection will fail or return wrong results. Solution: Verify that the configured path contains `Game\Bin\TS4_x64.exe`.
 
-### 14.3 Update Button Remains Disabled
+### 15.3 Update Button Remains Disabled
 
 **Symptom:** The "Check for Updates" button appears or the "Patch Pending" label shows, but you cannot apply an update.
 
@@ -979,13 +1194,13 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Manifest URL unreachable.** A network error or URL change prevents the manifest from loading. Solution: Verify the URL is correct in Settings, and confirm you have internet access. Check if the manifest host has posted any status announcements.
 
-### 14.4 DLCs Not Showing Correct Status
+### 15.4 DLCs Not Showing Correct Status
 
 **Symptom:** DLCs show as "Not installed" even though their folders are present, or show as "Patched" even though they are missing.
 
 **Causes and solutions:**
 
-- **Crack config not detected.** If the application cannot find a recognized config file in the game directory, it cannot determine registration status. Status will show as "Not installed" for all DLCs. Solution: Ensure the game directory is correct and contains one of the supported config files (see [Section 11](#11-crack-config-format-support)).
+- **Crack config not detected.** If the application cannot find a recognized config file in the game directory, it cannot determine registration status. Status will show as "Not installed" for all DLCs. Solution: Ensure the game directory is correct and contains one of the supported config files (see [Section 12](#12-crack-config-format-support)).
 
 - **DLC folder name mismatch.** The application looks for DLC folders matching the catalog's known IDs (e.g., `EP01`, `GP05`). Non-standard folder naming causes detection failures. Solution: Ensure DLC folders follow the standard naming convention.
 
@@ -993,7 +1208,7 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Stale data.** The DLC tab caches its state for the current navigation session. If you modify files on disk while the tab is open, press the Refresh button on the Home tab and then re-navigate to DLCs to reload.
 
-### 14.5 Unlocker Installation Fails
+### 15.5 Unlocker Installation Fails
 
 **Symptom:** The Unlocker tab shows an error in the activity log after pressing Install Unlocker.
 
@@ -1007,7 +1222,7 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Antivirus interference.** Security software may block the creation of `version.dll` in the EA app directory. Solution: Add an exception for the Sims 4 Updater and the EA app directory in your security software, or temporarily disable real-time protection during installation.
 
-### 14.6 Downloads Failing or Stalling
+### 15.6 Downloads Failing or Stalling
 
 **Symptom:** A patch or DLC download stops at a certain percentage, fails with an error, or the progress bar stops moving.
 
@@ -1021,7 +1236,7 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Antivirus quarantine.** Security software may intercept and alter downloaded patch files mid-stream, causing checksum failures. Solution: Add an exception for the Sims 4 Updater and its app data directory.
 
-### 14.7 Settings Not Saving
+### 15.7 Settings Not Saving
 
 **Symptom:** Settings revert to previous values after restarting the application.
 
@@ -1033,9 +1248,23 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 
 - **Disk full.** Solution: Free up disk space on the system drive.
 
+### 15.8 GreenLuma Not Detected
+
+**Symptom:** The GreenLuma tab status card shows "Not Installed" for GreenLuma, or the GreenLuma GL pill badges do not appear on DLC rows even after installing GreenLuma.
+
+**Causes and solutions:**
+
+- **Steam path not configured.** The GreenLuma tab and the DLC tab GL indicators both require a valid Steam installation directory to be set. If the auto-detection on first load of the GreenLuma tab did not find Steam (for example, Steam is installed in a non-default location), the path will be empty. Solution: Open the Settings tab, locate the **Steam Path** field in the GreenLuma card, enter or browse to the correct Steam installation directory (the folder containing `steam.exe`), and save.
+
+- **GreenLuma not installed.** If the GreenLuma DLLs (`GreenLuma_2025_x64.dll`, `GreenLuma_2025_x86.dll`) are not present in the Steam directory, the tab correctly reports "Not Installed." Solution: Use the **Install (Normal)** or **Install (Stealth)** button on the GreenLuma tab to install GreenLuma from a `.7z` archive.
+
+- **DLLs present but not detected.** If GreenLuma files were placed in the Steam directory manually rather than through the installer, detection should still work as long as the expected DLL filenames are present. If detection continues to fail after manual placement, verify the filenames match `GreenLuma_2025_x64.dll` and `GreenLuma_2025_x86.dll` exactly in the root of the Steam directory.
+
+- **GL badges absent on DLC rows.** GL badges only appear for DLCs that have a known Steam App ID and when GreenLuma's Steam path is configured. If the Steam path is set and GreenLuma is detected as installed but badges are still absent, navigate away from the DLCs tab and back to force a refresh of the readiness data.
+
 ---
 
-## 15. Frequently Asked Questions
+## 16. Frequently Asked Questions
 
 **Q: Do I need to run the application as administrator normally?**
 
@@ -1081,16 +1310,25 @@ No user account information, personal identifiers, game save data, or system inf
 
 ---
 
-## 16. Glossary
+## 17. Glossary
+
+**AppList**
+A directory inside the GreenLuma installation (`Steam\AppList\`) containing numbered text files, each holding a single Steam App ID. GreenLuma reads this directory at Steam startup to determine which App IDs to report as owned. Adding an App ID file to the AppList makes Steam treat that application or DLC as entitled.
 
 **BFS (Breadth-First Search)**
 The algorithm used to find the shortest chain of patch steps from your current game version to the latest available version. Among paths of equal length, the one with the smallest total download size is chosen.
+
+**config.vdf**
+A binary and text configuration file used by the Steam client, located at `Steam\config\config.vdf`. It stores per-depot decryption keys under a `depots` section. GreenLuma's Apply LUA operation writes depot keys into this file so that Steam can decrypt locally-available DLC depot data without requiring an active entitlement check.
 
 **Crack Config**
 A configuration file used by various game cracks (RldOrigin, CODEX, Rune, Anadius) to define which DLC entitlement codes are active. The Sims 4 Updater reads and writes these files to enable or disable individual DLC packs.
 
 **Delta Patch**
-A binary file describing only the differences between an old file and a new file. Applying a delta patch to the old file produces the new file. Delta patches are much smaller than the full game files because they only contain what changed. This application uses the xdelta3 format.
+A binary file describing only the differences between an old file and a new file.
+
+**depotcache**
+A directory inside the Steam installation (`Steam\depotcache\`) where Steam stores downloaded depot manifest files. Each `.manifest` file describes the content layout of a specific version of a depot (a unit of downloadable content). GreenLuma's Apply LUA operation copies `.manifest` files into this directory so that Steam considers the associated depots as already downloaded and verified. Applying a delta patch to the old file produces the new file. Delta patches are much smaller than the full game files because they only contain what changed. This application uses the xdelta3 format.
 
 **DLC (Downloadable Content)**
 Additional game content sold separately from the base game. For The Sims 4, DLCs include Expansion Packs, Game Packs, Stuff Packs, Kits, and Free Packs.
@@ -1103,6 +1341,12 @@ The list of products and DLCs that the EA app considers a user to have access to
 
 **Fingerprint / Sentinel Files**
 Three specific files whose MD5 hashes uniquely identify a given version of The Sims 4: `Game/Bin/TS4_x64.exe`, `Game/Bin/Default.ini`, and `delta/EP01/version.ini`.
+
+**GreenLuma**
+A Steam DLC unlock tool that works by injecting DLLs into the Steam process via `DLLInjector.exe`. It intercepts Steam's ownership and entitlement queries and reports the App IDs listed in its AppList directory as owned, allowing access to DLC content without a purchased license. GreenLuma 2025 is the version supported by this application, and it operates in either Normal or Stealth mode.
+
+**LUA Manifest**
+A `.lua` script file distributed by GreenLuma unlock communities. It contains depot decryption keys and manifest IDs for one or more Steam DLC depots. The Sims 4 Updater's Apply LUA operation parses this file and uses its contents to populate `config.vdf` with decryption keys, copy `.manifest` files to the Steam `depotcache`, and register the corresponding App IDs in the GreenLuma AppList.
 
 **Manifest**
 A JSON file hosted on a web server that describes available patches, their source and target versions, download URLs, file sizes, and checksums. The application fetches this file to determine what updates are available.
@@ -1127,7 +1371,7 @@ An open-source binary delta compression tool. Sims 4 update patches are stored i
 
 ---
 
-## 17. Disclaimer
+## 18. Disclaimer
 
 **THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.**
 
@@ -1148,4 +1392,4 @@ By using this software, you acknowledge and agree to the following:
 ---
 
 *Sims 4 Updater v2.0.8 — User Guide*
-*Document prepared: February 2026*
+*Document updated: February 2026*
