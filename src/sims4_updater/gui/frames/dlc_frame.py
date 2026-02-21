@@ -91,7 +91,7 @@ class DLCFrame(ctk.CTkFrame):
         self._gl_installed: bool = False
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(4, weight=1)
 
         # ── Header ──
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -203,6 +203,78 @@ class DLCFrame(ctk.CTkFrame):
             btn.grid(row=0, column=i, padx=(0 if i == 0 else 4, 0))
             self._filter_buttons[key] = btn
 
+        # ── Indicator Legend ──
+        legend_frame = ctk.CTkFrame(self, fg_color="transparent")
+        legend_frame.grid(row=3, column=0, padx=30, pady=(0, 5), sticky="ew")
+
+        legend_items = [
+            ("\u25cf", theme.COLORS["success"], "Owned"),
+            ("\u25cf", "#5b9bd5", "Patched"),
+            ("\u25cf", theme.COLORS["warning"], "Incomplete"),
+            ("\u25cf", theme.COLORS["text_muted"], "Not Installed"),
+        ]
+        col = 0
+        for dot, color, text in legend_items:
+            ctk.CTkLabel(
+                legend_frame,
+                text=f"{dot} {text}",
+                font=ctk.CTkFont(size=10),
+                text_color=color,
+            ).grid(row=0, column=col, padx=(0 if col == 0 else 10, 0))
+            col += 1
+
+        # Separator
+        ctk.CTkLabel(
+            legend_frame,
+            text="\u2502",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["border"],
+        ).grid(row=0, column=col, padx=10)
+        col += 1
+
+        # GL ready indicator
+        gl_ready_pill = ctk.CTkFrame(
+            legend_frame, corner_radius=6, border_width=1,
+            border_color=theme.COLORS["success"],
+            fg_color="transparent", height=16,
+        )
+        gl_ready_pill.grid(row=0, column=col, padx=(0, 3), pady=2)
+        ctk.CTkLabel(
+            gl_ready_pill, text="GL",
+            font=ctk.CTkFont(size=7, weight="bold"),
+            text_color=theme.COLORS["success"],
+        ).pack(padx=4, pady=0)
+        col += 1
+
+        ctk.CTkLabel(
+            legend_frame,
+            text="GL Ready",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["success"],
+        ).grid(row=0, column=col, padx=(0, 10))
+        col += 1
+
+        # GL incomplete indicator
+        gl_warn_pill = ctk.CTkFrame(
+            legend_frame, corner_radius=6, border_width=1,
+            border_color=theme.COLORS["warning"],
+            fg_color="transparent", height=16,
+        )
+        gl_warn_pill.grid(row=0, column=col, padx=(0, 3), pady=2)
+        ctk.CTkLabel(
+            gl_warn_pill, text="GL",
+            font=ctk.CTkFont(size=7, weight="bold"),
+            text_color=theme.COLORS["warning"],
+        ).pack(padx=4, pady=0)
+        col += 1
+
+        ctk.CTkLabel(
+            legend_frame,
+            text="GL Incomplete",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["warning"],
+        ).grid(row=0, column=col)
+
         # ── Status ──
         self._status_label = ctk.CTkLabel(
             self,
@@ -210,7 +282,7 @@ class DLCFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         )
-        self._status_label.grid(row=4, column=0, padx=30, pady=(5, 10), sticky="w")
+        self._status_label.grid(row=5, column=0, padx=30, pady=(5, 10), sticky="w")
 
         # ── Scrollable DLC list ──
         self._scroll_frame = ctk.CTkScrollableFrame(
@@ -218,7 +290,7 @@ class DLCFrame(ctk.CTkFrame):
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
-        self._scroll_frame.grid(row=3, column=0, padx=30, pady=0, sticky="nsew")
+        self._scroll_frame.grid(row=4, column=0, padx=30, pady=0, sticky="nsew")
         self._scroll_frame.grid_columnconfigure(0, weight=1)
 
         # ── Empty state (hidden by default) ──
@@ -844,9 +916,9 @@ class DLCFrame(ctk.CTkFrame):
         if dlc.steam_app_id:
             steam_btn = ctk.CTkButton(
                 row_frame,
-                text="\u2197",
-                width=28, height=24,
-                font=ctk.CTkFont(size=12),
+                text="Steam \u2197",
+                width=56, height=24,
+                font=ctk.CTkFont(size=10),
                 fg_color="transparent",
                 hover_color=theme.COLORS["separator"],
                 text_color=theme.COLORS["accent"],
