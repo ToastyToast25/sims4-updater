@@ -154,7 +154,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         self._launch_btn = ctk.CTkButton(
             btn_frame,
-            text="Launch via GL",
+            text="Launch Steam",
             font=ctk.CTkFont(size=13),
             height=theme.BUTTON_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
@@ -598,8 +598,9 @@ class GreenLumaFrame(ctk.CTkFrame):
         if is_steam_running():
             restart = tkinter.messagebox.askyesno(
                 "Steam is Running",
-                "Steam must be closed to launch via GreenLuma.\n\n"
-                "Would you like to close Steam and relaunch via GreenLuma?",
+                "Steam must be closed to relaunch with GreenLuma.\n\n"
+                "Would you like to close Steam and relaunch it\n"
+                "with GreenLuma DLC unlocking enabled?",
                 parent=self.winfo_toplevel(),
             )
             if not restart:

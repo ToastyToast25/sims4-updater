@@ -182,20 +182,37 @@ class App(ctk.CTk):
             self._sidebar, height=1, fg_color=theme.COLORS["separator"],
         ).grid(row=spacer_row + 1, column=0, columnspan=2, padx=15, sticky="ew")
 
-        # Footer: version, copyright, creator, GitHub link
+        # Footer: version, admin status, copyright, creator, GitHub link
         from .. import VERSION
+        from ..core.unlocker import is_admin
 
         footer = ctk.CTkFrame(self._sidebar, fg_color="transparent")
         footer.grid(
             row=spacer_row + 2, column=0, columnspan=2, padx=18, pady=(8, 14), sticky="ew",
         )
 
+        version_row = ctk.CTkFrame(footer, fg_color="transparent")
+        version_row.pack(anchor="w", pady=(0, 1))
+
         ctk.CTkLabel(
-            footer,
+            version_row,
             text=f"v{VERSION}",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
-        ).pack(anchor="w", pady=(0, 1))
+        ).pack(side="left")
+
+        admin_color = theme.COLORS["success"] if is_admin() else theme.COLORS["warning"]
+        admin_text = "Admin" if is_admin() else "No Admin"
+        admin_pill = ctk.CTkFrame(
+            version_row, corner_radius=6, border_width=1,
+            border_color=admin_color, fg_color="transparent", height=16,
+        )
+        admin_pill.pack(side="left", padx=(8, 0))
+        ctk.CTkLabel(
+            admin_pill, text=admin_text,
+            font=ctk.CTkFont(size=7, weight="bold"),
+            text_color=admin_color,
+        ).pack(padx=4, pady=0)
 
         ctk.CTkLabel(
             footer,
