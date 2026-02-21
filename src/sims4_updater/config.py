@@ -61,6 +61,7 @@ class Settings:
     greenluma_auto_backup: bool = True  # Backup config.vdf/AppList before modifications
     greenluma_lua_path: str = ""  # Path to .lua manifest file
     greenluma_manifest_dir: str = ""  # Path to directory containing .manifest files
+    skip_game_update: bool = False  # DLC-only mode: skip base game updates
     window_geometry: str = ""  # Window size+position as "WxH+X+Y"
 
     @classmethod

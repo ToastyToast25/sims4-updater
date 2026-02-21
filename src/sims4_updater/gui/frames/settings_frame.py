@@ -186,7 +186,30 @@ class SettingsFrame(ctk.CTkFrame):
             variable=self._check_start_var, font=ctk.CTkFont(size=12),
         ).grid(
             row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(6, theme.CARD_PAD_Y), sticky="w",
+            padx=theme.CARD_PAD_X, pady=(6, 4), sticky="w",
+        )
+        row += 1
+
+        # ── DLC-Only Mode ──
+        self._skip_update_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            card1, text="DLC-only mode (skip base game updates)",
+            variable=self._skip_update_var, font=ctk.CTkFont(size=12),
+        ).grid(
+            row=row, column=0, columnspan=2,
+            padx=theme.CARD_PAD_X, pady=(0, 2), sticky="w",
+        )
+        row += 1
+
+        ctk.CTkLabel(
+            card1,
+            text="When enabled, only DLC downloads run — the base game is not patched.",
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(
+            row=row, column=0, columnspan=2,
+            padx=(theme.CARD_PAD_X + 24, theme.CARD_PAD_X),
+            pady=(0, theme.CARD_PAD_Y), sticky="w",
         )
         row += 1
 
@@ -418,6 +441,7 @@ class SettingsFrame(ctk.CTkFrame):
         self._theme_var.set(theme_map.get(settings.theme, "Dark"))
 
         self._check_start_var.set(settings.check_updates_on_start)
+        self._skip_update_var.set(settings.skip_game_update)
 
         # GreenLuma fields
         self._steam_path_entry.delete(0, "end")
@@ -519,6 +543,7 @@ class SettingsFrame(ctk.CTkFrame):
         ctk.set_appearance_mode(theme_val)
 
         settings.check_updates_on_start = self._check_start_var.get()
+        settings.skip_game_update = self._skip_update_var.get()
 
         # Card 2 fields (GreenLuma)
         settings.steam_path = self._steam_path_entry.get().strip()

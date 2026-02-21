@@ -161,3 +161,123 @@ class DLCManager:
         """Restore DLC states from a previous export."""
         enabled_set = {dlc_id for dlc_id, enabled in saved_states.items() if enabled}
         self.apply_changes(game_dir, enabled_set)
+
+    def uninstall_dlc(
+        self,
+        game_dir: str | Path,
+        dlc_id: str,
+        disable_in_config: bool = True,
+    ) -> tuple[int, int]:
+        """
+        Uninstall a DLC by deleting its folder and disabling it in crack config.
+
+        Args:
+            game_dir: Path to game installation.
+            dlc_id: DLC ID (e.g. "EP01", "GP05").
+            disable_in_config: If True, also disable the DLC in the crack config.
+
+        Returns:
+            Tuple of (files_removed, files_failed).
+        """
+        game_dir = Path(game_dir)
+        dlc_dir = game_dir / dlc_id
+
+        files_removed = 0
+        files_failed = 0
+
+        if not dlc_dir.is_dir():
+            return 0, 0
+
+        # Delete all files in the DLC directory
+        for root, dirs, files in os.walk(dlc_dir, topdown=False):
+            for fname in files:
+                fpath = Path(root) / fname
+                try:
+                    fpath.unlink()
+                    files_removed += 1
+                except OSError:
+                    files_failed += 1
+
+            # Remove empty subdirectories
+            for dname in dirs:
+                dpath = Path(root) / dname
+                try:
+                    dpath.rmdir()
+                except OSError:
+                    pass
+
+        # Remove the DLC directory itself
+        try:
+            dlc_dir.rmdir()
+        except OSError:
+            pass  # Not empty due to failed deletes
+
+        # Disable in crack config
+        if disable_in_config and files_removed > 0:
+            try:
+                adapter = detect_format(game_dir)
+                if adapter:
+                    config_path = adapter.get_config_path(game_dir)
+                    if config_path and config_path.is_file():
+                        content = config_path.read_text(
+                            encoding=adapter.get_encoding(), errors="replace",
+                        )
+                        dlc = self.catalog.get_by_id(dlc_id)
+                        if dlc:
+                            for code in dlc.all_codes:
+                                content = adapter.set_dlc_state(content, code, False)
+                            config_path.write_text(
+                                content, encoding=adapter.get_encoding(),
+                            )
+                            # Mirror to Bin_LE if present
+                            bin_le = Path(str(config_path).replace("Bin", "Bin_LE"))
+                            if bin_le.parent.is_dir() and bin_le != config_path:
+                                shutil.copy2(config_path, bin_le)
+            except Exception:
+                pass  # Best-effort disable
+
+        return files_removed, files_failed
+
+    def uninstall_multiple(
+        self,
+        game_dir: str | Path,
+        dlc_ids: list[str],
+        progress=None,
+    ) -> dict[str, tuple[int, int]]:
+        """
+        Uninstall multiple DLCs.
+
+        Args:
+            game_dir: Path to game installation.
+            dlc_ids: List of DLC IDs to uninstall.
+            progress: Optional callback(dlc_id, current, total).
+
+        Returns:
+            Dict of {dlc_id: (files_removed, files_failed)}.
+        """
+        results = {}
+        total = len(dlc_ids)
+        for i, dlc_id in enumerate(dlc_ids):
+            if progress:
+                progress(dlc_id, i, total)
+            results[dlc_id] = self.uninstall_dlc(game_dir, dlc_id)
+        if progress:
+            progress("", total, total)
+        return results
+
+    def get_dlc_size(self, game_dir: str | Path, dlc_id: str) -> int:
+        """Get total size in bytes of a DLC folder."""
+        dlc_dir = Path(game_dir) / dlc_id
+        if not dlc_dir.is_dir():
+            return 0
+        total = 0
+        try:
+            for root, _dirs, files in os.walk(dlc_dir):
+                for fname in files:
+                    try:
+                        total += (Path(root) / fname).stat().st_size
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+        return total

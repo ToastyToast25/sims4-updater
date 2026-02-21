@@ -1,0 +1,15 @@
+name = "sims4-cdn"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Bind this to your cdn.hyperabyss.com subdomain
+# After deploying, add a route in Cloudflare dashboard:
+#   Route: cdn.hyperabyss.com/*
+#   Worker: sims4-cdn
+
+# KV Namespace — stores path → seedbox URL mappings
+# Create in dashboard: Workers & Pages → KV → Create namespace → "CDN_ROUTES"
+# Then paste the namespace ID below
+[[kv_namespaces]]
+binding = "CDN_ROUTES"
+id = "21b161fd30af47d19c4b298f597ff259"

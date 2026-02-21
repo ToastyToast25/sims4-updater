@@ -656,18 +656,34 @@ class HomeFrame(ctk.CTkFrame):
         self._clear_banners()
 
         if info.update_available:
-            # Patches available — can update now
-            from ...patch.client import format_size
+            # DLC-only mode: skip base game update
+            if self.app.settings.skip_game_update:
+                self._set_status(
+                    "Update available but DLC-only mode is enabled.",
+                    "warning",
+                )
+                self._update_btn.configure(
+                    text="Check for Updates",
+                    command=self._on_check_updates,
+                )
+                self._add_banner(
+                    f"Base game update to {info.latest_version} skipped "
+                    f"(DLC-only mode). Disable in Settings to update.",
+                    color=theme.COLORS["warning"],
+                )
+            else:
+                # Patches available — can update now
+                from ...patch.client import format_size
 
-            size = format_size(info.total_download_size)
-            self._set_status(
-                f"Update available: {info.step_count} step(s), {size}",
-                "warning",
-            )
-            self._update_btn.configure(
-                text="Update Now",
-                command=lambda: self._start_update(info),
-            )
+                size = format_size(info.total_download_size)
+                self._set_status(
+                    f"Update available: {info.step_count} step(s), {size}",
+                    "warning",
+                )
+                self._update_btn.configure(
+                    text="Update Now",
+                    command=lambda: self._start_update(info),
+                )
 
             # If there's also a pending newer version beyond the patchable one
             if info.patch_pending:

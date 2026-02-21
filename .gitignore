@@ -38,3 +38,6 @@ dist/
 # Misc
 *.log
 .env
+
+# CDN credentials (never commit)
+cloudflare-worker/cdn_config.json

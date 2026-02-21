@@ -17,23 +17,23 @@ from threading import Lock
 
 import customtkinter as ctk
 
+from ..config import Settings
+from ..dlc.steam import SteamPriceCache
+from ..updater import Sims4Updater
 from . import theme
 from .animations import Animator, ease_out_cubic
 from .components import ToastNotification
-from .frames.home_frame import HomeFrame
+from .frames.diagnostics_frame import DiagnosticsFrame
 from .frames.dlc_frame import DLCFrame
 from .frames.downloader_frame import DownloaderFrame
 from .frames.greenluma_frame import GreenLumaFrame
+from .frames.home_frame import HomeFrame
 from .frames.language_frame import LanguageFrame
-from .frames.packer_frame import PackerFrame
-from .frames.unlocker_frame import UnlockerFrame
 from .frames.mods_frame import ModsFrame
-from .frames.settings_frame import SettingsFrame
+from .frames.packer_frame import PackerFrame
 from .frames.progress_frame import ProgressFrame
-
-from ..config import Settings
-from ..dlc.steam import SteamPriceCache
-from ..updater import Sims4Updater, CallbackType
+from .frames.settings_frame import SettingsFrame
+from .frames.unlocker_frame import UnlockerFrame
 
 
 class App(ctk.CTk):
@@ -147,6 +147,7 @@ class App(ctk.CTk):
             ("greenluma", "GreenLuma"),
             ("language", "Language"),
             ("mods", "Mods"),
+            ("diagnostics", "Diagnostics"),
             ("settings", "Settings"),
         ]
 
@@ -303,6 +304,7 @@ class App(ctk.CTk):
         self._frames["greenluma"] = GreenLumaFrame(self._content, self)
         self._frames["language"] = LanguageFrame(self._content, self)
         self._frames["mods"] = ModsFrame(self._content, self)
+        self._frames["diagnostics"] = DiagnosticsFrame(self._content, self)
         self._frames["settings"] = SettingsFrame(self._content, self)
         self._frames["progress"] = ProgressFrame(self._content, self)
 

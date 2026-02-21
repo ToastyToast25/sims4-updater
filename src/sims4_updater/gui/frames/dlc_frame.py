@@ -1035,6 +1035,25 @@ class DLCFrame(ctk.CTkFrame):
 
             next_col += 1
 
+        # Uninstall button (for installed DLCs only)
+        uninstall_btn = None
+        if state.installed and not state.owned:
+            uninstall_btn = ctk.CTkButton(
+                row_frame,
+                text="\u2716",
+                width=28, height=24,
+                font=ctk.CTkFont(size=12),
+                fg_color=theme.COLORS["error"],
+                hover_color="#ff6b6b",
+                text_color="#ffffff",
+                corner_radius=4,
+                command=lambda did=dlc.id, dn=name: self._on_uninstall_single(did, dn),
+            )
+            uninstall_btn.grid(
+                row=0, column=next_col, padx=(4, 4), pady=6, sticky="e",
+            )
+            next_col += 1
+
         # Hover effect — animate border color
         def on_enter(e, rf=row_frame):
             self._animator.cancel_all(rf, tag="row_hover")
@@ -1112,6 +1131,7 @@ class DLCFrame(ctk.CTkFrame):
             "checkbox": cb,
             "download_btn": download_btn,
             "dl_progress_label": dl_progress_label,
+            "uninstall_btn": uninstall_btn,
             "_bg_normal": bg,
         }
 
@@ -1443,3 +1463,52 @@ class DLCFrame(ctk.CTkFrame):
         self._auto_btn.configure(state="normal")
         self._apply_btn.configure(state="normal")
         self.app.show_toast(f"Download error: {error}", "error")
+
+    # ── DLC Uninstall ─────────────────────────────────────────
+
+    def _on_uninstall_single(self, dlc_id: str, dlc_name: str):
+        """Handle click on a single DLC uninstall button."""
+        import tkinter.messagebox as messagebox
+
+        confirm = messagebox.askyesno(
+            "Uninstall DLC",
+            f"Delete all files for {dlc_name} ({dlc_id})?\n\n"
+            "This will free disk space but the DLC will need to be "
+            "re-downloaded to use again.",
+            parent=self.winfo_toplevel(),
+        )
+        if not confirm:
+            return
+
+        # Disable the uninstall button to prevent double-clicks
+        rw = self._row_widgets.get(dlc_id)
+        if rw and rw.get("uninstall_btn"):
+            rw["uninstall_btn"].configure(state="disabled", text="...")
+
+        self.app.run_async(
+            self._uninstall_bg,
+            dlc_id,
+            on_done=lambda r: self._on_uninstall_done(dlc_id, dlc_name, r),
+            on_error=self._on_dlc_error,
+        )
+
+    def _uninstall_bg(self, dlc_id: str):
+        game_dir = self.app.updater.find_game_dir()
+        if not game_dir:
+            return (0, 0)
+        return self.app.updater._dlc_manager.uninstall_dlc(game_dir, dlc_id)
+
+    def _on_uninstall_done(self, dlc_id: str, dlc_name: str, result: tuple):
+        removed, failed = result
+        if failed > 0:
+            self.app.show_toast(
+                f"Uninstalled {dlc_name}: {removed} files removed, {failed} failed",
+                "warning",
+            )
+        elif removed > 0:
+            self.app.show_toast(f"Uninstalled {dlc_name} ({removed} files)", "success")
+        else:
+            self.app.show_toast(f"{dlc_name} was already uninstalled", "info")
+
+        # Reload DLC states to reflect removal
+        self._load_dlcs()
