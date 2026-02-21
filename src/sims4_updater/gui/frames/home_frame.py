@@ -186,8 +186,10 @@ class HomeFrame(ctk.CTkFrame):
             text="Detecting...",
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
+            cursor="hand2",
         )
         self._game_dir_label.grid(row=0, column=1, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w")
+        self._game_dir_label.bind("<Button-1>", self._open_game_dir)
 
         # Installed version
         ctk.CTkLabel(
@@ -338,7 +340,16 @@ class HomeFrame(ctk.CTkFrame):
 
         # ── Status badge ──
         self._status_badge = StatusBadge(self._scroll, text="", style="muted")
-        self._status_badge.grid(row=5, column=0, padx=30, pady=(5, 15), sticky="w")
+        self._status_badge.grid(row=5, column=0, padx=30, pady=(5, 0), sticky="w")
+
+        # ── Last checked timestamp ──
+        self._last_checked_label = ctk.CTkLabel(
+            self._scroll,
+            text="",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["text_muted"],
+        )
+        self._last_checked_label.grid(row=6, column=0, padx=32, pady=(2, 15), sticky="w")
 
         # ── Buttons (pinned to bottom, outside scroll) ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -612,6 +623,12 @@ class HomeFrame(ctk.CTkFrame):
         self._update_btn.configure(state="normal")
         self._last_update_info = info
 
+        # Update last checked timestamp
+        from datetime import datetime
+
+        now = datetime.now().strftime("%b %d, %Y at %I:%M %p")
+        self._last_checked_label.configure(text=f"Last checked: {now}")
+
         # Show latest patchable version
         self._latest_label.configure(text=info.latest_version)
 
@@ -852,6 +869,15 @@ class HomeFrame(ctk.CTkFrame):
         self._app_update_label.configure(
             text=f"Update failed: {error}",
         )
+
+    def _open_game_dir(self, event=None):
+        """Open the game directory in Explorer."""
+        game_dir = self.app.updater.find_game_dir()
+        if game_dir and Path(game_dir).is_dir():
+            import os
+            os.startfile(str(game_dir))
+        else:
+            self.app.show_toast("Game directory not found.", "warning")
 
     # ── Game Launchers ─────────────────────────────────────────
 

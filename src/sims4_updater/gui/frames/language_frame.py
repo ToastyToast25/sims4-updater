@@ -355,6 +355,12 @@ class LanguageFrame(ctk.CTkFrame):
                     "error",
                 )
 
+            # Update sidebar badge with missing language count
+            if missing_count > 0:
+                self.app.update_nav_badge("language", f"({missing_count} missing)")
+            else:
+                self.app.update_nav_badge("language")
+
             # Build / update the language pack list
             self._rebuild_pack_rows()
 

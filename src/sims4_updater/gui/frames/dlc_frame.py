@@ -410,9 +410,17 @@ class DLCFrame(ctk.CTkFrame):
         if states is None:
             self._all_states = []
             self._show_no_game()
+            self.app.update_nav_badge("dlc")
             return
         self._all_states = states
         self._hide_no_game()
+
+        # Update sidebar badge with missing/incomplete count
+        not_owned = sum(1 for s in states if not s.installed)
+        if not_owned > 0:
+            self.app.update_nav_badge("dlc", f"({not_owned} missing)")
+        else:
+            self.app.update_nav_badge("dlc")
 
         # (Re)build widgets if data changed
         self._rebuild_rows()

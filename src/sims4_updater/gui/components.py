@@ -208,6 +208,12 @@ class ToastNotification(ctk.CTkFrame):
         )
         msg.pack(side="left", padx=(6, 14), pady=10)
 
+        # Click anywhere on the toast to dismiss
+        self.bind("<Button-1>", lambda e: self._dismiss())
+        icon.bind("<Button-1>", lambda e: self._dismiss())
+        msg.bind("<Button-1>", lambda e: self._dismiss())
+        self.configure(cursor="hand2")
+
     def show(self):
         """Animate toast sliding in from the right edge."""
         # Position off-screen to the right

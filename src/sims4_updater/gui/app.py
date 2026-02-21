@@ -44,7 +44,6 @@ class App(ctk.CTk):
 
         # Window setup
         self.title("Sims 4 Updater")
-        self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
         self.minsize(theme.MIN_WIDTH, theme.MIN_HEIGHT)
 
         # Prevent CustomTkinter from overriding our icon (it checks this flag)
@@ -77,6 +76,13 @@ class App(ctk.CTk):
 
         # Settings, shared state, and updater
         self.settings = Settings.load()
+        if self.settings.window_geometry:
+            try:
+                self.geometry(self.settings.window_geometry)
+            except Exception:
+                self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
+        else:
+            self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
         self.price_cache = SteamPriceCache()
         self.updater = Sims4Updater(
             ask_question=self._ask_question,
@@ -131,6 +137,7 @@ class App(ctk.CTk):
 
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
         self._nav_indicators: dict[str, ctk.CTkFrame] = {}
+        self._nav_labels: dict[str, str] = {}  # base labels for badge updates
         nav_items = [
             ("home", "Home"),
             ("dlc", "DLCs"),
@@ -169,12 +176,44 @@ class App(ctk.CTk):
             )
             btn.grid(row=row_idx, column=1, padx=(4, 10), pady=3, sticky="ew")
             self._nav_buttons[key] = btn
+            self._nav_labels[key] = label
 
             # Animated hover
             btn.bind("<Enter>", lambda e, k=key: self._on_nav_enter(k))
             btn.bind("<Leave>", lambda e, k=key: self._on_nav_leave(k))
 
-        spacer_row = len(nav_items) + 2
+        # Progress nav item — hidden by default, shown during updates
+        progress_row = len(nav_items) + 2
+        self._progress_indicator = ctk.CTkFrame(
+            self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
+            corner_radius=0, fg_color="transparent",
+        )
+        self._progress_indicator.grid(row=progress_row, column=0, padx=(5, 0), pady=3)
+        self._progress_indicator.grid_propagate(False)
+        self._nav_indicators["progress"] = self._progress_indicator
+
+        self._progress_nav_btn = ctk.CTkButton(
+            self._sidebar,
+            text="  Updating...",
+            font=ctk.CTkFont(size=13),
+            height=theme.SIDEBAR_BTN_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color="transparent",
+            text_color=theme.COLORS["text_muted"],
+            hover_color=theme.COLORS["sidebar_hover"],
+            anchor="w",
+            command=lambda: self._show_frame("progress"),
+        )
+        self._progress_nav_btn.grid(
+            row=progress_row, column=1, padx=(4, 10), pady=3, sticky="ew",
+        )
+        self._nav_buttons["progress"] = self._progress_nav_btn
+        self._nav_labels["progress"] = "Updating..."
+        # Hide until an update starts
+        self._progress_indicator.grid_remove()
+        self._progress_nav_btn.grid_remove()
+
+        spacer_row = len(nav_items) + 3
         self._sidebar.grid_rowconfigure(spacer_row, weight=1)
 
         # Separator above footer
@@ -230,6 +269,17 @@ class App(ctk.CTk):
                 "https://github.com/ToastyToast25/sims4-updater"
             ),
         )
+
+    def update_nav_badge(self, key: str, badge: str = ""):
+        """Update a sidebar nav button with a badge count, e.g. 'DLCs (3 missing)'."""
+        btn = self._nav_buttons.get(key)
+        base = self._nav_labels.get(key, "")
+        if not btn or not base:
+            return
+        if badge:
+            btn.configure(text=f"  {base}  {badge}")
+        else:
+            btn.configure(text=f"  {base}")
 
     # ── Content Area ────────────────────────────────────────────
 
@@ -443,6 +493,18 @@ class App(ctk.CTk):
         # Check for updater self-updates silently after a short delay
         self.after(1000, self._check_app_update)
 
+        # Auto-check for game updates if enabled in settings
+        if self.settings.check_updates_on_start:
+            self.after(2000, self._auto_check_game_updates)
+
+    def _auto_check_game_updates(self):
+        """Automatically check for game updates on startup if configured."""
+        if not self.settings.manifest_url:
+            return
+        home = self._frames.get("home")
+        if home and hasattr(home, "_on_check_updates"):
+            home._on_check_updates()
+
     def _check_app_update(self):
         """Silently check GitHub for a new updater version."""
         home = self._frames.get("home")
@@ -454,6 +516,8 @@ class App(ctk.CTk):
         try:
             self._animator.cancel_all()
             self.updater.exiting.set()
+            # Save window geometry before closing
+            self.settings.window_geometry = self.geometry()
             self.settings.save()
             self.updater.close()
             self._executor.shutdown(wait=False, cancel_futures=True)
@@ -463,10 +527,14 @@ class App(ctk.CTk):
 
     def switch_to_progress(self):
         """Switch to progress frame (called when update starts)."""
+        self._progress_indicator.grid()
+        self._progress_nav_btn.grid()
         self._show_frame("progress")
 
     def switch_to_home(self):
         """Switch back to home after operation completes."""
+        self._progress_indicator.grid_remove()
+        self._progress_nav_btn.grid_remove()
         self._show_frame("home")
 
 
