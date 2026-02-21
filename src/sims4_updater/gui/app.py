@@ -191,28 +191,23 @@ class App(ctk.CTk):
             row=spacer_row + 2, column=0, columnspan=2, padx=18, pady=(8, 14), sticky="ew",
         )
 
-        version_row = ctk.CTkFrame(footer, fg_color="transparent")
-        version_row.pack(anchor="w", pady=(0, 1))
+        elevated = is_admin()
+        admin_color = theme.COLORS["success"] if elevated else theme.COLORS["warning"]
+        admin_text = "\u2714 Admin" if elevated else "\u26a0 No Admin"
 
         ctk.CTkLabel(
-            version_row,
+            footer,
             text=f"v{VERSION}",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
-        ).pack(side="left")
+        ).pack(anchor="w", pady=(0, 1))
 
-        admin_color = theme.COLORS["success"] if is_admin() else theme.COLORS["warning"]
-        admin_text = "Admin" if is_admin() else "No Admin"
-        admin_pill = ctk.CTkFrame(
-            version_row, corner_radius=6, border_width=1,
-            border_color=admin_color, fg_color="transparent", height=16,
-        )
-        admin_pill.pack(side="left", padx=(8, 0))
         ctk.CTkLabel(
-            admin_pill, text=admin_text,
-            font=ctk.CTkFont(size=7, weight="bold"),
+            footer,
+            text=admin_text,
+            font=ctk.CTkFont(size=9, weight="bold"),
             text_color=admin_color,
-        ).pack(padx=4, pady=0)
+        ).pack(anchor="w", pady=(0, 2))
 
         ctk.CTkLabel(
             footer,

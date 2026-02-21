@@ -485,25 +485,21 @@ class LanguageFrame(ctk.CTkFrame):
         if installed:
             pill_text = "Installed"
             pill_color = _INSTALLED_COLOR
+            pill_bg = theme.COLORS["toast_success"]
         else:
             pill_text = "Missing"
             pill_color = _MISSING_COLOR
+            pill_bg = theme.COLORS["toast_error"]
 
-        pill = ctk.CTkFrame(
-            row_frame,
-            corner_radius=10,
-            border_width=1,
-            border_color=pill_color,
-            fg_color="transparent",
-            height=22,
-        )
-        pill.grid(row=0, column=2, padx=(4, 0), pady=6, sticky="e")
         ctk.CTkLabel(
-            pill,
-            text=pill_text,
-            font=ctk.CTkFont(size=9),
+            row_frame,
+            text=f"  {pill_text}  ",
+            font=ctk.CTkFont(size=10),
             text_color=pill_color,
-        ).pack(padx=8, pady=2)
+            fg_color=pill_bg,
+            corner_radius=10,
+            height=22,
+        ).grid(row=0, column=2, padx=(4, 0), pady=6, sticky="e")
 
         # Download button or progress label (for missing packs only)
         download_btn = None

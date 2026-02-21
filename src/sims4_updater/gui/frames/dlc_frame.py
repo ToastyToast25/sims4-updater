@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ..app import App
 
 
-# Status tag colors
+# Status tag colors and background tints
 _STATUS_COLORS = {
     "Owned": theme.COLORS["success"],
     "Patched": "#5b9bd5",
@@ -32,6 +32,14 @@ _STATUS_COLORS = {
     "Incomplete": theme.COLORS["warning"],
     "Missing files": theme.COLORS["warning"],
     "Not installed": theme.COLORS["text_muted"],
+}
+_STATUS_BG = {
+    "Owned": theme.COLORS["toast_success"],
+    "Patched": "#1a2a3d",
+    "Patched (disabled)": theme.COLORS["bg_card_alt"],
+    "Incomplete": theme.COLORS["toast_warning"],
+    "Missing files": theme.COLORS["toast_warning"],
+    "Not installed": theme.COLORS["bg_card_alt"],
 }
 
 # Filter chip definitions: (key, label)
@@ -208,71 +216,52 @@ class DLCFrame(ctk.CTkFrame):
         legend_frame.grid(row=3, column=0, padx=30, pady=(0, 5), sticky="ew")
 
         legend_items = [
-            ("\u25cf", theme.COLORS["success"], "Owned"),
-            ("\u25cf", "#5b9bd5", "Patched"),
-            ("\u25cf", theme.COLORS["warning"], "Incomplete"),
-            ("\u25cf", theme.COLORS["text_muted"], "Not Installed"),
+            ("Owned", theme.COLORS["success"], theme.COLORS["toast_success"]),
+            ("Patched", "#5b9bd5", "#1a2a3d"),
+            ("Incomplete", theme.COLORS["warning"], theme.COLORS["toast_warning"]),
+            ("Not Installed", theme.COLORS["text_muted"], theme.COLORS["bg_card_alt"]),
         ]
         col = 0
-        for dot, color, text in legend_items:
+        for text, text_color, bg_color in legend_items:
             ctk.CTkLabel(
                 legend_frame,
-                text=f"{dot} {text}",
+                text=f"  {text}  ",
                 font=ctk.CTkFont(size=10),
-                text_color=color,
-            ).grid(row=0, column=col, padx=(0 if col == 0 else 10, 0))
+                text_color=text_color,
+                fg_color=bg_color,
+                corner_radius=10,
+                height=22,
+            ).grid(row=0, column=col, padx=(0 if col == 0 else 4, 0))
             col += 1
 
         # Separator
-        ctk.CTkLabel(
-            legend_frame,
-            text="\u2502",
-            font=ctk.CTkFont(size=10),
-            text_color=theme.COLORS["border"],
-        ).grid(row=0, column=col, padx=10)
+        ctk.CTkFrame(
+            legend_frame, width=1, height=18,
+            fg_color=theme.COLORS["border"],
+        ).grid(row=0, column=col, padx=8)
         col += 1
 
-        # GL ready indicator
-        gl_ready_pill = ctk.CTkFrame(
-            legend_frame, corner_radius=6, border_width=1,
-            border_color=theme.COLORS["success"],
-            fg_color="transparent", height=16,
-        )
-        gl_ready_pill.grid(row=0, column=col, padx=(0, 3), pady=2)
+        # GL ready legend
         ctk.CTkLabel(
-            gl_ready_pill, text="GL",
-            font=ctk.CTkFont(size=7, weight="bold"),
+            legend_frame,
+            text="  GL Ready  ",
+            font=ctk.CTkFont(size=10, weight="bold"),
             text_color=theme.COLORS["success"],
-        ).pack(padx=4, pady=0)
+            fg_color=theme.COLORS["toast_success"],
+            corner_radius=10,
+            height=22,
+        ).grid(row=0, column=col, padx=(0, 4))
         col += 1
 
+        # GL incomplete legend
         ctk.CTkLabel(
             legend_frame,
-            text="GL Ready",
-            font=ctk.CTkFont(size=10),
-            text_color=theme.COLORS["success"],
-        ).grid(row=0, column=col, padx=(0, 10))
-        col += 1
-
-        # GL incomplete indicator
-        gl_warn_pill = ctk.CTkFrame(
-            legend_frame, corner_radius=6, border_width=1,
-            border_color=theme.COLORS["warning"],
-            fg_color="transparent", height=16,
-        )
-        gl_warn_pill.grid(row=0, column=col, padx=(0, 3), pady=2)
-        ctk.CTkLabel(
-            gl_warn_pill, text="GL",
-            font=ctk.CTkFont(size=7, weight="bold"),
+            text="  GL Incomplete  ",
+            font=ctk.CTkFont(size=10, weight="bold"),
             text_color=theme.COLORS["warning"],
-        ).pack(padx=4, pady=0)
-        col += 1
-
-        ctk.CTkLabel(
-            legend_frame,
-            text="GL Incomplete",
-            font=ctk.CTkFont(size=10),
-            text_color=theme.COLORS["warning"],
+            fg_color=theme.COLORS["toast_warning"],
+            corner_radius=10,
+            height=22,
         ).grid(row=0, column=col)
 
         # ── Status ──
@@ -929,45 +918,42 @@ class DLCFrame(ctk.CTkFrame):
             next_col += 1
 
         # Status pill badge
-        pill = ctk.CTkFrame(
+        pill_bg = _STATUS_BG.get(label, theme.COLORS["bg_card_alt"])
+        pill = ctk.CTkLabel(
             row_frame,
+            text=f"  {label}  ",
+            font=ctk.CTkFont(size=10),
+            text_color=color,
+            fg_color=pill_bg,
             corner_radius=10,
-            border_width=1,
-            border_color=color,
-            fg_color="transparent",
             height=22,
         )
         pill.grid(row=0, column=next_col, padx=(5, 0), pady=6, sticky="e")
-        ctk.CTkLabel(
-            pill,
-            text=label,
-            font=ctk.CTkFont(size=9),
-            text_color=color,
-        ).pack(padx=8, pady=2)
         next_col += 1
 
         # GreenLuma readiness indicator
         gl_r = self._gl_readiness.get(dlc.id)
         if gl_r is not None:
             gl_color = (
-                theme.COLORS["success"] if gl_r.ready else theme.COLORS["warning"]
+                theme.COLORS["success"] if gl_r.ready
+                else theme.COLORS["warning"]
             )
-            gl_pill = ctk.CTkFrame(
+            gl_bg = (
+                theme.COLORS["toast_success"] if gl_r.ready
+                else theme.COLORS["toast_warning"]
+            )
+            gl_pill = ctk.CTkLabel(
                 row_frame,
-                corner_radius=8,
-                border_width=1,
-                border_color=gl_color,
-                fg_color="transparent",
-                height=20,
-            )
-            gl_pill.grid(row=0, column=next_col, padx=(4, 0), pady=6, sticky="e")
-            gl_lbl = ctk.CTkLabel(
-                gl_pill,
-                text="GL",
-                font=ctk.CTkFont(size=8, weight="bold"),
+                text="  GL  ",
+                font=ctk.CTkFont(size=10, weight="bold"),
                 text_color=gl_color,
+                fg_color=gl_bg,
+                corner_radius=10,
+                height=22,
             )
-            gl_lbl.pack(padx=5, pady=1)
+            gl_pill.grid(
+                row=0, column=next_col, padx=(4, 0), pady=6, sticky="e",
+            )
 
             # Tooltip-style detail on hover
             detail_parts = []
@@ -985,14 +971,15 @@ class DLCFrame(ctk.CTkFrame):
             def _show_tip(e, w=gl_pill, txt=missing_text, clr=gl_color):
                 tip = ctk.CTkLabel(
                     w.winfo_toplevel(),
-                    text=txt,
-                    font=ctk.CTkFont(size=9),
+                    text=f"  {txt}  ",
+                    font=ctk.CTkFont(size=10),
                     text_color=clr,
                     fg_color=theme.COLORS["bg_dark"],
-                    corner_radius=4,
+                    corner_radius=6,
+                    height=24,
                 )
                 x = w.winfo_rootx()
-                y = w.winfo_rooty() - 22
+                y = w.winfo_rooty() - 26
                 tip.place(x=x, y=y)
                 w._gl_tip = tip
 
@@ -1004,8 +991,6 @@ class DLCFrame(ctk.CTkFrame):
 
             gl_pill.bind("<Enter>", _show_tip)
             gl_pill.bind("<Leave>", _hide_tip)
-            gl_lbl.bind("<Enter>", _show_tip)
-            gl_lbl.bind("<Leave>", _hide_tip)
             next_col += 1
 
         # Download button (for uninstalled DLCs with available downloads)
