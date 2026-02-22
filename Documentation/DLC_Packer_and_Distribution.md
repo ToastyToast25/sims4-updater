@@ -2,7 +2,7 @@
 
 **Document version:** 1.0
 **Last updated:** 2026-02-20
-**Applies to:** Sims 4 Updater v2.0.0
+**Applies to:** Sims 4 Updater v2.1.0
 **Primary source files:**
 
 - `src/sims4_updater/dlc/packer.py`

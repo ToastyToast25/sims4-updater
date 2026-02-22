@@ -168,6 +168,15 @@ class PatchClient:
         manifest = self.fetch_manifest()
         target = target_version or manifest.latest
 
+        # DLC-only manifest (no patches) — no update available
+        if not target:
+            return UpdateInfo(
+                current_version=current_version,
+                latest_version="",
+                update_available=False,
+                new_dlcs=list(manifest.new_dlcs),
+            )
+
         game_latest = manifest.game_latest or manifest.latest
         is_patch_pending = manifest.patch_pending
 

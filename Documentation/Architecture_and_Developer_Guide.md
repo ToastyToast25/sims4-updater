@@ -1,6 +1,6 @@
 # Sims 4 Updater — Architecture and Developer Guide
 
-**Version:** 2.0.8
+**Version:** 2.1.0
 **Author:** ToastyToast25
 **Last Updated:** February 2026
 
@@ -88,10 +88,15 @@ The Sims 4 Updater is a Windows desktop application that automates game version 
 - **DLC management** — reading and writing five different crack configuration formats to enable or disable DLC packs.
 - **DLC distribution** — downloading DLC archives, extracting them, and registering them in the crack config.
 - **DLC packing** — creating redistribution-ready ZIP archives from installed DLC folders, generating a hosting manifest.
+- **CDN DLC downloads** — downloading DLC content packs from a Cloudflare CDN with parallel downloads, HTTP resume, and MD5 integrity verification.
+- **GreenLuma integration** — installing, configuring, and managing GreenLuma 2025 for Steam DLC unlocking, including AppList management, config.vdf depot key injection, LUA manifest parsing, and depotcache manifest handling.
+- **Language management** — changing game language via registry and config file manipulation, with Steam depot-based language file downloads.
 - **Unlocker management** — installing and uninstalling the PandaDLL-based EA DLC Unlocker (`version.dll`) into the EA Desktop client directory.
 - **Self-update** — checking GitHub Releases for a newer version of the updater executable and swapping it in place via a batch script.
 
 The application is distributed as a single-file Windows `.exe` produced by PyInstaller. It can also be run from source. A full CLI is available for all major operations when the GUI is not desired.
+
+A Cloudflare Worker-based CDN at `cdn.hyperabyss.com` provides global distribution of DLC content packs and game patches. See [CDN Infrastructure](CDN_Infrastructure.md) for details.
 
 ---
 
@@ -101,7 +106,7 @@ The application is distributed as a single-file Windows `.exe` produced by PyIns
 sims4-updater/                         # Project root
   src/
     sims4_updater/
-      __init__.py                      # VERSION = "2.0.8"
+      __init__.py                      # VERSION = "2.1.0"
       __main__.py                      # CLI argparse entry point + launch()
       constants.py                     # App-wide constants; get_data_dir(), get_tools_dir()
       config.py                        # Settings dataclass, get_app_dir(), migration
@@ -118,6 +123,7 @@ sims4-updater/                         # Project root
         subprocess_.py                 # Subprocess wrapper utilities
         utils.py                       # Misc utilities
         cache.py                       # General-purpose caching helpers
+        rate_limiter.py                # TokenBucketRateLimiter for download speed control
       patch/
         __init__.py
         manifest.py                    # Manifest, PatchEntry, FileEntry, DLCDownloadEntry
@@ -2500,4 +2506,4 @@ The `AVButtinInError` exception class exists for cases where antivirus software 
 
 ---
 
-*This document covers the Sims 4 Updater v2.0.8 codebase as it existed in February 2026. For questions or contributions, see the GitHub repository at https://github.com/ToastyToast25/sims4-updater.*
+*This document covers the Sims 4 Updater v2.1.0 codebase as it existed in February 2026. For questions or contributions, see the GitHub repository at https://github.com/ToastyToast25/sims4-updater.*

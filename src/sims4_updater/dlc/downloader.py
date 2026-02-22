@@ -134,6 +134,13 @@ class DLCDownloader:
 
             self._extract_zip(result.path, entry.dlc_id)
 
+            # Clean up downloaded ZIP to save disk space
+            try:
+                result.path.unlink(missing_ok=True)
+                logger.info("Deleted archive: %s", result.path)
+            except OSError as e:
+                logger.warning("Could not delete archive %s: %s", result.path, e)
+
             # Validate extraction — ensure required files exist
             expected = self.game_dir / entry.dlc_id / "SimulationFullBuild0.package"
             if not expected.is_file():

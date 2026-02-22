@@ -1,7 +1,7 @@
 # DLC Management System — Technical Reference
 
 **Project:** Sims 4 Updater
-**Document Version:** 1.0
+**Document Version:** 2.1.0
 **Date:** 2026-02-20
 **Scope:** The complete DLC management subsystem, covering catalog data, state detection, crack config formats, download pipeline, unlocker integration, and GUI.
 

@@ -1,7 +1,7 @@
 # Update and Patching System — Technical Reference
 
 **Project:** Sims 4 Updater
-**Version Documented:** 2.0.0
+**Version Documented:** 2.1.0
 **Date:** 2026-02-20
 **Scope:** Core update pipeline, version detection, manifest parsing, update planning, download management, patch application, DLC state preservation, and hash learning
 

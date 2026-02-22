@@ -154,9 +154,9 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
     if not isinstance(data, dict):
         raise ManifestError("Manifest must be a JSON object.")
 
-    latest = data.get("latest")
-    if not latest or not isinstance(latest, str):
-        raise ManifestError("Manifest missing 'latest' version string.")
+    latest = data.get("latest", "")
+    if not isinstance(latest, str):
+        raise ManifestError("Manifest 'latest' must be a string.")
 
     patches_raw = data.get("patches", [])
     if not isinstance(patches_raw, list):

@@ -51,7 +51,7 @@ class Settings:
     check_updates_on_start: bool = True
     last_known_version: str = ""
     enabled_dlcs: list[str] = field(default_factory=list)
-    manifest_url: str = ""
+    manifest_url: str = "https://cdn.hyperabyss.com/manifest.json"
     theme: str = "dark"
     download_concurrency: int = 3
     download_speed_limit: int = 0  # MB/s, 0 = unlimited

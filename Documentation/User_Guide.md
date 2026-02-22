@@ -1,7 +1,7 @@
 # Sims 4 Updater — User Guide
 
 **Application:** Sims 4 Updater (TS4 Updater)
-**Version:** 2.0.8
+**Version:** 2.1.0
 **Author:** ToastyToast25
 **Platform:** Windows 10/11 (64-bit)
 
@@ -97,7 +97,7 @@
 Sims 4 Updater is a standalone Windows desktop application that serves as a single control panel for managing a cracked installation of The Sims 4. It handles four primary responsibilities:
 
 - **Game Updates:** Detecting your installed version, checking the patch server for newer versions, and downloading and applying binary delta patches to bring your game up to date.
-- **DLC Management:** Displaying all 103 known Sims 4 DLCs with their installation and unlock status, allowing you to enable or disable individual packs within the crack configuration, and downloading missing DLC content from a configured CDN.
+- **DLC Management:** Displaying all 109 known Sims 4 DLCs with their installation and unlock status, allowing you to enable or disable individual packs within the crack configuration, and downloading missing DLC content from a configured CDN.
 - **DLC Packing:** Packaging installed DLC folders into distributable ZIP archives, generating manifest files, and importing DLC archives from external sources.
 - **EA DLC Unlocker:** Installing and uninstalling the PandaDLL-based EA DLC Unlocker that allows legitimate EA app clients to access DLC content.
 
@@ -326,7 +326,7 @@ The same pending DLC names also appear in the DLCs tab under a "Pending" section
 
 ## 6. DLCs Tab
 
-The DLCs tab provides a complete view of all 103 known Sims 4 DLCs, organized by pack type, with tools to manage which ones are active in your crack configuration.
+The DLCs tab provides a complete view of all 109 known Sims 4 DLCs, organized by pack type, with tools to manage which ones are active in your crack configuration.
 
 ### 6.1 DLC List Layout
 
@@ -734,7 +734,7 @@ Whether the Steam process is currently running on the system.
 | **Not Running** in green | Steam is not running (preferred state before launch via GL) |
 
 **Summary**
-A cross-reference count of DLC readiness, for example `14/103 DLCs ready`. When all DLCs are ready the badge turns green; otherwise it is orange. If GreenLuma data has not yet been loaded, this row shows "No DLC data."
+A cross-reference count of DLC readiness, for example `14/109 DLCs ready`. When all DLCs are ready the badge turns green; otherwise it is orange. If GreenLuma data has not yet been loaded, this row shows "No DLC data."
 
 ### 9.3 DLC Readiness List
 

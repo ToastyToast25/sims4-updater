@@ -1,53 +1,133 @@
 # Sims 4 Updater
 
-A standalone Windows application for updating, managing, and maintaining cracked installations of The Sims 4. Detects your installed version, downloads and applies binary delta patches, manages DLC toggles across 5 crack config formats, integrates with GreenLuma 2025 for Steam DLC unlocking, handles language settings, and manages mods — all from a single portable executable with a modern dark-mode GUI.
+> Standalone Windows tool for updating, managing DLCs, and maintaining The Sims 4 installations.
 
-Built on top of anadius's patcher engine using xdelta3 binary delta patching.
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-see%20LICENSE-lightgrey)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/ToastyToast25/sims4-updater?label=download&logo=github)](https://github.com/ToastyToast25/sims4-updater/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/ToastyToast25/sims4-updater/build.yml?branch=master&logo=github-actions&logoColor=white)](https://github.com/ToastyToast25/sims4-updater/actions)
 
 ---
 
-## Table of Contents
+## Quick Links
 
-- [Installation](#installation)
-- [Usage](#usage)
-  - [GUI Mode](#gui-mode)
-  - [CLI Mode](#cli-mode)
-- [Hosting Patches](#hosting-patches)
-  - [Manifest Format](#manifest-format)
-  - [Creating Patches](#creating-patches)
-  - [Version Fingerprints](#version-fingerprints)
-  - [Crowd-Sourced Hash Reporting](#crowd-sourced-hash-reporting)
-- [Features](#features)
-  - [Version Detection](#version-detection)
-  - [Auto-Learning Hash System](#auto-learning-hash-system)
-  - [Update Pipeline](#update-pipeline)
-  - [DLC Management](#dlc-management)
-  - [GreenLuma Integration](#greenluma-integration)
-  - [Language Changer](#language-changer)
-  - [Configuration](#configuration)
-- [Building from Source](#building-from-source)
-- [Project Structure](#project-structure)
-- [Disclaimer](#disclaimer)
-- [License](#license)
+| Link | Description |
+| --- | --- |
+| [Download Latest Release](../../releases/latest) | Get the latest `Sims4Updater.exe` (portable, no install needed) |
+| [Documentation](Documentation/) | Full technical reference for all subsystems |
+| [Report a Bug](../../issues/new) | Open a GitHub issue |
+| [Contributing](CONTRIBUTING.md) | How to contribute to development |
+
+---
+
+## Features
+
+### One-Click Game Updates
+
+Binary delta patching powered by [anadius's patcher engine](https://github.com/anadius) and xdelta3. The updater detects your installed version by hashing sentinel files against a database of 135+ known versions, then uses BFS pathfinding to compute the shortest chain of patch steps from your version to the latest. Downloads support HTTP Range resume and per-file MD5 verification.
+
+### DLC Management
+
+Toggle 109 DLCs across 5 auto-detected crack config formats (RldOrigin, Codex, Rune, Anadius Simple, Anadius Codex-like). Auto-toggle mode scans the game directory and enables/disables DLCs based on which folders are present. Config changes are mirrored to `Bin_LE/` automatically. The catalog includes localized DLC names in 18 languages.
+
+### CDN DLC Downloads
+
+Download any DLC directly from [cdn.hyperabyss.com](https://cdn.hyperabyss.com) (Cloudflare Worker proxying a seedbox). Downloads run in parallel background threads with resume support and MD5 integrity verification. Progress is streamed live to the GUI.
+
+### GreenLuma 2025 Integration
+
+Full management of [GreenLuma 2025](https://cs.rin.ru/forum/viewtopic.php?f=29&t=103825) for Steam DLC unlocking:
+
+- Install/uninstall GreenLuma from a `.7z` archive (normal or stealth mode) with tracked file manifests for clean removal
+- Parse `.lua` manifest files to populate `AppList`, inject depot decryption keys into `config.vdf`, and copy `.manifest` files to `depotcache`
+- Verify configuration by cross-referencing keys, manifests, and AppList against your LUA file
+- Fix AppList (remove duplicates, add missing entries)
+- Launch Steam through `DLLInjector.exe` with automatic Steam-restart handling
+- Per-DLC readiness indicators (key present, manifest cached, AppList entry) shown in the DLC tab
+
+### DLC Packer
+
+Pack installed DLC folders into distributable ZIP archives with an auto-generated hosting manifest. Import DLC archives from other users. Available both in the GUI and as the `pack-dlc` CLI command.
+
+### EA DLC Unlocker
+
+One-click install/uninstall of the EA DLC Unlocker with live status detection and automatic admin elevation.
+
+### Language Changer
+
+Switch between 18 game languages. Updates the Windows registry (`HKLM\SOFTWARE\Maxis\The Sims 4\Locale`, both 32-bit and 64-bit views), `RldOrigin.ini`, and the anadius crack config simultaneously. Optionally downloads language files from Steam depots via DepotDownloader.
+
+### Mod Manager
+
+Manage game modifications directly from the GUI.
+
+### Diagnostics
+
+Automated system health checks: VC Redistributable presence, .NET Framework status, Windows Defender Controlled Folder Access, game directory permissions, path issues (semicolons, non-ASCII), and antivirus quarantine detection. File validator scans DLC folders for missing or corrupt files against known-good checksums.
+
+### Version Detection
+
+Hash-based identification using 3 sentinel files (`TS4_x64.exe`, `Default.ini`, `delta/EP01/version.ini`) matched against a bundled database of 135+ versions. Detection returns a confidence level (Definitive / Probable / Unknown). Auto-detection checks the Windows registry and common Steam/EA install paths.
+
+### Self-Updating Hash Database
+
+The version database stays current through 4 complementary sources:
+
+| Source | When | Scope |
+| --- | --- | --- |
+| Bundled database | Always loaded | 135+ versions shipped in the exe |
+| Manifest fingerprints | On update check | Hashes included in your manifest JSON |
+| Self-learning | After each successful patch | Sentinel files hashed and saved locally |
+| Crowd-sourced | On update check | Validated hashes from `fingerprints_url` endpoint |
+
+### Self-Updater
+
+Checks the GitHub Releases API on startup and offers one-click self-update. Downloads the new exe, validates it, and hot-swaps while the app is running (hidden console, restore on failure).
+
+### Modern Dark-Mode GUI
+
+CustomTkinter dark-mode UI with slide animations, hex-interpolated color transitions, ease-out-cubic easing, and toast notifications. Sidebar navigation with 11 named tabs.
+
+### Full CLI Support
+
+Every major operation is available headlessly for scripting and automation.
+
+---
+
+## Screenshots
+
+Screenshots coming soon.
 
 ---
 
 ## Installation
 
-Download the latest `Sims4Updater.exe` from [Releases](../../releases). No installation required — it's a single portable executable.
+### Portable Executable (Recommended)
 
-### Requirements
+Download `Sims4Updater.exe` from [Releases](../../releases/latest). No installation, no dependencies — just run it.
 
-- Windows 10/11 (64-bit)
+**Requirements:**
+
+- Windows 10 or Windows 11 (64-bit)
 - An existing installation of The Sims 4
 
-### From source
+### From Source
 
 ```bash
 git clone https://github.com/ToastyToast25/sims4-updater.git
 cd sims4-updater
-pip install -r requirements.txt
+
+# Install with dev extras
+pip install -e ".[dev]"
+
+# Run the GUI
 PYTHONPATH=src python -m sims4_updater
+```
+
+The patcher engine lives in a sibling directory that must be checked out separately:
+
+```bash
+git clone https://github.com/ToastyToast25/patcher.git ../patcher
 ```
 
 ---
@@ -56,18 +136,21 @@ PYTHONPATH=src python -m sims4_updater
 
 ### GUI Mode
 
-Double-click `Sims4Updater.exe` or run it with no arguments. The GUI provides:
+Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 11 tabs:
 
-- **Home** — Displays detected game directory, installed version, latest available version, and DLC count. One-click "Check for Updates" / "Update Now" button.
-- **DLCs** — Scrollable checkbox list of all 103 DLCs grouped by type (Expansions, Game Packs, Stuff Packs, Kits). Auto-toggle, per-DLC downloads, Steam pricing, and GreenLuma readiness indicators.
-- **DLC Packer** — Pack installed DLCs into distributable ZIP archives or import DLC archives from others.
-- **DLC Unlocker** — Install/uninstall the EA DLC Unlocker with status detection and admin elevation.
-- **GreenLuma** — Install/uninstall GreenLuma 2025, apply LUA manifests, verify configuration, manage AppList, and launch Steam via DLLInjector.
-- **DLC Downloader** — Download DLC content from Steam depots using DepotDownloader with progress tracking.
-- **Language** — Change game language with Steam depot-based language file downloads.
-- **Mods** — Manage game modifications.
-- **Settings** — Configure game directory, patch manifest URL, GreenLuma paths (Steam, archive, LUA, manifests), language, and theme.
-- **Progress** — Download and patch progress bars, scrollable log, and cancel button during updates.
+| Tab | Description |
+| --- | --- |
+| **Home** | Game directory, installed version, latest version, DLC summary, and the main Update Now button. Shows a "patch coming soon" banner when EA has released a new version ahead of the available patches. |
+| **DLCs** | Scrollable catalog of all 109 DLCs grouped by type. Per-DLC enable/disable toggles, GreenLuma readiness indicators (key / manifest / AppList), Steam pricing, and one-click CDN download. |
+| **DLC Downloader** | Download individual DLC archives from the CDN with live progress bars, parallel threads, resume, and MD5 verification. |
+| **DLC Packer** | Pack installed DLC folders into distributable ZIP archives. Import ZIP archives from others. |
+| **DLC Unlocker** | Install or uninstall the EA DLC Unlocker. Status detection with admin elevation when required. |
+| **GreenLuma** | Install/uninstall GreenLuma 2025, apply LUA manifests, verify configuration, fix AppList, and launch Steam via DLLInjector. |
+| **Language** | Select from 18 languages. Optionally download language files from Steam depots. |
+| **Mods** | Manage game modifications. |
+| **Diagnostics** | System health checks and DLC file validator. |
+| **Settings** | Game path, manifest URL, GreenLuma paths, Steam username, download concurrency, speed limit, theme, and language. |
+| **Progress** | Live download/patch progress bars, scrollable log output, and cancel button during updates. |
 
 ### CLI Mode
 
@@ -76,36 +159,50 @@ Sims4Updater.exe <command> [options]
 ```
 
 | Command | Description |
-|---------|-------------|
-| `status [game_dir]` | Show game directory, installed version, language, crack config, and DLC summary |
-| `detect <game_dir>` | Detect the installed version by hashing sentinel files |
-| `check [game_dir]` | Check for available updates against the manifest |
-| `manifest <url\|file>` | Inspect a manifest file or URL — show patches, sizes, versions |
-| `dlc <game_dir>` | Show all DLC states (enabled/disabled, installed/missing) |
+| --- | --- |
+| `status [game_dir]` | Show game directory, installed version, language, crack config format, and DLC summary |
+| `detect <game_dir>` | Detect the installed version by hashing the 3 sentinel files |
+| `check [game_dir]` | Check for available updates; shows patch steps and total download size |
+| `manifest <url\|file>` | Inspect a manifest — list all patches, versions, and file sizes |
+| `dlc <game_dir>` | Show all DLC states (enabled/disabled, installed/missing) grouped by type |
 | `dlc-auto <game_dir>` | Auto-enable installed DLCs and disable missing ones |
-| `learn <game_dir> <version>` | Manually teach the updater a version's file hashes |
-| `language` | Show current language and all available languages |
-| `language <code> [--game-dir DIR]` | Set the game language (registry + config files) |
+| `pack-dlc <game_dir> <ids...> [-o dir]` | Pack one or more DLCs into ZIP archives with a generated hosting manifest |
+| `learn <game_dir> <version>` | Hash sentinel files and save them to the local version database |
+| `language` | Show current language and all 18 available languages |
+| `language <code> [--game-dir DIR]` | Set game language (registry + crack config files) |
 
-#### Examples
+#### CLI Examples
 
 ```bash
-# Auto-detect game and show status
+# Auto-detect game and show full status
 Sims4Updater.exe status
 
 # Detect version of a specific install
 Sims4Updater.exe detect "D:\Games\The Sims 4"
 
-# Check for updates using a custom manifest
-Sims4Updater.exe check --manifest-url https://example.com/manifest.json
+# Check for updates against a custom manifest
+Sims4Updater.exe check --manifest-url https://cdn.hyperabyss.com/manifest.json
+
+# Inspect a manifest to see all available patches
+Sims4Updater.exe manifest https://cdn.hyperabyss.com/manifest.json
+
+# Show DLC states for a game directory
+Sims4Updater.exe dlc "D:\Games\The Sims 4"
 
 # Auto-toggle DLCs after manual patching
 Sims4Updater.exe dlc-auto "D:\Games\The Sims 4"
 
+# Pack specific DLCs into ZIP archives
+Sims4Updater.exe pack-dlc "D:\Games\The Sims 4" EP01 GP05 SP12 -o ./output
+
+# Pack all installed DLCs
+Sims4Updater.exe pack-dlc "D:\Games\The Sims 4" all -o ./output
+
 # Teach the updater your current version's hashes
 Sims4Updater.exe learn "D:\Games\The Sims 4" 1.121.372.1020
 
-# Change language to French
+# Show languages and set to French
+Sims4Updater.exe language
 Sims4Updater.exe language fr_FR --game-dir "D:\Games\The Sims 4"
 ```
 
@@ -113,11 +210,11 @@ Sims4Updater.exe language fr_FR --game-dir "D:\Games\The Sims 4"
 
 ## Hosting Patches
 
-The updater is **backend-agnostic** — it only needs a single manifest URL. Patch files can be hosted anywhere: a web server, CDN, cloud storage bucket, file host, or even a local network share. To switch hosts, just update the URLs in the manifest.
+The updater is **backend-agnostic** — it only needs a single manifest URL. Patch files can be hosted anywhere: a CDN, object storage bucket, web server, seedbox, or local network share. The CDN at `cdn.hyperabyss.com` uses a Cloudflare Worker proxying a Whatbox/RapidSeedbox seedbox, but the architecture is fully replaceable by updating the manifest URLs.
 
 ### Manifest Format
 
-Host a JSON file at any URL. Configure this URL in the updater's Settings or via `--manifest-url`.
+Host a JSON file at any stable URL. Configure this URL in the updater's Settings tab or via `--manifest-url`.
 
 ```json
 {
@@ -131,18 +228,13 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
       "to": "1.120.250.1020",
       "files": [
         {
-          "url": "https://your-host.com/patches/ts4_1.119_to_1.120.patch",
+          "url": "https://cdn.hyperabyss.com/patches/ts4_1.119_to_1.120.zip",
           "size": 524288000,
           "md5": "ABC123DEF456..."
-        },
-        {
-          "url": "https://your-host.com/patches/ts4_1.119_to_1.120_part2.patch",
-          "size": 314572800,
-          "md5": "789GHI012JKL..."
         }
       ],
       "crack": {
-        "url": "https://your-host.com/cracks/crack_1.120.rar",
+        "url": "https://cdn.hyperabyss.com/cracks/crack_1.120.rar",
         "size": 1048576,
         "md5": "MNO345PQR678..."
       }
@@ -152,7 +244,7 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
       "to": "1.121.372.1020",
       "files": [
         {
-          "url": "https://your-host.com/patches/ts4_1.120_to_1.121.patch",
+          "url": "https://cdn.hyperabyss.com/patches/ts4_1.120_to_1.121.zip",
           "size": 412000000,
           "md5": "STU901VWX234..."
         }
@@ -161,8 +253,7 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
   ],
 
   "new_dlcs": [
-    {"id": "EP15", "name": "New Expansion Pack"},
-    {"id": "GP12", "name": "New Game Pack"}
+    {"id": "EP15", "name": "New Expansion Pack"}
   ],
 
   "fingerprints": {
@@ -173,232 +264,127 @@ Host a JSON file at any URL. Configure this URL in the updater's Settings or via
     }
   },
 
-  "fingerprints_url": "https://your-api.com/fingerprints.json",
-  "report_url": "https://your-api.com/report"
+  "fingerprints_url": "https://api.hyperabyss.com/fingerprints.json",
+  "report_url": "https://api.hyperabyss.com/report"
 }
 ```
 
-#### Field reference
+#### Field Reference
 
 | Field | Required | Description |
-|-------|----------|-------------|
-| `latest` | Yes | The newest version with patches available |
-| `game_latest` | No | The actual latest game version released by EA (shown to users when ahead of `latest`) |
-| `game_latest_date` | No | Release date of `game_latest` (displayed in the GUI) |
+| --- | --- | --- |
+| `latest` | Yes | Newest version with patches available |
+| `game_latest` | No | Actual latest EA release (shown when ahead of `latest`) |
+| `game_latest_date` | No | Release date of `game_latest` (displayed in GUI) |
 | `patches` | Yes | Array of patch entries |
 | `patches[].from` | Yes | Source version |
 | `patches[].to` | Yes | Target version |
-| `patches[].files` | Yes | Array of downloadable patch archives (supports multi-part) |
+| `patches[].files` | Yes | Downloadable patch archives (multi-part supported) |
 | `patches[].files[].url` | Yes | Direct download URL |
 | `patches[].files[].size` | Yes | File size in bytes (for progress bars) |
 | `patches[].files[].md5` | Yes | MD5 checksum for integrity verification |
 | `patches[].crack` | No | Optional crack archive for this version step |
-| `new_dlcs` | No | Array of DLCs announced but not yet patchable (`{"id": "...", "name": "..."}`) |
-| `fingerprints` | No | Version hashes for auto-detection (see below) |
+| `new_dlcs` | No | DLCs announced but not yet patchable (shown as "pending" in GUI) |
+| `fingerprints` | No | Version hashes for auto-detection |
 | `fingerprints_url` | No | URL to a crowd-sourced fingerprints JSON |
 | `report_url` | No | URL where clients POST learned hashes |
 
-#### Multi-step updates
+#### Multi-Step Updates
 
-The updater uses BFS pathfinding to find the shortest chain of patches from the user's current version to `latest`. If a direct patch doesn't exist, it chains intermediate steps automatically. Among equal-length paths, it picks the one with the smallest total download size.
+The updater uses BFS pathfinding to find the shortest chain of patches from the user's installed version to `latest`. If a direct patch does not exist, it chains intermediate steps automatically. Among equal-length paths it picks the one with the smallest total download size.
+
+#### Patch-Pending Awareness
+
+When `game_latest` is ahead of `latest`, the GUI shows a "patch coming soon" banner and disables the update button. Users are told that a new EA version exists without being able to attempt a doomed update. Once you create the patch and update `latest` in the manifest, the button becomes available on the next manifest fetch.
 
 ### Creating Patches
 
-Patches are created using the patcher tool (included as a sibling `patcher/` directory), which uses xdelta3 to produce binary delta files. You need both the **source version** and **target version** of the game files on your machine.
+Patches are created using the patcher tool in the sibling `../patcher/` directory, which generates xdelta3 binary delta files. You need a clean copy of both the old and new game versions.
 
-#### Step-by-step: creating a patch
+**Step-by-step:**
 
-1. **Obtain both game versions.** You need a clean copy of the old version and the new version. The patcher compares them file by file and generates a binary delta.
+1. Obtain clean copies of the old and new game versions.
 
-2. **Run the patcher tool** to create the delta patch:
+2. Run the patcher tool to create the delta:
 
    ```bash
-   cd patcher
-   python patcher.py create --old "D:\TS4_1.119" --new "D:\TS4_1.120" --output ts4_1.119_to_1.120.patch
+   cd ../patcher
+   python patcher.py create --old "D:\TS4_1.119" --new "D:\TS4_1.120" --output ts4_1.119_to_1.120.zip
    ```
 
-3. **Hash the sentinel files** for the new version so users can auto-detect it:
+3. Hash the sentinel files of the new version:
 
    ```bash
    Sims4Updater.exe learn "D:\TS4_1.120" 1.120.250.1020
    ```
 
-   This outputs MD5 hashes for the 3 sentinel files:
+   This outputs the MD5 hashes for `TS4_x64.exe`, `Default.ini`, and `delta/EP01/version.ini`. Copy them into the manifest's `fingerprints` section.
 
-   - `Game/Bin/TS4_x64.exe` — Main executable, changes every update
-   - `Game/Bin/Default.ini` — Config with version number embedded
-   - `delta/EP01/version.ini` — DLC version marker
-
-4. **Get the file size and MD5** of the patch archive:
+4. Get the patch archive checksum:
 
    ```bash
-   certutil -hashfile ts4_1.119_to_1.120.patch MD5
+   certutil -hashfile ts4_1.119_to_1.120.zip MD5
    ```
 
-5. **Upload the patch file** to your hosting provider (see below).
+5. Upload the patch file to your hosting provider.
 
-6. **Update the manifest** with the new patch entry and fingerprints.
+6. Add the patch entry to the manifest and update `latest`.
 
-#### When a new game update comes out
+**When a new game update is released:**
 
-1. Update the manifest's `game_latest` field immediately — users will see "patch coming soon" in the GUI.
-2. Create the patch archive from the old version to the new version.
-3. Upload the patch files to your hosting.
-4. Add the patch entry to the manifest and set `latest` to the new version.
-5. Users will now see "Update Now" on their next check.
+1. Set `game_latest` in the manifest immediately — users see "patch coming soon" right away.
+2. Create the patch archive from old version to new version.
+3. Upload to your host.
+4. Add the patch entry, update `latest`, and users will see "Update Now" on their next check.
 
-#### When new DLC is released
+**When new DLC is released:**
 
-1. Add the DLC to the manifest's `new_dlcs` array — users will see it in the DLC list as "pending".
-2. Once the patch is created and uploaded, move the DLC from `new_dlcs` to the regular patch.
-3. Update `data/dlc_catalog.json` in the repo and rebuild the exe for the DLC to have proper localized names.
+1. Add the DLC to `new_dlcs` — it appears as "pending" in the DLC catalog immediately.
+2. Once the patch is ready, move the DLC out of `new_dlcs` and into the normal patch flow.
+3. Add the DLC to `data/dlc_catalog.json` and rebuild the exe for localized names.
 
-### Hosting with Cloudflare (Recommended)
+### CDN Infrastructure (cdn.hyperabyss.com)
 
-Cloudflare's free tier provides everything needed for global patch distribution with minimal cost.
+The live CDN uses a Cloudflare Worker that proxies requests to a RapidSeedbox seedbox (Whatbox Swift NL). Users only see `cdn.hyperabyss.com`; the seedbox URL is never exposed.
 
-#### Hosting the manifest and patch files
-
-##### Option A: Cloudflare R2 (object storage) — recommended for large files
-
-R2 has no egress fees (unlike S3/GCS), making it ideal for large game patches.
-
-1. Create a Cloudflare account and enable R2 in the dashboard.
-2. Create an R2 bucket (e.g., `ts4-patches`).
-3. Connect a custom domain or use the R2 public access URL.
-4. Upload your patch files to the bucket:
-
-   ```bash
-   # Using rclone (recommended for large files)
-   rclone copy ts4_1.119_to_1.120.patch r2:ts4-patches/patches/
-
-   # Or use the Cloudflare dashboard upload
-   ```
-
-5. Upload your `manifest.json` to the same bucket:
-
-   ```bash
-   rclone copy manifest.json r2:ts4-patches/
-   ```
-
-6. Your manifest URL will be: `https://your-domain.com/manifest.json`
-
-##### Option B: Cloudflare Pages (static hosting) — good for manifest only
-
-If your patch files are hosted elsewhere (e.g., Google Drive, Mega, GitHub Releases), you can host just the manifest on Cloudflare Pages:
-
-1. Create a GitHub repo with your `manifest.json`.
-2. Connect it to Cloudflare Pages.
-3. Every push automatically deploys the updated manifest.
-
-#### Hosting the fingerprint API (crowd-sourced hashes)
-
-Use a Cloudflare Worker + KV to receive hash reports and serve validated fingerprints. The free tier handles 100K requests/day.
-
-**1. Create a KV namespace** in the Cloudflare dashboard called `TS4_FINGERPRINTS`.
-
-**2. Create a Worker** (`ts4-fingerprints-worker`) with this code:
-
-```javascript
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    // GET /fingerprints.json — serve validated fingerprints
-    if (request.method === "GET" && url.pathname === "/fingerprints.json") {
-      const data = await env.TS4_FINGERPRINTS.get("validated", "json") || {};
-      return Response.json({ versions: data });
-    }
-
-    // POST /report — receive hash reports from clients
-    if (request.method === "POST" && url.pathname === "/report") {
-      try {
-        const body = await request.json();
-        const { version, hashes } = body;
-        if (!version || !hashes) {
-          return new Response("Missing version or hashes", { status: 400 });
-        }
-
-        // Store reports per version with IP-based dedup
-        const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-        const reportKey = `reports:${version}`;
-        const existing = await env.TS4_FINGERPRINTS.get(reportKey, "json") || [];
-
-        // Deduplicate by IP
-        if (existing.some(r => r.ip === ip)) {
-          return Response.json({ status: "already_reported" });
-        }
-
-        existing.push({ ip, hashes, ts: Date.now() });
-        await env.TS4_FINGERPRINTS.put(reportKey, JSON.stringify(existing));
-
-        // Auto-validate after 3 matching reports
-        if (existing.length >= 3) {
-          const hashStrings = existing.map(r => JSON.stringify(r.hashes));
-          const counts = {};
-          hashStrings.forEach(h => counts[h] = (counts[h] || 0) + 1);
-          const majority = Object.entries(counts).find(([, c]) => c >= 3);
-
-          if (majority) {
-            const validated = await env.TS4_FINGERPRINTS.get("validated", "json") || {};
-            validated[version] = JSON.parse(majority[0]);
-            await env.TS4_FINGERPRINTS.put("validated", JSON.stringify(validated));
-          }
-        }
-
-        return Response.json({ status: "ok", reports: existing.length });
-      } catch (e) {
-        return new Response("Invalid request", { status: 400 });
-      }
-    }
-
-    return new Response("Not found", { status: 404 });
-  }
-};
+```text
+User app  ->  cdn.hyperabyss.com/dlc/EP01.zip  ->  Cloudflare Worker  ->  Seedbox  ->  file streamed back
 ```
 
-**3. Bind the KV namespace** to the Worker in the Cloudflare dashboard (Settings > Variables > KV Namespace Bindings > variable name: `TS4_FINGERPRINTS`).
+The Worker reads a KV namespace (`CDN_ROUTES`) that maps clean paths (e.g., `dlc/EP01.zip`) to seedbox secure links. Adding a new file to the CDN is a three-step operation: upload to seedbox, generate a secure link, add a KV entry. Setup details and the complete Worker source are in the [`cloudflare-worker/`](cloudflare-worker/) directory.
 
-**4. Deploy** and set the URLs in your manifest:
+**URL structure:**
 
-```json
-{
-  "fingerprints_url": "https://ts4-fingerprints-worker.your-account.workers.dev/fingerprints.json",
-  "report_url": "https://ts4-fingerprints-worker.your-account.workers.dev/report"
-}
+```text
+cdn.hyperabyss.com/
+├── manifest.json
+├── patches/
+│   └── 1.120.250_to_1.121.372.zip
+├── dlc/
+│   ├── EP01.zip
+│   └── GP01.zip
+└── language/
+    └── de_DE.zip
 ```
 
-#### Cost
+**Cost breakdown:**
 
-| Service | Free tier | Notes |
-|---------|-----------|-------|
-| Cloudflare R2 | 10 GB storage, 10M reads/mo | No egress fees |
-| Cloudflare Workers | 100K requests/day | Fingerprint API |
-| Cloudflare KV | 100K reads/day, 1K writes/day | Hash storage |
-| Cloudflare Pages | Unlimited bandwidth | Manifest hosting |
-
-For most Sims 4 update distributions, the free tier is more than sufficient.
-
-### Version Fingerprints
-
-When you create a patch, you have access to the target version's game files. Hash the 3 sentinel files and include them in the manifest's `fingerprints` section. This lets all users auto-detect the new version immediately, even before they've applied the patch themselves.
-
-```bash
-# Quick way to get the hashes (on the machine with the target version):
-Sims4Updater.exe learn "D:\Games\The Sims 4" 1.121.372.1020
-```
-
-This outputs the MD5 hashes — copy them into your manifest's `fingerprints` field.
+| Service | Cost |
+| --- | --- |
+| Cloudflare Worker | Free (100k req/day) |
+| Cloudflare KV | Free (100k reads/day, 1k writes/day) |
+| RapidSeedbox Swift | $8/mo |
+| **Total** | **$8/mo** |
 
 ### Crowd-Sourced Hash Reporting
 
-For fully automatic hash distribution across all users, set up the two optional endpoints described in the Cloudflare Worker section above:
+Set up two optional API endpoints to automate version fingerprint distribution across all users:
 
-1. **`report_url`** — Receives POST requests with `{"version": "...", "hashes": {...}}` from clients after successful patches or `learn` commands. The Worker validates by requiring 3+ matching reports from different IPs.
+1. **`report_url`** — Receives `POST {"version": "...", "hashes": {...}}` after each successful patch or `learn` command. A Cloudflare Worker with KV auto-validates by requiring 3+ matching reports from distinct IPs.
 
-2. **`fingerprints_url`** — Serves a JSON file of validated hashes. The updater fetches this on every manifest check and merges new hashes into each user's local database.
+2. **`fingerprints_url`** — Serves the validated fingerprint database. The updater fetches this on every manifest check and merges new hashes into the local learned database.
 
-Example response for `fingerprints_url`:
+Example `fingerprints_url` response:
 
 ```json
 {
@@ -412,141 +398,33 @@ Example response for `fingerprints_url`:
 }
 ```
 
----
+A complete Cloudflare Worker implementation for the fingerprint API (with IP deduplication and majority-vote validation) can be adapted for deployment at any Cloudflare Workers account from the source in `cloudflare-worker/api-worker.js`.
 
-## Features
+### Version Fingerprints
 
-### Version Detection
+When creating a patch, hash the 3 sentinel files and include them in the manifest `fingerprints` block. This enables every user to auto-detect the new version immediately — even before they have applied the patch themselves — because the hashes are fetched from the manifest on every update check.
 
-Identifies the installed game version by hashing 3 sentinel files and matching against a database of 135+ known versions. Detection takes under 2 seconds on SSD.
-
-**How it works:**
-
-1. Hashes `Game/Bin/TS4_x64.exe`, `Game/Bin/Default.ini`, and `delta/EP01/version.ini` using MD5.
-2. Looks up the hash combination in the version database.
-3. Returns a confidence level:
-   - **Definitive** — unique match on all sentinels (1 version matches)
-   - **Probable** — matched but ambiguous (multiple versions share some hashes)
-   - **Unknown** — no match found
-
-**Game directory auto-detection:** Checks the Windows registry (`HKLM/HKCU\SOFTWARE\Maxis\The Sims 4`) and common install paths automatically.
-
-### Auto-Learning Hash System
-
-The version database stays up to date through 4 complementary sources:
-
-| Source | When it runs | Scope |
-|--------|-------------|-------|
-| **Bundled database** | Always loaded | 135 versions shipped with the exe |
-| **Manifest fingerprints** | On update check | Hashes you include in the manifest JSON |
-| **Self-learning** | After successful patch | Hashes sentinel files automatically, saves locally |
-| **Crowd-sourced** | On update check | Fetches validated hashes from `fingerprints_url` |
-
-Learned hashes are stored at `%LocalAppData%\ToastyToast25\sims4_updater\learned_hashes.json` and persist across sessions. The local database takes priority over the bundled database for overlapping versions.
-
-After every successful patch, the updater automatically hashes the sentinel files, saves them locally, and reports them to the `report_url` (if configured) as a fire-and-forget background request.
-
-### Update Pipeline
-
-The full update process runs in 5 stages:
-
-1. **Detect** — Find game directory, hash sentinels, identify installed version
-2. **Check** — Fetch manifest, compare versions, plan update path (BFS shortest chain)
-3. **Download** — Stream patch files with resume support, MD5 verification, and cancellation
-4. **Patch** — Apply binary delta patches via the patcher engine (xdelta3)
-5. **Finalize** — Learn new version hashes, auto-toggle DLCs, update settings
-
-Downloads support HTTP Range headers for resuming interrupted transfers. Each file is verified against its MD5 checksum. The download can be cancelled at any point.
-
-**Patch-pending awareness:** When the manifest includes `game_latest` (the actual EA release version) ahead of `latest` (the latest patchable version), the GUI shows a "patch coming soon" banner and disables the update button. Users are informed that a new version exists without being able to attempt an update that would fail. Once the maintainer creates the patch and updates the manifest, the update button automatically becomes available on the next check.
-
-### DLC Management
-
-Manages DLC enable/disable state across **5 crack config formats**:
-
-| Format | Config File | Toggle Method |
-|--------|------------|---------------|
-| **RldOrigin** | `RldOrigin.ini` | Comment prefix (`;`) |
-| **Codex** | `codex.cfg` | Group value swap |
-| **Rune** | `rune.ini` | Underscore suffix on section names |
-| **Anadius Simple** | `anadius.cfg` | Comment prefix (`//`) |
-| **Anadius Codex-like** | `anadius.cfg` | Group value swap |
-
-The format is auto-detected by scanning for config files in the game directory (tries paths in reverse priority order).
-
-**Auto-toggle** scans the game directory for installed DLC folders, enables DLCs that are present, and disables those that are missing. Config changes are mirrored to the `Bin_LE` (Legacy Edition) variant automatically.
-
-The DLC catalog contains **103 DLCs** with localized names in 18 languages, categorized as Expansions, Game Packs, Stuff Packs, Kits, and Free Packs.
-
-### GreenLuma Integration
-
-Full integration with [GreenLuma 2025](https://cs.rin.ru/forum/viewtopic.php?f=29&t=103825) for Steam DLC unlocking. The GreenLuma tab provides:
-
-- **Install/Uninstall** — Extract GreenLuma from a `.7z` archive into the Steam directory (normal or stealth mode). Tracks installed files for clean uninstall.
-- **Apply LUA Manifest** — Parse `.lua` manifest files to automatically add depot decryption keys to `config.vdf`, copy `.manifest` files to `depotcache`, and populate the `AppList` directory.
-- **Verify Configuration** — Cross-reference keys, manifests, and AppList entries against a LUA file to identify missing or mismatched components.
-- **Fix AppList** — Remove duplicates and add missing DLC entries to the numbered `AppList/*.txt` files.
-- **Launch via GreenLuma** — Launch Steam through `DLLInjector.exe` with automatic Steam-restart dialog if Steam is already running.
-- **DLC Readiness Indicators** — The DLCs tab shows green/yellow "GL" pill badges next to each DLC indicating whether AppList, decryption key, and manifest are all present.
-
-**Backend modules:** `greenluma/steam.py` (Steam detection), `greenluma/installer.py` (install/uninstall/launch), `greenluma/applist.py` (AppList management), `greenluma/config_vdf.py` (depot key management), `greenluma/lua_parser.py` (LUA parsing), `greenluma/manifest_cache.py` (depotcache), `greenluma/orchestrator.py` (high-level operations).
-
-### Language Changer
-
-Supports 18 languages with native display names:
-
-| Code | Language | Code | Language |
-|------|----------|------|----------|
-| `cs_CZ` | Cestina | `nl_NL` | Nederlands |
-| `da_DK` | Dansk | `no_NO` | Norsk |
-| `de_DE` | Deutsch | `pl_PL` | Polski |
-| `en_US` | English | `pt_BR` | Portugues (Brasil) |
-| `es_ES` | Espanol | `fi_FI` | Suomi |
-| `fr_FR` | Francais | `sv_SE` | Svenska |
-| `it_IT` | Italiano | `ru_RU` | Russian |
-| `ja_JP` | Japanese | `zh_TW` | Traditional Chinese |
-| `ko_KR` | Korean | `zh_CN` | Simplified Chinese |
-
-Sets the `Locale` registry value and updates `RldOrigin.ini` config files in both the main and Legacy Edition directories.
-
-### Configuration
-
-Persistent settings stored at `%LocalAppData%\ToastyToast25\sims4_updater\settings.json`:
-
-| Setting | Description |
-|---------|-------------|
-| `game_path` | Path to The Sims 4 installation |
-| `manifest_url` | URL to the patch manifest JSON |
-| `language` | Selected game language |
-| `theme` | GUI theme (dark / light / system) |
-| `check_updates_on_start` | Auto-check for updates on launch |
-| `last_known_version` | Last detected version (cached) |
-| `enabled_dlcs` | List of enabled DLC IDs |
-| `steam_path` | Steam installation directory |
-| `steam_username` | Steam username for depot downloads |
-| `greenluma_archive_path` | Path to GreenLuma `.7z` archive |
-| `greenluma_lua_path` | Path to `.lua` manifest file |
-| `greenluma_manifest_dir` | Directory containing `.manifest` files |
-| `greenluma_auto_backup` | Auto-backup config.vdf/AppList before changes |
-| `download_concurrency` | Number of parallel download segments |
-| `download_speed_limit` | Download speed cap in MB/s (0 = unlimited) |
-
-The Settings tab is organized into two cards: **Game & Updates** (game path, patch manifest URL, language, theme) and **GreenLuma** (Steam path, archive, LUA manifest, manifest directory, auto-backup).
+```bash
+Sims4Updater.exe learn "D:\Games\The Sims 4" 1.121.372.1020
+# Outputs MD5s for the 3 sentinel files — paste into manifest fingerprints
+```
 
 ---
 
 ## Building from Source
 
-### Build Requirements
+### Prerequisites
 
-- Python 3.12+
-- The `patcher/` directory placed as a sibling (i.e. `../patcher/` relative to this repo)
+- Python 3.12+ (CI uses 3.12; development uses 3.14)
+- The `patcher/` sibling directory checked out (see above)
 
 ### Setup
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
+
+This installs runtime dependencies (`customtkinter`, `requests`, `pywin32`) plus dev extras (`pytest`, `pytest-cov`, `ruff`, `pyinstaller`).
 
 ### Build
 
@@ -554,18 +432,40 @@ pip install -r requirements-dev.txt
 pyinstaller --clean --noconfirm Sims4Updater.spec
 ```
 
-The executable is output to `dist/Sims4Updater.exe`. It bundles:
+Output: `dist/Sims4Updater.exe` — a single-file portable executable bundling:
 
-- CustomTkinter GUI assets
-- xdelta3 binaries (x64 and x86)
+- CustomTkinter GUI assets and fonts
+- xdelta3 binaries (x64 and x86) from `../patcher/tools/`
 - unrar executable
-- Version hash database (135+ versions)
-- DLC catalog (103 DLCs)
-- Bundled mod resources
+- `data/version_hashes.json` — 135+ version fingerprints
+- `data/dlc_catalog.json` — 109 DLC entries with 18-language names
+- `mods/` — bundled mod resources
+
+A convenience batch file is also available:
+
+```bat
+build.bat
+```
+
+### Lint and Tests
+
+```bash
+# Lint (ruff, py312 target, 100-char lines)
+ruff check src/
+ruff format src/
+
+# Tests
+pytest tests/ -v --tb=short
+```
 
 ### CI/CD
 
-Pushes to `main` trigger a GitHub Actions build. Tagged pushes (`v*`) automatically create a GitHub Release with the built executable.
+GitHub Actions workflow (`.github/workflows/build.yml`):
+
+- **Trigger**: push to `master` (build + test), or any `v*` tag (build + release)
+- **Build environment**: `windows-latest`, Python 3.12
+- **Patcher dependency**: checked out from `ToastyToast25/patcher` as a sibling directory
+- **Release**: tagged pushes create a GitHub Release automatically via `softprops/action-gh-release` with generated release notes
 
 ---
 
@@ -573,90 +473,152 @@ Pushes to `main` trigger a GitHub Actions build. Tagged pushes (`v*`) automatica
 
 ```text
 sims4-updater/
-├── src/sims4_updater/
-│   ├── __main__.py              # CLI entry point + GUI launcher
-│   ├── constants.py             # Paths, URLs, sentinel files
-│   ├── config.py                # Persistent settings
-│   ├── updater.py               # Main updater engine (Patcher subclass)
-│   ├── core/
-│   │   ├── version_detect.py    # Hash-based version detection
-│   │   ├── learned_hashes.py    # Local writable hash database
-│   │   ├── self_update.py       # GitHub Releases self-update pipeline
-│   │   ├── unlocker.py          # EA DLC Unlocker install/uninstall/status
-│   │   ├── rate_limiter.py      # Download rate limiting
-│   │   ├── exceptions.py        # Exception hierarchy
-│   │   ├── files.py             # File hashing, copying utilities
-│   │   ├── myzipfile.py         # ZIP with LZMA metadata
-│   │   ├── cache.py             # JSON cache with atomic writes
-│   │   ├── subprocess_.py       # Subprocess with Ctrl+C handling
-│   │   └── utils.py             # Size parsing utilities
-│   ├── patch/
-│   │   ├── manifest.py          # Manifest dataclasses + parser
-│   │   ├── planner.py           # BFS update path planner
-│   │   ├── downloader.py        # HTTP download with resume + MD5
-│   │   └── client.py            # Patch client orchestrator
-│   ├── dlc/
-│   │   ├── catalog.py           # DLC info + localized names
-│   │   ├── formats.py           # 5 crack config format adapters
-│   │   ├── manager.py           # DLC state management
-│   │   ├── downloader.py        # DLC download/extract/register pipeline
-│   │   ├── packer.py            # DLC Packer — ZIP creation + manifest gen
-│   │   └── steam.py             # Steam price cache + batch fetching
-│   ├── greenluma/
-│   │   ├── steam.py             # Steam path detection, process checks, SteamInfo
-│   │   ├── installer.py         # GreenLuma install/uninstall/launch, install manifest
-│   │   ├── applist.py           # AppList (numbered .txt files) read/write/backup
-│   │   ├── config_vdf.py        # Steam config.vdf parsing, depot key management
-│   │   ├── lua_parser.py        # LUA manifest file parser
-│   │   ├── manifest_cache.py    # depotcache .manifest file management
-│   │   └── orchestrator.py      # High-level GL operations (readiness, apply, verify)
-│   ├── language/
-│   │   ├── changer.py           # Registry + INI language setter
-│   │   ├── downloader.py        # Steam depot-based language file downloads
-│   │   ├── packer.py            # Language file packing
-│   │   └── steam.py             # Steam language depot configuration
-│   ├── mods/
-│   │   └── manager.py           # Mod management
-│   └── gui/
-│       ├── app.py               # Main CustomTkinter window
-│       ├── theme.py             # Colors, fonts, dimensions
-│       ├── components.py        # InfoCard, StatusBadge, ToastNotification
-│       ├── animations.py        # Animator, color interpolation, easing
-│       └── frames/
-│           ├── home_frame.py    # Version display, update button
-│           ├── dlc_frame.py     # DLC catalog, filters, GL readiness
-│           ├── packer_frame.py  # Pack/import DLC archives
-│           ├── unlocker_frame.py # EA DLC Unlocker management
-│           ├── greenluma_frame.py # GreenLuma install/apply/verify
-│           ├── downloader_frame.py # DLC download interface
-│           ├── language_frame.py # Language management
-│           ├── mods_frame.py    # Mod management
-│           ├── settings_frame.py # Configuration UI (2-card layout)
-│           └── progress_frame.py # Progress bars, log, cancel
+├── src/
+│   ├── sims4_updater/
+│   │   ├── __init__.py              # VERSION string ("2.1.0")
+│   │   ├── __main__.py              # CLI argparse entry point + GUI launcher
+│   │   ├── constants.py             # SENTINEL_FILES, registry paths, get_data_dir(), get_tools_dir()
+│   │   ├── config.py                # Settings dataclass, get_app_dir() -> %LOCALAPPDATA%\ToastyToast25\
+│   │   ├── updater.py               # Sims4Updater(BasePatcher) — main engine, patcher sys.path injection
+│   │   ├── core/
+│   │   │   ├── exceptions.py        # UpdaterError hierarchy
+│   │   │   ├── version_detect.py    # VersionDetector, VersionDatabase, DetectionResult, Confidence
+│   │   │   ├── learned_hashes.py    # LearnedHashDB — local writable version fingerprint store
+│   │   │   ├── self_update.py       # GitHub Releases self-update pipeline
+│   │   │   ├── unlocker.py          # EA DLC Unlocker install/uninstall/status
+│   │   │   ├── rate_limiter.py      # Download rate limiting (token bucket)
+│   │   │   ├── files.py             # hash_file() (MD5), write_check(), get_short_path()
+│   │   │   ├── myzipfile.py         # ZIP with LZMA metadata support
+│   │   │   ├── cache.py             # JSON cache with atomic writes
+│   │   │   ├── subprocess_.py       # Subprocess with Ctrl+C handling
+│   │   │   ├── diagnostics.py       # System health checks (VC Redist, .NET, AV, permissions)
+│   │   │   ├── validator.py         # Game file validator — missing/corrupt/extra file scanner
+│   │   │   ├── contribute.py        # DLC contribution scanner — submit unknown DLC metadata to API
+│   │   │   └── utils.py             # Size parsing utilities
+│   │   ├── patch/
+│   │   │   ├── manifest.py          # Manifest, PatchEntry, FileEntry, DLCDownloadEntry, parse_manifest()
+│   │   │   ├── planner.py           # UpdatePlan, plan_update() — BFS shortest-path planner
+│   │   │   ├── downloader.py        # HTTP download with resume + MD5 verification + progress callbacks
+│   │   │   └── client.py            # PatchClient — fetch manifest, check update, download orchestration
+│   │   ├── dlc/
+│   │   │   ├── catalog.py           # DLCCatalog, DLCInfo, DLCStatus — 109 DLCs, 18 languages
+│   │   │   ├── formats.py           # 5 DLCConfigAdapter implementations + detect_format()
+│   │   │   ├── manager.py           # DLCManager — unified toggle facade over all crack formats
+│   │   │   ├── downloader.py        # DLCDownloader — download/extract/register pipeline
+│   │   │   ├── packer.py            # DLCPacker — ZIP creation + manifest generation
+│   │   │   └── steam.py             # SteamPriceCache, fetch_prices_batch()
+│   │   ├── greenluma/
+│   │   │   ├── steam.py             # Steam path detection, process checks, SteamInfo
+│   │   │   ├── installer.py         # GreenLuma install/uninstall/launch, install manifest tracking
+│   │   │   ├── applist.py           # AppList (numbered .txt files) read/write/fix/backup
+│   │   │   ├── config_vdf.py        # Steam config.vdf parsing and depot key management
+│   │   │   ├── lua_parser.py        # LUA manifest file parser
+│   │   │   ├── manifest_cache.py    # depotcache .manifest file management
+│   │   │   └── orchestrator.py      # High-level GL operations (readiness, apply, verify)
+│   │   ├── language/
+│   │   │   ├── changer.py           # LANGUAGES dict, registry + RldOrigin.ini language setter
+│   │   │   ├── downloader.py        # Steam depot-based language file downloader
+│   │   │   ├── packer.py            # Language file packing
+│   │   │   └── steam.py             # Steam language depot configuration
+│   │   ├── mods/
+│   │   │   └── manager.py           # Mod management
+│   │   └── gui/
+│   │       ├── app.py               # App(ctk.CTk) — window, sidebar, run_async(), show_toast(), _enqueue_gui()
+│   │       ├── theme.py             # COLORS dict, fonts, sizing, animation timing constants
+│   │       ├── components.py        # InfoCard, StatusBadge, ToastNotification
+│   │       ├── animations.py        # Animator, lerp_color(), ease_out_cubic()
+│   │       └── frames/
+│   │           ├── home_frame.py        # Version display, update button, self-update banner
+│   │           ├── dlc_frame.py         # DLC catalog, filters, GL readiness indicators
+│   │           ├── downloader_frame.py  # DLC download interface with live progress
+│   │           ├── packer_frame.py      # Pack/import DLC archives
+│   │           ├── unlocker_frame.py    # EA DLC Unlocker install/uninstall
+│   │           ├── greenluma_frame.py   # GreenLuma install/apply LUA/verify/launch
+│   │           ├── language_frame.py    # Language selection and Steam depot downloads
+│   │           ├── mods_frame.py        # Mod management
+│   │           ├── diagnostics_frame.py # System checks and file validator
+│   │           ├── settings_frame.py    # Settings (2-card layout: Game & Updates / GreenLuma)
+│   │           └── progress_frame.py    # Live progress bars, log, cancel button
+│   └── patch_maker/                 # Patch creation CLI tool (registered as patch-maker entry point)
 ├── data/
-│   ├── version_hashes.json      # Bundled version fingerprints
-│   └── dlc_catalog.json         # DLC database with names
-├── mods/                        # Bundled mod resources
-├── Sims4Updater.spec            # PyInstaller build config
-├── requirements.txt             # Runtime dependencies
-├── requirements-dev.txt         # Dev/build dependencies
-└── .github/workflows/build.yml  # CI/CD pipeline
+│   ├── version_hashes.json          # Bundled sentinel-file hash database (135+ versions)
+│   └── dlc_catalog.json             # All 109 DLCs with localized names, pack types, Steam App IDs
+├── cloudflare-worker/               # Cloudflare Worker source + deployment scripts for cdn.hyperabyss.com
+│   ├── worker.js                    # CDN proxy worker (KV route lookup -> seedbox fetch)
+│   ├── api-worker.js                # Fingerprint API worker (report + validate hashes)
+│   ├── wrangler.toml                # Wrangler deployment config
+│   ├── cdn_upload.py                # Upload patch files and update KV routes
+│   ├── cdn_pack_upload.py           # Upload packed DLC ZIPs to CDN
+│   └── SETUP.md                     # Step-by-step CDN infrastructure setup guide
+├── mods/                            # Bundled mod resources
+├── tools/                           # Runtime tools: xdelta3, unrar, EA DLC Unlocker DLL
+├── Sims4Updater.spec                # PyInstaller build config (active)
+├── pyproject.toml                   # Hatchling build backend, ruff config, pytest config
+├── requirements.txt                 # Runtime dependencies
+├── requirements-dev.txt             # Dev/build dependencies
+└── .github/workflows/build.yml      # CI/CD pipeline
 ```
+
+---
+
+## Crack Config Formats
+
+The DLC manager auto-detects which crack format is in use by scanning the game directory (checked in priority order, first match wins):
+
+| Format | Config File | Toggle Method | Config Mirror |
+| --- | --- | --- | --- |
+| AnadiusCodex | `Game/Bin/anadius.cfg` (with `Config2` group) | Group string swap (CODEX-style) | `Bin_LE/` if present |
+| AnadiusSimple | `Game/Bin/anadius.cfg` (without `Config2`) | `//` comment prefix | `Bin_LE/` if present |
+| Rune | `Game/Bin/rune.ini` | `[CODE_]` suffix on section names = disabled | `Bin_LE/` if present |
+| Codex | `Game/Bin/codex.cfg` | Group string swap (CODEX-style) | `Bin_LE/` if present |
+| RldOrigin | `Game/Bin/RldOrigin.ini` | `;` comment prefix | `Bin_LE/` if present |
+
+All paths are also searched under `Game-cracked/Bin/`.
+
+---
+
+## Data and Settings Paths
+
+| Path | Content |
+| --- | --- |
+| `%LOCALAPPDATA%\ToastyToast25\sims4_updater\settings.json` | User preferences (game path, manifest URL, language, theme, GreenLuma paths) |
+| `%LOCALAPPDATA%\ToastyToast25\sims4_updater\learned_hashes.json` | Self-learned version fingerprints (takes priority over bundled DB) |
+| `%LOCALAPPDATA%\ToastyToast25\sims4_updater\downloads\` | Patch download cache (resumable) |
+| `%LOCALAPPDATA%\ToastyToast25\sims4_updater\packed_dlcs\` | DLC Packer output directory |
+| `%APPDATA%\ToastyToast25\EA DLC Unlocker\` | EA DLC Unlocker entitlements.ini |
+
+Settings auto-migrate from the old `anadius` directory on first run.
 
 ---
 
 ## Documentation
 
-Full technical documentation is available in the `Documentation/` directory:
+Full technical reference for all subsystems:
 
 | Document | Scope |
-| -------- | ----- |
-| [User Guide](Documentation/User_Guide.md) | End-user reference — all tabs, CLI, troubleshooting, FAQ |
-| [Architecture & Developer Guide](Documentation/Architecture_and_Developer_Guide.md) | 3-layer architecture, module map, threading, GUI patterns, build system |
-| [Update & Patching System](Documentation/Update_and_Patching_System.md) | Version detection, manifest format, BFS planning, downloads, hash learning |
-| [DLC Management System](Documentation/DLC_Management_System.md) | DLC catalog, 5 crack formats, download pipeline, unlocker, Steam pricing, GL readiness |
-| [DLC Packer & Distribution](Documentation/DLC_Packer_and_Distribution.md) | Packer class, ZIP format, manifest generation, import flow |
-| [GreenLuma Integration](Documentation/GreenLuma_Integration.md) | Steam detection, AppList, config.vdf keys, LUA parsing, manifest cache, orchestrator |
+| --- | --- |
+| [User Guide](Documentation/User_Guide.md) | End-user reference — every tab, all CLI commands, troubleshooting, FAQ |
+| [Architecture and Developer Guide](Documentation/Architecture_and_Developer_Guide.md) | 3-layer architecture, module map, threading model, GUI patterns, how-to guides for adding features |
+| [Update and Patching System](Documentation/Update_and_Patching_System.md) | Version detection internals, manifest format, BFS planning algorithm, download pipeline, hash learning |
+| [DLC Management System](Documentation/DLC_Management_System.md) | DLC catalog design, all 5 crack config formats, download pipeline, EA Unlocker, Steam pricing, GL readiness |
+| [DLC Packer and Distribution](Documentation/DLC_Packer_and_Distribution.md) | Packer class internals, ZIP format specification, manifest generation, import flow, distribution workflow |
+| [GreenLuma Integration](Documentation/GreenLuma_Integration.md) | Steam detection, AppList management, config.vdf depot keys, LUA manifest parsing, depotcache, orchestrator |
+| [CDN Infrastructure](Documentation/CDN_Infrastructure.md) | Cloudflare Worker proxy, KV routing, seedbox integration, upload tools, deployment guide |
+
+---
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on submitting pull requests, reporting bugs, and adding new features.
+
+Key development conventions:
+
+- `from __future__ import annotations` in all non-trivial modules
+- `TYPE_CHECKING` guards for circular import avoidance
+- All GUI colors as hex (`#RRGGBB`) via `theme.COLORS["key"]` — CustomTkinter does not support `rgba()`
+- Never update widgets from a background thread — always use `app._enqueue_gui()` or `on_done`/`on_error` callbacks
+- Line length: 100 characters (`ruff` enforced)
+- Linting: `ruff check src/` must pass before opening a PR
 
 ---
 
