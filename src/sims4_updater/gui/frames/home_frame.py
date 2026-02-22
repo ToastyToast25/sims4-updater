@@ -278,7 +278,7 @@ class HomeFrame(ctk.CTkFrame):
         self._price_total_label.grid(row=1, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
 
         self._price_patchable_key = ctk.CTkLabel(
-            self._pricing_card, text="Patchable:",
+            self._pricing_card, text="On CDN:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
@@ -517,14 +517,13 @@ class HomeFrame(ctk.CTkFrame):
             text_color=theme.COLORS["success"] if on_sale_count > 0 else theme.COLORS["text_muted"],
         )
 
-        # Patchable count — only show if manifest URL is configured
-        has_manifest = bool(self.app.settings.manifest_url)
-        if has_manifest:
-            catalog = self.app.updater._dlc_manager.catalog
-            patchable = sum(1 for d in catalog.dlcs if d.code)
-            total_cat = len(catalog.dlcs)
+        # On CDN count — show how many DLCs are available for download
+        manifest = self.app.updater.patch_client._manifest
+        if manifest and manifest.dlc_downloads:
+            on_cdn = len(manifest.dlc_downloads)
+            total_cat = len(self.app.updater._dlc_manager.catalog.dlcs)
             self._price_patchable_key.grid(row=2, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
-            self._price_patchable_label.configure(text=f"{patchable} / {total_cat}")
+            self._price_patchable_label.configure(text=f"{on_cdn} / {total_cat}")
             self._price_patchable_label.grid(row=2, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
         else:
             self._price_patchable_key.grid_forget()
@@ -743,7 +742,8 @@ class HomeFrame(ctk.CTkFrame):
     def _check_app_update_bg(self):
         """Background: check GitHub for a new updater version."""
         from ...core.self_update import check_for_app_update
-        return check_for_app_update()
+        manifest = self.app.updater.patch_client._manifest
+        return check_for_app_update(manifest=manifest)
 
     def _on_app_update_checked(self, info):
         """GUI thread: show or hide the app update banner."""

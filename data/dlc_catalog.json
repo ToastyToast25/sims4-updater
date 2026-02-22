@@ -927,8 +927,8 @@
     },
     {
       "id": "EP21",
-      "code": "",
-      "code2": "",
+      "code": "SIMS4.OFF.SOLP.0x000000000007B9F0",
+      "code2": "SIMS4.OFF.SOLP.0x000000000007B9F1",
       "names": {
         "en_us": "The Sims 4 Royalty & Legacy"
       },
@@ -2713,8 +2713,8 @@
     },
     {
       "id": "SP68",
-      "code": "",
-      "code2": "",
+      "code": "SIMS4.OFF.SOLP.0x000000000007AD3F",
+      "code2": "SIMS4.OFF.SOLP.0x000000000007B590",
       "names": {
         "en_us": "SpongeBob's House Kit"
       },
@@ -2750,8 +2750,8 @@
     },
     {
       "id": "SP70",
-      "code": "",
-      "code2": "",
+      "code": "SIMS4.OFF.SOLP.0x000000000007AD40",
+      "code2": "SIMS4.OFF.SOLP.0x000000000007B5A4",
       "names": {
         "en_us": "SpongeBob Kid's Room Kit"
       },
@@ -2868,7 +2868,7 @@
     },
     {
       "id": "SP76",
-      "code": "",
+      "code": "SIMS4.OFF.SOLP.0x000000000007F617",
       "code2": "",
       "names": {
         "en_us": "Silver Screen Style Kit"
@@ -2878,7 +2878,7 @@
     },
     {
       "id": "SP77",
-      "code": "",
+      "code": "SIMS4.OFF.SOLP.0x000000000007F618",
       "code2": "",
       "names": {
         "en_us": "Tea Time Solarium Kit"
@@ -2888,7 +2888,7 @@
     },
     {
       "id": "SP81",
-      "code": "",
+      "code": "SIMS4.OFF.SOLP.0x000000000007EFF9",
       "code2": "",
       "names": {
         "en_us": "Prairie Dreams Set"

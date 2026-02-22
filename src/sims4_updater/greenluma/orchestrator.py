@@ -309,6 +309,117 @@ class GreenLumaOrchestrator:
 
         return result
 
+    # ── Apply CDN Keys ────────────────────────────────────────────
+
+    def apply_cdn_keys(
+        self,
+        gl_entries: dict,
+        progress: Callable[[str], None] | None = None,
+    ) -> tuple[int, int, int]:
+        """Apply GreenLuma keys + manifests from CDN for incomplete DLCs.
+
+        Downloads missing .manifest files, adds decryption keys to config.vdf,
+        and updates the AppList. Requires Steam to NOT be running.
+
+        Args:
+            gl_entries: Dict of depot_id -> GreenLumaEntry from manifest.greenluma.
+            progress: Optional callback for progress messages.
+
+        Returns:
+            Tuple of (keys_added, manifests_downloaded, applist_added).
+
+        Raises:
+            RuntimeError: If Steam is running.
+        """
+        import requests as _req
+
+        def _log(msg: str):
+            log.info(msg)
+            if progress:
+                progress(msg)
+
+        if is_steam_running():
+            raise RuntimeError("Steam is running. Close Steam before applying CDN keys.")
+
+        if not gl_entries:
+            _log("No GreenLuma entries in CDN manifest.")
+            return 0, 0, 0
+
+        # Read current state
+        vdf_state = config_vdf.read_depot_keys(self.steam.config_vdf_path)
+        mc_state = manifest_cache.read_depotcache(self.steam.depotcache_dir)
+        al_state = applist.read_applist(self.steam.applist_dir)
+
+        keys_to_add: dict[str, str] = {}
+        manifests_downloaded = 0
+        new_applist_ids: list[str] = []
+
+        for depot_id, entry in gl_entries.items():
+            if not entry.key:
+                continue
+
+            # Add key if missing
+            if depot_id not in vdf_state.keys:
+                keys_to_add[depot_id] = entry.key
+                _log(f"Key needed: depot {depot_id} ({entry.dlc_id})")
+
+            # Download manifest if missing
+            if depot_id not in mc_state.depot_ids and entry.manifest_url:
+                filename = manifest_cache.get_manifest_filename(
+                    depot_id, entry.manifest_id
+                )
+                dest = self.steam.depotcache_dir / filename
+                try:
+                    _log(f"Downloading manifest: {filename}")
+                    resp = _req.get(entry.manifest_url, timeout=30)
+                    resp.raise_for_status()
+                    if len(resp.content) < 10:
+                        _log(f"  Skipped: manifest too small ({len(resp.content)} bytes)")
+                        continue
+                    self.steam.depotcache_dir.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(resp.content)
+                    manifests_downloaded += 1
+                    _log(f"  Saved: {filename} ({len(resp.content):,} bytes)")
+                except Exception as e:
+                    _log(f"  Failed to download manifest for {depot_id}: {e}")
+
+            # Add to AppList if missing
+            if depot_id not in al_state.unique_ids:
+                new_applist_ids.append(depot_id)
+
+        # Batch-add keys to config.vdf
+        keys_added = 0
+        if keys_to_add:
+            _log(f"Adding {len(keys_to_add)} decryption keys to config.vdf...")
+            try:
+                added, updated = config_vdf.add_depot_keys(
+                    self.steam.config_vdf_path,
+                    keys_to_add,
+                    auto_backup=True,
+                )
+                keys_added = added + updated
+                _log(f"Keys: {added} added, {updated} updated")
+            except (RuntimeError, ValueError, OSError) as e:
+                _log(f"ERROR adding keys: {e}")
+
+        # Batch-add AppList entries
+        applist_added = 0
+        if new_applist_ids:
+            _log(f"Adding {len(new_applist_ids)} AppList entries...")
+            try:
+                applist_added = applist.add_ids(
+                    self.steam.applist_dir, new_applist_ids
+                )
+                _log(f"AppList: {applist_added} entries added")
+            except ValueError as e:
+                _log(f"ERROR updating AppList: {e}")
+
+        _log(
+            f"Done: {keys_added} keys, {manifests_downloaded} manifests, "
+            f"{applist_added} AppList entries"
+        )
+        return keys_added, manifests_downloaded, applist_added
+
     # ── Fix AppList ──────────────────────────────────────────────
 
     def fix_applist(self, catalog) -> tuple[int, int]:

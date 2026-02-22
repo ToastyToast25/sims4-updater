@@ -1,14 +1,14 @@
 """
 DLC Downloader tab — parallel download of DLC packs with progress,
-speed limiting, and an activity log.
+speed limiting, pause/resume, and an activity log.
 """
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -19,11 +19,15 @@ from ..components import InfoCard, StatusBadge
 if TYPE_CHECKING:
     from ..app import App
 
-from ...dlc.downloader import DLCDownloadState, DLCDownloadTask
+from ...dlc.downloader import (
+    DLCDownloadState,
+    DLCDownloadTask,
+    ParallelDLCDownloader,
+)
 from ...patch.manifest import DLCDownloadEntry
 
-
 # ── helpers ────────────────────────────────────────────────────────
+
 
 def _format_size(size_bytes: int) -> str:
     if size_bytes >= 1_073_741_824:
@@ -33,6 +37,26 @@ def _format_size(size_bytes: int) -> str:
     if size_bytes >= 1024:
         return f"{size_bytes / 1024:.0f} KB"
     return f"{size_bytes} B"
+
+
+def _format_speed(bps: float) -> str:
+    if bps >= 1_048_576:
+        return f"{bps / 1_048_576:.1f} MB/s"
+    if bps >= 1024:
+        return f"{bps / 1024:.0f} KB/s"
+    return f"{bps:.0f} B/s"
+
+
+def _format_eta(seconds: float | None) -> str:
+    if seconds is None or seconds <= 0:
+        return ""
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    if h > 0:
+        return f"ETA {h}h {m}m"
+    if m > 0:
+        return f"ETA {m}m {s}s"
+    return f"ETA {s}s"
 
 
 def _timestamp() -> str:
@@ -51,10 +75,47 @@ _TYPE_LABELS = {
 }
 
 
+class _SpeedTracker:
+    """Sliding-window speed calculator for download progress."""
+
+    WINDOW = 3.0  # seconds
+
+    def __init__(self) -> None:
+        self._samples: list[tuple[float, int]] = []
+        self._total_size = 0
+
+    def reset(self, total_size: int = 0) -> None:
+        self._samples.clear()
+        self._total_size = total_size
+
+    def update(self, cumulative_bytes: int) -> None:
+        now = time.monotonic()
+        self._samples.append((now, cumulative_bytes))
+        cutoff = now - self.WINDOW
+        while self._samples and self._samples[0][0] < cutoff:
+            self._samples.pop(0)
+
+    @property
+    def speed_bps(self) -> float:
+        if len(self._samples) < 2:
+            return 0.0
+        dt = self._samples[-1][0] - self._samples[0][0]
+        db = self._samples[-1][1] - self._samples[0][1]
+        return db / dt if dt > 0 else 0.0
+
+    @property
+    def eta_seconds(self) -> float | None:
+        speed = self.speed_bps
+        if speed <= 0 or not self._samples:
+            return None
+        remaining = self._total_size - self._samples[-1][1]
+        return max(0, remaining / speed) if remaining > 0 else 0
+
+
 class DownloaderFrame(ctk.CTkFrame):
     """Dedicated DLC download tab with parallel downloads, speed control, and log."""
 
-    def __init__(self, parent, app: "App"):
+    def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
 
@@ -72,6 +133,17 @@ class DownloaderFrame(ctk.CTkFrame):
         self._total_to_download = 0
         self._completed_count = 0
         self._failed_count = 0
+        self._extracted_count = 0
+        self._active_downloader: ParallelDLCDownloader | None = None
+        self._selected_version: str | None = None  # None = latest
+
+        # Speed / timing
+        self._overall_tracker = _SpeedTracker()
+        self._dlc_bytes: dict[str, int] = {}  # per-DLC cumulative bytes
+        self._dlc_start_times: dict[str, float] = {}
+        self._download_start_time: float = 0.0
+        self._download_entries: list[DLCDownloadEntry] = []
+        self._logged_dl_start: set[str] = set()  # DLC IDs already logged "Downloading..."
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)  # scroll area stretches
@@ -87,13 +159,15 @@ class DownloaderFrame(ctk.CTkFrame):
         top.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            top, text="DLC Downloader",
+            top,
+            text="DLC Downloader",
             font=ctk.CTkFont(*theme.FONT_HEADING),
             text_color=theme.COLORS["text"],
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkLabel(
-            top, text="Download and install DLC content packs",
+            top,
+            text="Download and install DLC content packs",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=1, column=0, sticky="w", pady=(0, 8))
@@ -104,12 +178,21 @@ class DownloaderFrame(ctk.CTkFrame):
         card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            card, text="Parallel Downloads",
+            card,
+            text="Parallel Downloads",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text"],
-        ).grid(row=0, column=0, padx=(theme.CARD_PAD_X, 8), pady=(theme.CARD_PAD_Y, 4), sticky="w")
+        ).grid(
+            row=0,
+            column=0,
+            padx=(theme.CARD_PAD_X, 8),
+            pady=(theme.CARD_PAD_Y, 4),
+            sticky="w",
+        )
 
-        self._concurrency_var = ctk.StringVar(value=str(self.app.settings.download_concurrency))
+        self._concurrency_var = ctk.StringVar(
+            value=str(self.app.settings.download_concurrency),
+        )
         ctk.CTkOptionMenu(
             card,
             values=["1", "2", "3", "4", "5"],
@@ -123,15 +206,30 @@ class DownloaderFrame(ctk.CTkFrame):
         ).grid(row=0, column=1, padx=0, pady=(theme.CARD_PAD_Y, 4), sticky="w")
 
         ctk.CTkLabel(
-            card, text="Speed Limit",
+            card,
+            text="Speed Limit",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text"],
-        ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 8), pady=(4, theme.CARD_PAD_Y), sticky="w")
+        ).grid(
+            row=1,
+            column=0,
+            padx=(theme.CARD_PAD_X, 8),
+            pady=(4, theme.CARD_PAD_Y),
+            sticky="w",
+        )
 
         speed_frame = ctk.CTkFrame(card, fg_color="transparent")
-        speed_frame.grid(row=1, column=1, padx=0, pady=(4, theme.CARD_PAD_Y), sticky="w")
+        speed_frame.grid(
+            row=1,
+            column=1,
+            padx=0,
+            pady=(4, theme.CARD_PAD_Y),
+            sticky="w",
+        )
 
-        self._speed_var = ctk.StringVar(value=str(self.app.settings.download_speed_limit))
+        self._speed_var = ctk.StringVar(
+            value=str(self.app.settings.download_speed_limit),
+        )
         ctk.CTkEntry(
             speed_frame,
             textvariable=self._speed_var,
@@ -144,10 +242,46 @@ class DownloaderFrame(ctk.CTkFrame):
         ).pack(side="left")
 
         ctk.CTkLabel(
-            speed_frame, text="MB/s  (0 = unlimited)",
+            speed_frame,
+            text="MB/s  (0 = unlimited)",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).pack(side="left", padx=(6, 0))
+
+        # Content version picker
+        ctk.CTkLabel(
+            card,
+            text="Content Version",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text"],
+        ).grid(
+            row=2,
+            column=0,
+            padx=(theme.CARD_PAD_X, 8),
+            pady=(4, theme.CARD_PAD_Y),
+            sticky="w",
+        )
+
+        self._version_var = ctk.StringVar(value="Latest")
+        self._version_menu = ctk.CTkOptionMenu(
+            card,
+            values=["Latest"],
+            variable=self._version_var,
+            width=220,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card_alt"],
+            button_color=theme.COLORS["bg_card_alt"],
+            button_hover_color=theme.COLORS["card_hover"],
+            command=self._on_version_changed,
+        )
+        self._version_menu.grid(
+            row=2,
+            column=1,
+            padx=0,
+            pady=(4, theme.CARD_PAD_Y),
+            sticky="w",
+        )
 
         # Row 1 — Action bar
         bar = ctk.CTkFrame(self, fg_color="transparent")
@@ -159,17 +293,19 @@ class DownloaderFrame(ctk.CTkFrame):
             corner_radius=theme.CORNER_RADIUS_SMALL,
         )
 
-        self._select_all_btn = ctk.CTkButton(
-            bar, text="Select All",
+        self._select_missing_btn = ctk.CTkButton(
+            bar,
+            text="Select Missing",
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
-            command=self._select_all,
+            command=self._select_missing,
             **btn_kw,
         )
-        self._select_all_btn.grid(row=0, column=0, padx=(0, 4))
+        self._select_missing_btn.grid(row=0, column=0, padx=(0, 4))
 
         self._deselect_all_btn = ctk.CTkButton(
-            bar, text="Deselect All",
+            bar,
+            text="Deselect All",
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
             command=self._deselect_all,
@@ -178,7 +314,8 @@ class DownloaderFrame(ctk.CTkFrame):
         self._deselect_all_btn.grid(row=0, column=1, padx=(0, 4))
 
         self._download_btn = ctk.CTkButton(
-            bar, text="Download Selected",
+            bar,
+            text="Download Selected",
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
             command=self._on_download_selected,
@@ -186,26 +323,56 @@ class DownloaderFrame(ctk.CTkFrame):
         )
         self._download_btn.grid(row=0, column=3, padx=(4, 0))
 
+        # Pause button (hidden until downloading)
+        self._pause_btn = ctk.CTkButton(
+            bar,
+            text="Pause",
+            fg_color=theme.COLORS["bg_card_alt"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._on_pause,
+            **btn_kw,
+        )
+        self._pause_btn.grid(row=0, column=4, padx=(4, 0))
+        self._pause_btn.grid_remove()
+
+        # Resume button (hidden until paused)
+        self._resume_btn = ctk.CTkButton(
+            bar,
+            text="Resume",
+            fg_color=theme.COLORS["accent"],
+            hover_color=theme.COLORS["accent_hover"],
+            command=self._on_resume,
+            **btn_kw,
+        )
+        self._resume_btn.grid(row=0, column=4, padx=(4, 0))
+        self._resume_btn.grid_remove()
+
+        # Cancel button (hidden until downloading)
         self._cancel_btn = ctk.CTkButton(
-            bar, text="Cancel",
+            bar,
+            text="Cancel",
             fg_color=theme.COLORS["error"],
             hover_color="#cc3a47",
             command=self._on_cancel,
             **btn_kw,
         )
-        self._cancel_btn.grid(row=0, column=4, padx=(4, 0))
-        self._cancel_btn.grid_remove()  # hidden until downloading
+        self._cancel_btn.grid(row=0, column=5, padx=(4, 0))
+        self._cancel_btn.grid_remove()
 
         # Row 2 — Scrollable DLC list
         self._scroll_frame = ctk.CTkScrollableFrame(
-            self, fg_color=theme.COLORS["bg_dark"],
+            self,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS,
             border_width=1,
             border_color=theme.COLORS["border"],
         )
         self._scroll_frame.grid(
-            row=2, column=0, sticky="nsew",
-            padx=theme.SECTION_PAD, pady=(4, 4),
+            row=2,
+            column=0,
+            sticky="nsew",
+            padx=theme.SECTION_PAD,
+            pady=(4, 4),
         )
         self._scroll_frame.grid_columnconfigure(0, weight=1)
 
@@ -231,7 +398,13 @@ class DownloaderFrame(ctk.CTkFrame):
 
         # Row 3 — Overall progress
         prog_frame = ctk.CTkFrame(self, fg_color="transparent")
-        prog_frame.grid(row=3, column=0, sticky="ew", padx=theme.SECTION_PAD, pady=(4, 2))
+        prog_frame.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=theme.SECTION_PAD,
+            pady=(4, 2),
+        )
         prog_frame.grid_columnconfigure(0, weight=1)
 
         self._overall_progress = ctk.CTkProgressBar(
@@ -254,7 +427,13 @@ class DownloaderFrame(ctk.CTkFrame):
 
         # Row 4 — Activity log
         log_section = ctk.CTkFrame(self, fg_color="transparent")
-        log_section.grid(row=4, column=0, sticky="nsew", padx=theme.SECTION_PAD, pady=(2, 12))
+        log_section.grid(
+            row=4,
+            column=0,
+            sticky="nsew",
+            padx=theme.SECTION_PAD,
+            pady=(2, 12),
+        )
         log_section.grid_columnconfigure(0, weight=1)
         log_section.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(4, weight=0, minsize=140)
@@ -264,13 +443,16 @@ class DownloaderFrame(ctk.CTkFrame):
         header_row.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            header_row, text="Activity Log",
+            header_row,
+            text="Activity Log",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkButton(
-            header_row, text="Clear", width=50,
+            header_row,
+            text="Clear",
+            width=50,
             height=theme.BUTTON_HEIGHT_SMALL - 4,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -307,13 +489,53 @@ class DownloaderFrame(ctk.CTkFrame):
 
         self._hide_placeholders()
         self._loading_label.grid(row=0, column=0, pady=40)
-        self.app.run_async(self._scan_bg, on_done=self._on_scan_done, on_error=self._on_scan_error)
+        self.app.run_async(
+            self._scan_bg,
+            on_done=self._on_scan_done,
+            on_error=self._on_scan_error,
+        )
+
+    def _on_version_changed(self, choice: str):
+        """Handle version dropdown change — reload DLC list from archived manifest."""
+        if choice == "Latest":
+            self._selected_version = None
+        else:
+            # Extract version string (format: "1.121.372.1020 (Feb 2025, 109 DLCs)")
+            self._selected_version = choice.split(" (")[0].strip()
+        if not self._busy:
+            self._load_data()
 
     def _scan_bg(self):
         """Background: fetch manifest, get DLC states, detect cached archives."""
         game_dir = self.app.updater.find_game_dir()
 
-        manifest = self.app.updater.patch_client.fetch_manifest()
+        client = self.app.updater.patch_client
+        # Fetch main manifest first (populates archived_versions)
+        main_manifest = client.fetch_manifest()
+
+        # Use archived manifest if a specific version is selected
+        if self._selected_version:
+            manifest = client.fetch_version_manifest(self._selected_version)
+        else:
+            manifest = main_manifest
+
+        # Collect available versions for the dropdown
+        archived = main_manifest.archived_versions
+        version_choices = ["Latest"]
+        for ver_str in sorted(
+            archived,
+            key=lambda v: [int(x) for x in v.split(".")],
+            reverse=True,
+        ):
+            av = archived[ver_str]
+            parts = []
+            if av.date:
+                parts.append(av.date)
+            if av.dlc_count:
+                parts.append(f"{av.dlc_count} DLCs")
+            label = f"{ver_str} ({', '.join(parts)})" if parts else ver_str
+            version_choices.append(label)
+
         dlc_downloads = manifest.dlc_downloads
 
         # Get installed DLC IDs
@@ -328,16 +550,28 @@ class DownloaderFrame(ctk.CTkFrame):
         cached_ids: set[str] = set()
         dlcs_dir = self.app.updater._download_dir / "dlcs"
         if dlcs_dir.is_dir():
-            existing_files = {f.name for f in dlcs_dir.iterdir() if f.is_file() and f.suffix != ".partial"}
+            existing_files = {
+                f.name for f in dlcs_dir.iterdir() if f.is_file() and f.suffix != ".partial"
+            }
             for dlc_id, entry in dlc_downloads.items():
                 fname = entry.filename or entry.url.rsplit("/", 1)[-1].split("?")[0]
                 if fname in existing_files:
                     cached_ids.add(dlc_id)
 
-        return dlc_downloads, installed_ids, cached_ids, game_dir
+        return dlc_downloads, installed_ids, cached_ids, game_dir, version_choices
 
     def _on_scan_done(self, result):
-        self._dlc_downloads, self._installed_ids, self._cached_ids, self._game_dir = result
+        dlc_dl, inst, cached, gdir, ver_choices = result
+        self._dlc_downloads = dlc_dl
+        self._installed_ids = inst
+        self._cached_ids = cached
+        self._game_dir = gdir
+
+        # Update version dropdown options
+        if ver_choices and len(ver_choices) > 1:
+            self._version_menu.configure(values=ver_choices)
+        else:
+            self._version_menu.configure(values=["Latest"])
         self._hide_placeholders()
 
         if not self._dlc_downloads:
@@ -345,6 +579,7 @@ class DownloaderFrame(ctk.CTkFrame):
             return
 
         self._rebuild_rows()
+        self._select_missing()  # auto-select what needs downloading
 
     def _on_scan_error(self, error):
         self._hide_placeholders()
@@ -361,7 +596,11 @@ class DownloaderFrame(ctk.CTkFrame):
     def _rebuild_rows(self):
         """Destroy and recreate all DLC rows."""
         for w in self._scroll_frame.winfo_children():
-            if w not in (self._no_manifest_label, self._loading_label, self._empty_label):
+            if w not in (
+                self._no_manifest_label,
+                self._loading_label,
+                self._empty_label,
+            ):
                 w.destroy()
 
         self._dlc_vars.clear()
@@ -398,9 +637,8 @@ class DownloaderFrame(ctk.CTkFrame):
                 self._build_dlc_row(dlc_id, entry, grid_row, idx)
                 grid_row += 1
 
-        # Update overall label
-        avail = len(self._dlc_downloads) - len(self._installed_ids & set(self._dlc_downloads))
-        self._overall_label.configure(text=f"{avail} DLC(s) available for download")
+        # Update overall label with missing/installed/total counts
+        self._update_summary_label()
 
     def _build_dlc_row(self, dlc_id: str, entry: DLCDownloadEntry, grid_row: int, idx: int):
         catalog = self.app.updater._dlc_manager.catalog
@@ -449,14 +687,17 @@ class DownloaderFrame(ctk.CTkFrame):
             badge = StatusBadge(row_frame, text="Installed", style="success")
         elif is_cached:
             badge = StatusBadge(row_frame, text="Cached", style="info")
+        elif entry.url and entry.size > 0:
+            badge = StatusBadge(row_frame, text="On CDN", style="info")
         else:
-            badge = StatusBadge(row_frame, text="Available", style="muted")
+            badge = StatusBadge(row_frame, text="Not Available", style="muted")
         badge.grid(row=0, column=2, padx=4, pady=6)
 
         # Size label
         size_text = _format_size(entry.size) if entry.size > 0 else ""
         size_lbl = ctk.CTkLabel(
-            row_frame, text=size_text,
+            row_frame,
+            text=size_text,
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_dim"],
             width=60,
@@ -466,7 +707,9 @@ class DownloaderFrame(ctk.CTkFrame):
         # Per-DLC progress bar (hidden until download starts)
         prog = ctk.CTkProgressBar(
             row_frame,
-            height=4, corner_radius=2, width=120,
+            height=4,
+            corner_radius=2,
+            width=120,
             progress_color=theme.COLORS["accent"],
             fg_color=theme.COLORS["bg_deeper"],
         )
@@ -476,10 +719,11 @@ class DownloaderFrame(ctk.CTkFrame):
 
         # State/speed label (hidden until download starts)
         state_lbl = ctk.CTkLabel(
-            row_frame, text="",
+            row_frame,
+            text="",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
-            width=90,
+            width=130,
         )
         state_lbl.grid(row=0, column=5, padx=(0, 12), pady=6, sticky="e")
         state_lbl.grid_remove()
@@ -490,19 +734,30 @@ class DownloaderFrame(ctk.CTkFrame):
             "badge": badge,
             "progress_bar": prog,
             "state_label": state_lbl,
+            "speed_tracker": _SpeedTracker(),
         }
 
     # ── Selection ─────────────────────────────────────────────────
 
-    def _select_all(self):
+    def _select_missing(self):
+        """Auto-select only DLCs that are not installed and not cached."""
         for dlc_id, var in self._dlc_vars.items():
-            if dlc_id not in self._installed_ids:
+            if dlc_id not in self._installed_ids and dlc_id not in self._cached_ids:
                 var.set(True)
 
     def _deselect_all(self):
         for dlc_id, var in self._dlc_vars.items():
             if dlc_id not in self._installed_ids:
                 var.set(False)
+
+    def _update_summary_label(self):
+        """Update the bottom label with missing/installed/total counts."""
+        total = len(self._dlc_downloads)
+        installed = len(self._installed_ids & set(self._dlc_downloads))
+        missing = total - installed
+        self._overall_label.configure(
+            text=f"{missing} missing \u00b7 {installed} installed \u00b7 {total} total"
+        )
 
     # ── Download Orchestration ────────────────────────────────────
 
@@ -511,7 +766,8 @@ class DownloaderFrame(ctk.CTkFrame):
             return
 
         selected = [
-            dlc_id for dlc_id, var in self._dlc_vars.items()
+            dlc_id
+            for dlc_id, var in self._dlc_vars.items()
             if var.get() and dlc_id not in self._installed_ids
         ]
         if not selected:
@@ -529,14 +785,26 @@ class DownloaderFrame(ctk.CTkFrame):
         self._busy = True
         self._cancel_event.clear()
         self._set_buttons_state("disabled")
+        self._pause_btn.grid()
         self._cancel_btn.grid()
         self._cancel_btn.configure(state="normal", text="Cancel")
+        self._resume_btn.grid_remove()
 
         self._completed_count = 0
         self._failed_count = 0
+        self._extracted_count = 0
         self._total_to_download = len(entries)
         self._last_progress_time.clear()
         self._overall_progress.set(0)
+        self._download_entries = entries
+        self._download_start_time = time.monotonic()
+        self._dlc_bytes.clear()
+        self._dlc_start_times.clear()
+        self._logged_dl_start.clear()
+
+        # Reset speed trackers
+        total_download_size = sum(e.size for e in entries)
+        self._overall_tracker.reset(total_size=total_download_size)
 
         # Show per-DLC progress UI
         for entry in entries:
@@ -547,22 +815,34 @@ class DownloaderFrame(ctk.CTkFrame):
                 rw["state_label"].configure(text="Waiting...")
                 rw["state_label"].grid()
                 rw["badge"].set_status("Pending", "muted")
+                rw["speed_tracker"].reset(total_size=entry.size)
 
-        self._log(f"[{_timestamp()}] Starting download of {len(entries)} DLC(s)")
+        # Build settings description for log
+        try:
+            workers = int(self._concurrency_var.get())
+        except ValueError:
+            workers = 3
+        try:
+            speed_mb = int(self._speed_var.get() or "0")
+        except ValueError:
+            speed_mb = 0
+        speed_desc = f"{speed_mb} MB/s" if speed_mb > 0 else "unlimited"
+        self._log(
+            f"[{_timestamp()}] Starting download of {len(entries)} DLC(s) "
+            f"({workers} workers, {speed_desc})"
+        )
 
         # Save settings
-        try:
+        with contextlib.suppress(ValueError):
             self.app.settings.download_concurrency = int(self._concurrency_var.get())
-        except ValueError:
-            pass
-        try:
+        with contextlib.suppress(ValueError):
             self.app.settings.download_speed_limit = int(self._speed_var.get() or "0")
-        except ValueError:
-            pass
         self.app.settings.save()
 
         self._download_thread = threading.Thread(
-            target=self._download_bg, args=(entries,), daemon=True,
+            target=self._download_bg,
+            args=(entries,),
+            daemon=True,
         )
         self._download_thread.start()
 
@@ -580,6 +860,7 @@ class DownloaderFrame(ctk.CTkFrame):
             max_workers=max_workers,
             speed_limit_bytes=speed_bytes,
         )
+        self._active_downloader = downloader
 
         def progress_cb(dlc_id, state, downloaded, total, message):
             # Throttle per-DLC progress updates to avoid GUI flooding
@@ -589,7 +870,12 @@ class DownloaderFrame(ctk.CTkFrame):
             if is_state_change or (now - last) >= 0.15:
                 self._last_progress_time[dlc_id] = now
                 self.app._enqueue_gui(
-                    self._update_dlc_progress, dlc_id, state, downloaded, total, message,
+                    self._update_dlc_progress,
+                    dlc_id,
+                    state,
+                    downloaded,
+                    total,
+                    message,
                 )
 
         try:
@@ -598,6 +884,7 @@ class DownloaderFrame(ctk.CTkFrame):
         except Exception as e:
             self.app._enqueue_gui(self._on_downloads_error, e)
         finally:
+            self._active_downloader = None
             downloader.close()
 
     def _update_dlc_progress(self, dlc_id, state, downloaded, total, message):
@@ -609,14 +896,32 @@ class DownloaderFrame(ctk.CTkFrame):
         prog_bar = rw["progress_bar"]
         state_lbl = rw["state_label"]
         badge = rw["badge"]
+        tracker = rw["speed_tracker"]
 
         if state == DLCDownloadState.DOWNLOADING:
             if total > 0:
                 prog_bar.set(downloaded / total)
-            dl_text = _format_size(downloaded)
-            tot_text = _format_size(total) if total > 0 else "?"
-            state_lbl.configure(text=f"{dl_text}/{tot_text}")
+
+            # Track per-DLC speed
+            tracker.update(downloaded)
+            self._dlc_bytes[dlc_id] = downloaded
+
+            speed = tracker.speed_bps
+            if speed > 0:
+                eta = tracker.eta_seconds
+                eta_text = _format_eta(eta)
+                speed_text = _format_speed(speed)
+                state_lbl.configure(text=f"{speed_text}  {eta_text}")
+            else:
+                dl_text = _format_size(downloaded)
+                tot_text = _format_size(total) if total > 0 else "?"
+                state_lbl.configure(text=f"{dl_text}/{tot_text}")
+
             badge.set_status("Downloading", "info")
+
+            # Update overall speed tracker with sum of all DLC bytes
+            total_cumulative = sum(self._dlc_bytes.values())
+            self._overall_tracker.update(total_cumulative)
 
         elif state == DLCDownloadState.EXTRACTING:
             prog_bar.set(1.0)
@@ -627,15 +932,37 @@ class DownloaderFrame(ctk.CTkFrame):
         elif state == DLCDownloadState.REGISTERING:
             state_lbl.configure(text="Registering...")
             badge.set_status("Registering", "warning")
+            self._log(f"[{_timestamp()}] Registering {dlc_id} in crack config...")
 
         elif state == DLCDownloadState.COMPLETED:
             prog_bar.set(1.0)
-            state_lbl.configure(text="Done")
             badge.set_status("Installed", "success")
             rw["checkbox"].configure(state="disabled")
             self._completed_count += 1
             self._installed_ids.add(dlc_id)
-            self._log(f"[{_timestamp()}] Completed: {dlc_id}")
+            # Record full size for overall progress bar
+            entry = self._dlc_downloads.get(dlc_id)
+            if entry and entry.size > 0:
+                self._dlc_bytes[dlc_id] = entry.size
+            # Log with timing
+            elapsed = self._dlc_elapsed(dlc_id)
+            avg_speed = self._dlc_avg_speed(dlc_id)
+            state_lbl.configure(text="Done")
+            self._log(f"[{_timestamp()}] Completed {dlc_id} in {elapsed} ({avg_speed})")
+
+        elif state == DLCDownloadState.EXTRACTED:
+            prog_bar.set(1.0)
+            state_lbl.configure(text="Needs Config")
+            badge.set_status("Extracted", "warning")
+            self._extracted_count += 1
+            entry = self._dlc_downloads.get(dlc_id)
+            if entry and entry.size > 0:
+                self._dlc_bytes[dlc_id] = entry.size
+            elapsed = self._dlc_elapsed(dlc_id)
+            self._log(
+                f"[{_timestamp()}] WARNING: {dlc_id} extracted but registration "
+                f"failed ({elapsed}) \u2014 enable in DLC tab"
+            )
 
         elif state == DLCDownloadState.FAILED:
             state_lbl.configure(text="Failed")
@@ -651,66 +978,153 @@ class DownloaderFrame(ctk.CTkFrame):
         elif state == DLCDownloadState.PENDING:
             pass  # handled at start
 
-        # Log first download byte
-        if state == DLCDownloadState.DOWNLOADING and downloaded == 0:
-            self._log(f"[{_timestamp()}] Downloading {dlc_id}...")
+        # Log download start once per DLC (guard against duplicate callbacks)
+        if state == DLCDownloadState.DOWNLOADING and dlc_id not in self._logged_dl_start:
+            self._logged_dl_start.add(dlc_id)
+            self._dlc_start_times[dlc_id] = time.monotonic()
+            catalog = self.app.updater._dlc_manager.catalog
+            info = catalog.get_by_id(dlc_id)
+            name = info.name_en if info else dlc_id
+            entry = self._dlc_downloads.get(dlc_id)
+            size_str = _format_size(entry.size) if entry and entry.size > 0 else ""
+            size_part = f" ({size_str})" if size_str else ""
+            self._log(f"[{_timestamp()}] Downloading {dlc_id} \u2014 {name}{size_part}...")
 
-        # Update overall progress
-        done = self._completed_count + self._failed_count
-        if self._total_to_download > 0:
-            self._overall_progress.set(done / self._total_to_download)
-        self._overall_label.configure(
-            text=f"{done}/{self._total_to_download} processed  "
-                 f"({self._completed_count} OK, {self._failed_count} failed)"
-        )
+        # Update overall progress bar using byte-level progress
+        total_size = sum(e.size for e in self._download_entries) if self._download_entries else 0
+        if total_size > 0:
+            self._overall_progress.set(min(1.0, sum(self._dlc_bytes.values()) / total_size))
+
+        done = self._completed_count + self._failed_count + self._extracted_count
+        overall_speed = self._overall_tracker.speed_bps
+        overall_eta = self._overall_tracker.eta_seconds
+        parts = [f"{done}/{self._total_to_download} processed"]
+        if overall_speed > 0:
+            parts.append(_format_speed(overall_speed))
+        if overall_eta is not None and overall_eta > 0:
+            parts.append(_format_eta(overall_eta))
+        self._overall_label.configure(text=" \u00b7 ".join(parts))
+
+    def _dlc_elapsed(self, dlc_id: str) -> str:
+        """Format elapsed time since DLC download started."""
+        start = self._dlc_start_times.get(dlc_id)
+        if start is None:
+            return "?"
+        elapsed = time.monotonic() - start
+        if elapsed < 60:
+            return f"{elapsed:.0f}s"
+        m, s = divmod(int(elapsed), 60)
+        return f"{m}m {s}s"
+
+    def _dlc_avg_speed(self, dlc_id: str) -> str:
+        """Calculate average speed for a completed DLC."""
+        start = self._dlc_start_times.get(dlc_id)
+        entry = self._dlc_downloads.get(dlc_id)
+        if start is None or entry is None or entry.size <= 0:
+            return ""
+        elapsed = time.monotonic() - start
+        if elapsed <= 0:
+            return ""
+        return f"{_format_speed(entry.size / elapsed)} avg"
 
     def _on_downloads_done(self, results: list[DLCDownloadTask]):
         self._busy = False
+        self._pause_btn.grid_remove()
+        self._resume_btn.grid_remove()
         self._cancel_btn.grid_remove()
         self._set_buttons_state("normal")
         self._overall_progress.set(1.0)
+        self._active_downloader = None
 
         completed = sum(1 for r in results if r.state == DLCDownloadState.COMPLETED)
+        extracted = sum(1 for r in results if r.state == DLCDownloadState.EXTRACTED)
         failed = sum(1 for r in results if r.state == DLCDownloadState.FAILED)
         cancelled = sum(1 for r in results if r.state == DLCDownloadState.CANCELLED)
 
         parts = []
         if completed:
             parts.append(f"{completed} installed")
+        if extracted:
+            parts.append(f"{extracted} extracted")
         if failed:
             parts.append(f"{failed} failed")
         if cancelled:
             parts.append(f"{cancelled} cancelled")
         summary = ", ".join(parts) or "No DLCs processed"
 
-        self._log(f"[{_timestamp()}] Finished: {summary}")
+        # Calculate total duration and average speed
+        duration = time.monotonic() - self._download_start_time
+        total_bytes = sum(
+            e.size
+            for e in self._download_entries
+            if e.dlc_id in self._installed_ids
+            or e.dlc_id
+            in {r.entry.dlc_id for r in results if r.state == DLCDownloadState.EXTRACTED}
+        )
+        duration_str = _format_eta(duration).replace("ETA ", "") or f"{duration:.0f}s"
+        avg_speed = _format_speed(total_bytes / duration) if duration > 0 else ""
+
+        self._log(f"[{_timestamp()}] Finished: {summary} (total {duration_str})")
+        if avg_speed:
+            self._log(f"[{_timestamp()}] Average speed: {avg_speed}")
 
         if failed == 0 and cancelled == 0:
-            self.app.show_toast(f"Downloaded {completed} DLC(s) successfully", "success")
+            self.app.show_toast(
+                f"Downloaded {completed} DLC(s) successfully",
+                "success",
+            )
         elif cancelled > 0:
             self.app.show_toast(f"Download cancelled. {summary}", "warning")
         else:
             self.app.show_toast(summary, "warning")
 
+        # Refresh summary counts
+        self._update_summary_label()
+
     def _on_downloads_error(self, error):
         self._busy = False
+        self._pause_btn.grid_remove()
+        self._resume_btn.grid_remove()
         self._cancel_btn.grid_remove()
         self._set_buttons_state("normal")
+        self._active_downloader = None
         self._log(f"[{_timestamp()}] Error: {error}")
         self.app.show_toast(f"Download error: {error}", "error")
 
+    # ── Pause / Resume / Cancel ──────────────────────────────────
+
+    def _on_pause(self):
+        dl = self._active_downloader
+        if dl:
+            dl.pause()
+        self._pause_btn.grid_remove()
+        self._resume_btn.grid()
+        self._log(f"[{_timestamp()}] Downloads paused")
+
+    def _on_resume(self):
+        dl = self._active_downloader
+        if dl:
+            dl.resume()
+        self._resume_btn.grid_remove()
+        self._pause_btn.grid()
+        self._log(f"[{_timestamp()}] Downloads resumed")
+
     def _on_cancel(self):
+        dl = self._active_downloader
+        if dl:
+            dl.cancel()
         self._cancel_event.set()
-        # Also signal through the updater's shared cancel event
         self.app.updater._cancel.set()
         self._cancel_btn.configure(state="disabled", text="Cancelling...")
+        self._pause_btn.grid_remove()
+        self._resume_btn.grid_remove()
         self._log(f"[{_timestamp()}] Cancellation requested...")
 
     # ── Button state management ───────────────────────────────────
 
     def _set_buttons_state(self, state: str):
         for btn in (
-            self._select_all_btn,
+            self._select_missing_btn,
             self._deselect_all_btn,
             self._download_btn,
         ):

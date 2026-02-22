@@ -9,18 +9,18 @@ This is the main entry point for the patch subsystem. It coordinates:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
-from .manifest import Manifest, ManifestDLC, PatchEntry, PendingDLC, parse_manifest
-from .planner import UpdatePlan, plan_update
-from .downloader import Downloader, DownloadResult, ProgressCallback
-from ..core.exceptions import ManifestError, DownloadError
+from ..core.exceptions import DownloadError, ManifestError
 from ..core.learned_hashes import LearnedHashDB
-
+from .downloader import Downloader, DownloadResult, ProgressCallback
+from .manifest import Manifest, PendingDLC, parse_manifest
+from .planner import UpdatePlan, plan_update
 
 # Callback types for status updates: (message: str)
 StatusCallback = Callable[[str], None]
@@ -94,6 +94,8 @@ class PatchClient:
     def fetch_manifest(self, force: bool = False) -> Manifest:
         """Fetch and parse the remote manifest.
 
+        Tries the primary URL first, then falls back to FALLBACK_MANIFEST_URLS.
+
         Args:
             force: Re-fetch even if already cached.
 
@@ -107,38 +109,45 @@ class PatchClient:
             return self._manifest
 
         if not self.manifest_url:
-            raise ManifestError(
-                "No manifest URL configured.\n"
-                "Set the manifest URL in Settings."
-            )
+            raise ManifestError("No manifest URL configured.\nSet the manifest URL in Settings.")
 
-        try:
-            resp = self.downloader.session.get(self.manifest_url, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-        except json.JSONDecodeError as e:
-            raise ManifestError(f"Manifest is not valid JSON: {e}") from e
-        except Exception as e:
-            raise ManifestError(
-                f"Failed to fetch manifest from {self.manifest_url}: {e}"
-            ) from e
+        from ..constants import FALLBACK_MANIFEST_URLS
 
-        self._manifest = parse_manifest(data, source_url=self.manifest_url)
+        urls = [self.manifest_url] + [
+            u for u in FALLBACK_MANIFEST_URLS if u != self.manifest_url
+        ]
+        last_error = None
 
-        # Merge fingerprints from manifest into local learned DB
-        if self._learned_db and self._manifest.fingerprints:
-            self._learned_db.merge(self._manifest.fingerprints)
-            self._learned_db.save()
+        for url in urls:
+            try:
+                resp = self.downloader.session.get(url, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+            except json.JSONDecodeError as e:
+                last_error = ManifestError(f"Manifest is not valid JSON: {e}")
+                continue
+            except Exception as e:
+                last_error = ManifestError(f"Failed to fetch manifest from {url}: {e}")
+                continue
 
-        # Fetch crowd-sourced fingerprints if URL provided
-        if self._learned_db and self._manifest.fingerprints_url:
-            self._fetch_crowd_fingerprints(self._manifest.fingerprints_url)
+            self._manifest = parse_manifest(data, source_url=url)
 
-        # Merge DLC catalog updates from manifest
-        if self._dlc_catalog and self._manifest.dlc_catalog:
-            self._dlc_catalog.merge_remote(self._manifest.dlc_catalog)
+            # Merge fingerprints from manifest into local learned DB
+            if self._learned_db and self._manifest.fingerprints:
+                self._learned_db.merge(self._manifest.fingerprints)
+                self._learned_db.save()
 
-        return self._manifest
+            # Fetch crowd-sourced fingerprints if URL provided
+            if self._learned_db and self._manifest.fingerprints_url:
+                self._fetch_crowd_fingerprints(self._manifest.fingerprints_url)
+
+            # Merge DLC catalog updates from manifest
+            if self._dlc_catalog and self._manifest.dlc_catalog:
+                self._dlc_catalog.merge_remote(self._manifest.dlc_catalog)
+
+            return self._manifest
+
+        raise last_error or ManifestError("Failed to fetch manifest from all URLs.")
 
     def load_manifest_from_file(self, path: str | Path) -> Manifest:
         """Load manifest from a local JSON file (for testing/offline use)."""
@@ -255,9 +264,9 @@ class PatchClient:
             # Download patch files
             step_base = grand_downloaded
 
-            def step_progress(downloaded: int, total: int, filename: str):
+            def step_progress(downloaded: int, total: int, filename: str, _base=step_base):
                 if progress:
-                    progress(step_base + downloaded, grand_total, filename)
+                    progress(_base + downloaded, grand_total, filename)
 
             step_results = []
 
@@ -268,9 +277,9 @@ class PatchClient:
 
                 file_base = grand_downloaded
 
-                def file_progress(downloaded: int, total: int, filename: str):
+                def file_progress(downloaded: int, total: int, filename: str, _base=file_base):
                     if progress:
-                        progress(file_base + downloaded, grand_total, filename)
+                        progress(_base + downloaded, grand_total, filename)
 
                 result = self.downloader.download_file(
                     entry,
@@ -287,9 +296,9 @@ class PatchClient:
 
                 crack_base = grand_downloaded
 
-                def crack_progress(downloaded: int, total: int, filename: str):
+                def crack_progress(downloaded: int, total: int, filename: str, _base=crack_base):
                     if progress:
-                        progress(crack_base + downloaded, grand_total, filename)
+                        progress(_base + downloaded, grand_total, filename)
 
                 result = self.downloader.download_file(
                     patch.crack,
@@ -317,6 +326,56 @@ class PatchClient:
                 if path.is_file():
                     files.append(path)
         return files
+
+    # ── Version Archive ────────────────────────────────────────────
+
+    @property
+    def available_versions(self) -> list[str]:
+        """List all available versions (latest first, then archived)."""
+        manifest = self.fetch_manifest()
+        archived = list(manifest.archived_versions.keys())
+        archived.sort(
+            key=lambda v: [int(x) for x in v.split(".")],
+            reverse=True,
+        )
+        return [manifest.latest] + archived if manifest.latest else archived
+
+    def fetch_version_manifest(self, version: str) -> Manifest:
+        """Fetch the manifest for a specific archived version.
+
+        Args:
+            version: Version string, e.g. "1.121.372.1020".
+
+        Returns:
+            Parsed Manifest for the archived version.
+
+        Raises:
+            ManifestError if the version is not available or fetch fails.
+        """
+        main = self.fetch_manifest()
+
+        # If requesting the current latest, just return the main manifest
+        if version == main.latest:
+            return main
+
+        archived = main.archived_versions.get(version)
+        if not archived:
+            available = ", ".join(main.archived_versions) or "none"
+            raise ManifestError(f"Version {version} is not in the archive. Available: {available}")
+
+        try:
+            resp = self.downloader.session.get(
+                archived.manifest_url,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except json.JSONDecodeError as e:
+            raise ManifestError(f"Archived manifest for {version} is not valid JSON: {e}") from e
+        except Exception as e:
+            raise ManifestError(f"Failed to fetch archived manifest for {version}: {e}") from e
+
+        return parse_manifest(data, source_url=archived.manifest_url)
 
     # ── Hash Learning ─────────────────────────────────────────────
 
@@ -354,14 +413,12 @@ class PatchClient:
             return
 
         def _send():
-            try:
+            with contextlib.suppress(Exception):
                 self.downloader.session.post(
                     url,
                     json={"version": version, "hashes": hashes},
                     timeout=10,
                 )
-            except Exception:
-                pass  # fire-and-forget
 
         thread = threading.Thread(target=_send, daemon=True)
         thread.start()

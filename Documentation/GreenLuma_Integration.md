@@ -1,9 +1,9 @@
 # GreenLuma Integration — Technical Reference
 
 **Project:** Sims 4 Updater
-**Document Version:** 2.1.0
-**Date:** 2026-02-21
-**Scope:** GreenLuma 2025 Steam DLC integration — detection, installation, AppList management, config.vdf depot keys, LUA manifest parsing, depotcache manifest files, orchestration, and GUI
+**Document Version:** 2.2.0
+**Date:** 2026-02-22
+**Scope:** GreenLuma 2025 Steam DLC integration — detection, installation, AppList management, config.vdf depot keys, LUA manifest parsing, depotcache manifest files, orchestration, GUI, CDN key distribution, and user contribution system
 
 ---
 
@@ -93,7 +93,17 @@
     - 13.3 [DLC Readiness Check Flow](#133-dlc-readiness-check-flow)
 14. [Known GreenLuma File Inventory](#14-known-greenluma-file-inventory)
 15. [Error Handling Summary](#15-error-handling-summary)
-16. [Glossary](#16-glossary)
+16. [Key Contribution and CDN Distribution System](#16-key-contribution-and-cdn-distribution-system)
+    - 16.1 [Overview and Motivation](#161-overview-and-motivation)
+    - 16.2 [Contribution Scanner (scan_gl_contributions)](#162-contribution-scanner-scan_gl_contributions)
+    - 16.3 [ScanResult and DepotContribution Dataclasses](#163-scanresult-and-depotcontribution-dataclasses)
+    - 16.4 [Submitter (submit_gl_contribution)](#164-submitter-submit_gl_contribution)
+    - 16.5 [API Contract and Validation](#165-api-contract-and-validation)
+    - 16.6 [CDN Manifest Format (GreenLumaEntry)](#166-cdn-manifest-format-greenlumaentry)
+    - 16.7 [apply_cdn_keys() — Four-Step Apply Pipeline](#167-apply_cdn_keys--four-step-apply-pipeline)
+    - 16.8 [GUI Integration — Two New Action Buttons](#168-gui-integration--two-new-action-buttons)
+    - 16.9 [End-to-End Flow](#169-end-to-end-flow)
+17. [Glossary](#17-glossary)
 
 ---
 
@@ -130,6 +140,8 @@ The Sims 4 Updater GreenLuma integration subsystem provides:
 10. **GUI** — A dedicated `GreenLumaFrame` tab in the application with a status card, six action buttons, a DLC readiness table, and an activity log.
 11. **DLC tab integration** — GreenLuma readiness indicators embedded into each DLC row in the existing DLC management tab.
 12. **Settings** — Five new `Settings` fields for the Steam path, GreenLuma archive, LUA file, manifest directory, and auto-backup toggle.
+13. **Key contribution** — Users who legitimately own incomplete DLCs on Steam can scan their local Steam installation and submit depot decryption keys and manifests to a central API for admin review.
+14. **CDN key distribution** — Once contributions are approved, keys and manifests are published to the CDN manifest and any user can download and apply them via a single button click.
 
 ---
 
@@ -147,11 +159,13 @@ src/sims4_updater/
 │   ├── manifest_cache.py     — ManifestState, read/copy/verify depotcache .manifest files
 │   ├── installer.py          — GreenLumaStatus, detect/install/uninstall GreenLuma,
 │   │                           kill_steam(), launch_steam_via_greenluma()
-│   └── orchestrator.py       — DLCReadiness, ApplyResult, VerifyResult,
-│                               GreenLumaOrchestrator (check_readiness, apply_lua, verify,
-│                               fix_applist)
+│   ├── orchestrator.py       — DLCReadiness, ApplyResult, VerifyResult,
+│   │                           GreenLumaOrchestrator (check_readiness, apply_lua, verify,
+│   │                           fix_applist, apply_cdn_keys)
+│   └── contribute.py         — DepotContribution, ScanResult, scan_gl_contributions(),
+│                               submit_gl_contribution(), CONTRIBUTE_URL
 ├── gui/frames/
-│   ├── greenluma_frame.py    — GreenLumaFrame GUI tab
+│   ├── greenluma_frame.py    — GreenLumaFrame GUI tab (incl. Apply CDN Keys + Contribute Keys)
 │   ├── dlc_frame.py          — DLC tab with GL header badge and per-row GL pill indicators
 │   └── settings_frame.py     — Settings frame with GreenLuma card
 └── config.py                 — Settings dataclass with 5 new GreenLuma fields
@@ -168,6 +182,7 @@ src/sims4_updater/
 | `greenluma/manifest_cache.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\manifest_cache.py` |
 | `greenluma/installer.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\installer.py` |
 | `greenluma/orchestrator.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\orchestrator.py` |
+| `greenluma/contribute.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\contribute.py` |
 | `gui/frames/greenluma_frame.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\gui\frames\greenluma_frame.py` |
 | `gui/frames/dlc_frame.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\gui\frames\dlc_frame.py` |
 | `gui/frames/settings_frame.py` | `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\gui\frames\settings_frame.py` |
@@ -1639,7 +1654,492 @@ The installer tracks the following file and directory names for installation, mo
 
 ---
 
-## 16. Glossary
+## 16. Key Contribution and CDN Distribution System
+
+Added in **v2.2.0**. This system closes the gap for DLCs classified as "Incomplete" — those for which no decryption key, depotcache manifest, or AppList entry exists in the CDN manifest. Users who legitimately own those DLCs on Steam can extract the required cryptographic material directly from their own Steam installation and donate it to a central API. Once an administrator approves the submission, the data is published to the CDN manifest and becomes available to all users via a one-click apply operation.
+
+The feature spans two new modules and extends one existing module:
+
+| Module | Role |
+| --- | --- |
+| `greenluma/contribute.py` | Scanner and HTTP submitter |
+| `greenluma/orchestrator.py` | `apply_cdn_keys()` method (new in v2.2.0) |
+| `patch/manifest.py` | `GreenLumaEntry` dataclass and `Manifest.greenluma` field (new in v2.2.0) |
+| `gui/frames/greenluma_frame.py` | Two additional action buttons in the GreenLuma tab |
+
+---
+
+### 16.1 Overview and Motivation
+
+Of the 109 DLCs in the catalog, 17 may be in an "Incomplete" state — meaning the CDN manifest lacks all three of the artifacts that `apply_lua()` would normally write:
+
+| Missing artifact | Effect |
+| --- | --- |
+| Depot decryption key (64-char hex) | Steam cannot decompress the downloaded depot archive |
+| Depotcache `.manifest` file | Steam cannot resolve the chunk layout of the depot |
+| AppList entry | GreenLuma does not present the DLC as owned |
+
+Steam stores both of the cryptographic artifacts on the user's own machine after a legitimate purchase and download:
+
+- **Decryption key** — written to `<Steam>/config/config.vdf` in the `"depots"` section under each depot's numeric ID.
+- **Manifest file** — written to `<Steam>/depotcache/` as `{depotId}_{manifestId}.manifest` (binary format).
+
+A user who owns the DLC therefore already has the exact data needed. `contribute.py` reads those local files, packages the data, and POSTs it to the contribution API. The API stores the submission in Cloudflare Workers KV and triggers a Discord notification for admin review. After approval the data is written into the CDN manifest's `"greenluma"` field, from which any user can pull it via `apply_cdn_keys()`.
+
+---
+
+### 16.2 Contribution Scanner (`scan_gl_contributions`)
+
+```python
+def scan_gl_contributions(
+    steam_info: SteamInfo,
+    readiness: list[DLCReadiness],
+) -> ScanResult:
+```
+
+**Source file:** `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\contribute.py`
+
+**Inputs:**
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `steam_info` | `SteamInfo` | The fully-populated Steam detection snapshot from `get_steam_info()`. Provides the path to `config.vdf` and `depotcache/`. |
+| `readiness` | `list[DLCReadiness]` | Per-DLC readiness snapshots from `orchestrator.check_readiness()`. The scanner filters this list to only the entries whose `status` is `"Incomplete"`. |
+
+**Processing steps:**
+
+1. Filter `readiness` to entries where `status == "Incomplete"`. If none, return an empty `ScanResult` immediately.
+2. Call `config_vdf.read_depot_keys(steam_info.config_vdf_path)` once to obtain the full `VdfKeyState` (a dict mapping depot ID string to 64-char hex key). This is a single file parse shared across all DLCs to avoid redundant I/O.
+3. For each incomplete DLC entry, read the associated `depot_id` from the DLC catalog.
+4. Check whether `depot_id` appears in the parsed key dict. If absent, increment `skipped_no_key` and move on.
+5. If the key is present, call `manifest_cache.read_depotcache(steam_info.depotcache_dir)` (or use a cached `ManifestState`) to check whether a `.manifest` file exists for that `depot_id`. If absent, increment `skipped_no_manifest` and move on.
+6. If both are present: read the raw `.manifest` binary from disk, encode it with `base64.b64encode()`, and construct a `DepotContribution` dataclass.
+7. Append the contribution to the results list.
+8. Return a `ScanResult` aggregating all contributions and skip counters.
+
+**No network calls are made during scanning.** The function is entirely local file I/O and can run on the GUI thread if needed, though the GUI dispatches it via `run_async()` as a precaution.
+
+---
+
+### 16.3 `ScanResult` and `DepotContribution` Dataclasses
+
+```python
+@dataclass
+class DepotContribution:
+    depot_id: int          # Numeric Steam depot ID
+    dlc_id: str            # Catalog DLC ID (e.g. "EP19")
+    dlc_name: str          # Human-readable DLC name from catalog
+    key: str               # 64-character hexadecimal depot decryption key
+    manifest_id: str       # Numeric manifest ID as a string
+    manifest_b64: str      # base64-encoded raw binary .manifest file contents
+
+@dataclass
+class ScanResult:
+    contributions: list[DepotContribution]   # DLCs with both key and manifest found
+    skipped_no_key: list[str]                # DLC IDs where key was absent from config.vdf
+    skipped_no_manifest: list[str]           # DLC IDs where .manifest was absent from depotcache
+```
+
+**Field semantics:**
+
+| Field | Notes |
+| --- | --- |
+| `depot_id` | Integer. The API validates that this matches the expected depot for the given `dlc_id`. |
+| `key` | Must be exactly 64 hexadecimal characters (`[0-9a-f]{64}`). The scanner reads the key verbatim from the VDF parser output; no transformation is applied. |
+| `manifest_id` | Extracted from the filename of the `.manifest` file: `{depotId}_{manifestId}.manifest`. Stored as a string because the value may exceed 32-bit integer range. |
+| `manifest_b64` | The raw binary content of the `.manifest` file, base64-encoded. The API enforces a 500 KB ceiling on the decoded size. |
+| `skipped_no_key` | Useful for the confirmation dialog: informs the user which DLCs they own but for which Steam has not yet written a key (e.g. the DLC is owned but not yet downloaded). |
+| `skipped_no_manifest` | Informs the user which DLCs have a key in `config.vdf` but no cached manifest in `depotcache/`. |
+
+---
+
+### 16.4 Submitter (`submit_gl_contribution`)
+
+```python
+def submit_gl_contribution(contributions: list[DepotContribution]) -> dict:
+```
+
+**Source file:** `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\contribute.py`
+
+The submitter serialises the list of `DepotContribution` objects to JSON and POSTs them to the contribution API endpoint.
+
+**URL construction:**
+
+```python
+CONTRIBUTE_URL: str = "https://api.hyperabyss.com/v1"
+
+endpoint = CONTRIBUTE_URL.rstrip("/") + "/contribute/greenluma"
+```
+
+The base URL is a module-level constant. Appending `/contribute/greenluma` makes the final endpoint. Using a constant rather than a hardcoded string means the URL can be overridden at import time for test environments without patching internals.
+
+**Request payload:**
+
+```json
+{
+  "entries": [
+    {
+      "depot_id": 3199780,
+      "dlc_id": "EP19",
+      "dlc_name": "For Rent",
+      "key": "a3f1...64hex",
+      "manifest_id": "7823456789012345678",
+      "manifest_b64": "<base64 string>"
+    }
+  ]
+}
+```
+
+**Return value:** The parsed JSON response body from the API as a plain `dict`. The caller (GUI) uses this to display a success toast. On HTTP error, `requests.HTTPError` is raised and propagated to the GUI's `on_error` callback.
+
+**Timeout:** 30 seconds. Manifest data can be several hundred kilobytes base64-encoded; the timeout is generous enough for a slow upload without blocking the GUI indefinitely (the call is always dispatched via `run_async()`).
+
+---
+
+### 16.5 API Contract and Validation
+
+The contribution API is a Cloudflare Worker. It applies the following validation rules before accepting a submission:
+
+| Field | Validation rule |
+| --- | --- |
+| `depot_id` | Must be a positive integer. Rejected if string or missing. |
+| `key` | Must match `/^[0-9a-f]{64}$/`. Uppercase hex is rejected; the VDF parser already normalises to lowercase. |
+| `manifest_id` | Must be a non-empty numeric string. Validated with `/^\d+$/`. |
+| `manifest_b64` | Must be valid base64. Decoded size must be less than 500 KB (512,000 bytes). |
+| `dlc_id` | Must be a known catalog DLC ID. Unknown IDs are rejected to prevent injection of arbitrary depot data. |
+| Duplicate check | If a key for the same `depot_id` already exists in KV (approved or pending), the entry is silently deduplicated rather than rejected, so re-submissions do not cause errors. |
+
+On successful receipt, the API:
+
+1. Stores the submission as a pending entry in Cloudflare Workers KV under the key `pending:{depot_id}`.
+2. Sends a Discord webhook notification to the admin channel listing the submitted DLC names, depot IDs, and the submitting user's anonymised IP.
+3. Returns HTTP 200 with `{"status": "received", "count": N}`.
+
+Approval is a manual admin action. Once approved, the entry is moved from `pending:` to `approved:` in KV and is included in the next CDN manifest regeneration.
+
+---
+
+### 16.6 CDN Manifest Format (`GreenLumaEntry`)
+
+Approved contributions are published as a top-level `"greenluma"` field in the existing CDN manifest JSON that `patch/manifest.py` already parses.
+
+**Manifest JSON structure:**
+
+```json
+{
+  "version": "...",
+  "patches": { ... },
+  "greenluma": {
+    "3199780": {
+      "dlc_id": "EP19",
+      "key": "a3f1...64hex",
+      "manifest_id": "7823456789012345678",
+      "manifest_url": "https://cdn.hyperabyss.com/gl/3199780_7823456789012345678.manifest"
+    }
+  }
+}
+```
+
+The `"greenluma"` object maps **string depot IDs** (keys) to entry objects. String keys are used because JSON object keys are always strings; the orchestrator converts to `int` when calling `config_vdf.add_depot_keys()`.
+
+**`GreenLumaEntry` dataclass** (in `patch/manifest.py`):
+
+```python
+@dataclass
+class GreenLumaEntry:
+    dlc_id: str           # Catalog DLC ID (e.g. "EP19")
+    key: str              # 64-char hex depot decryption key
+    manifest_id: str      # Numeric manifest ID string
+    manifest_url: str     # HTTPS URL to download the binary .manifest file
+```
+
+**`Manifest.greenluma` field:**
+
+```python
+@dataclass
+class Manifest:
+    # ... existing fields ...
+    greenluma: dict[str, GreenLumaEntry] = field(default_factory=dict)
+    # Maps string depot_id -> GreenLumaEntry
+```
+
+`parse_manifest()` populates this field when the `"greenluma"` key is present in the fetched JSON. If the key is absent (older CDN manifests), `greenluma` is left as an empty dict, preserving full backward compatibility.
+
+---
+
+### 16.7 `apply_cdn_keys()` — Four-Step Apply Pipeline
+
+```python
+def apply_cdn_keys(self, manifest: Manifest) -> tuple[int, int, int]:
+```
+
+**Class:** `GreenLumaOrchestrator` in `greenluma/orchestrator.py`
+
+**Source file:** `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\greenluma\orchestrator.py`
+
+**Return value:** `(keys_added, manifests_downloaded, applist_added)` — integer counts of each artifact type that was written. All three are zero if no incomplete DLCs have approved CDN entries.
+
+**Precondition:** Steam must not be running. The method raises `RuntimeError("Steam must not be running")` if `is_steam_running()` returns `True`. This matches the same precondition as `apply_lua()` because both operations write to `config.vdf`, which Steam holds open while running.
+
+**Pipeline steps:**
+
+```text
+apply_cdn_keys(manifest)
+│
+├── 1. Guard: is_steam_running() → RuntimeError if True
+│
+├── 2. Read current state (single I/O pass)
+│   ├── config_vdf.read_depot_keys(steam_info.config_vdf_path) → existing_keys: dict
+│   ├── manifest_cache.read_depotcache(steam_info.depotcache_dir) → existing_manifests: ManifestState
+│   └── applist.read_applist(steam_info.applist_dir) → existing_applist: AppListState
+│
+├── 3. For each (depot_id_str, entry) in manifest.greenluma.items():
+│   │   depot_id = int(depot_id_str)
+│   │
+│   ├── 3a. Key check
+│   │       if depot_id_str not in existing_keys.keys:
+│   │           config_vdf.add_depot_keys({depot_id_str: entry.key})
+│   │           keys_added += 1
+│   │
+│   ├── 3b. Manifest check
+│   │       filename = f"{depot_id}_{entry.manifest_id}.manifest"
+│   │       if filename not in existing_manifests.files:
+│   │           response = requests.get(entry.manifest_url, timeout=60)
+│   │           response.raise_for_status()
+│   │           dest = steam_info.depotcache_dir / filename
+│   │           dest.write_bytes(response.content)
+│   │           manifests_downloaded += 1
+│   │
+│   └── 3c. AppList check
+│           dlc_app_id = catalog.get_app_id(entry.dlc_id)
+│           if dlc_app_id not in existing_applist.ids:
+│               applist.add_ids([dlc_app_id])
+│               applist_added += 1
+│
+└── 4. Return (keys_added, manifests_downloaded, applist_added)
+```
+
+**Idempotency:** Each of the three sub-checks reads current state before writing. Running `apply_cdn_keys()` multiple times is safe: already-present artifacts are skipped without error. This is consistent with the design philosophy of the existing `apply_lua()` pipeline.
+
+**Partial failure:** If a manifest download fails (network error, HTTP 4xx/5xx), the exception propagates out of `apply_cdn_keys()` immediately. Keys and manifests processed before the failure are retained; no rollback occurs. The GUI's `on_error` callback displays an error toast. The user can retry; already-applied items are idempotently skipped on the next attempt.
+
+**Config.vdf write safety:** `add_depot_keys()` performs a brace-balanced integrity check before and after the splice. If the check fails, the method raises `ValueError` and no write occurs, preserving the file in its original state.
+
+---
+
+### 16.8 GUI Integration — Two New Action Buttons
+
+Two buttons are added to the second row of action buttons in `GreenLumaFrame`, below the existing row (`Install`, `Uninstall`, `Apply LUA`, `Verify`, `Fix AppList`, `Kill Steam`).
+
+**Source file:** `C:\Users\Administrator\Pictures\Greenluma 1.7.0\sims4-updater\src\sims4_updater\gui\frames\greenluma_frame.py`
+
+#### Apply CDN Keys button
+
+| Property | Value |
+| --- | --- |
+| Label | `"Apply CDN Keys"` |
+| Style | Accent / pink (`theme.COLORS["accent"]`) |
+| Position | Second row, left |
+| Enabled condition | `manifest.greenluma` is non-empty (checked after manifest fetch on `on_show()`) |
+
+**Click handler flow:**
+
+```text
+_on_apply_cdn_keys_clicked()
+│
+├── Disable both new buttons to prevent double-submission
+├── Log "Checking manifest for CDN keys..." to activity log
+├── Verify manifest.greenluma is non-empty → show warning toast and return if empty
+├── Verify Steam is not running → show warning toast and return if running
+│   (Guard duplicates the orchestrator check for an earlier, friendlier error message)
+│
+└── self.app.run_async(
+        orchestrator.apply_cdn_keys,
+        manifest,
+        on_done=_on_cdn_keys_done,
+        on_error=_on_cdn_keys_error,
+    )
+        │
+        ├── on_done(result: tuple[int, int, int]):
+        │       keys, manifests, applist = result
+        │       Log "CDN apply complete — {keys} keys, {manifests} manifests,
+        │            {applist} AppList entries added"
+        │       show_toast("CDN keys applied successfully", style="success")
+        │       _refresh_readiness()        ← reloads the readiness table
+        │       Re-enable both buttons
+        │
+        └── on_error(exc):
+                Log f"CDN apply failed: {exc}"
+                show_toast(f"CDN apply failed: {exc}", style="error")
+                Re-enable both buttons
+```
+
+#### Contribute Keys button
+
+| Property | Value |
+| --- | --- |
+| Label | `"Contribute Keys"` |
+| Style | Secondary (grey, non-accent) |
+| Position | Second row, right |
+| Enabled condition | Always enabled when GreenLuma is installed and `steam_info` is loaded |
+
+**Click handler flow:**
+
+```text
+_on_contribute_clicked()
+│
+├── Disable both new buttons
+├── Log "Scanning Steam installation for contributable keys..."
+│
+└── self.app.run_async(
+        contribute.scan_gl_contributions,
+        steam_info,
+        readiness,
+        on_done=_on_scan_done,
+        on_error=_on_scan_error,
+    )
+        │
+        ├── on_scan_error(exc):
+        │       Log f"Scan failed: {exc}"
+        │       show_toast(f"Scan error: {exc}", style="error")
+        │       Re-enable both buttons
+        │
+        └── on_scan_done(result: ScanResult):
+                if result.contributions is empty:
+                    Log "No contributable keys found."
+                    show_toast("No new keys found in your Steam installation", style="info")
+                    Re-enable both buttons
+                    return
+                │
+                ├── Build confirmation dialog text:
+                │       "Found {N} DLC(s) to contribute:\n"
+                │       + "\n".join(c.dlc_name for c in result.contributions)
+                │       + "\n\nSkipped (no key): {skipped_no_key}"
+                │       + "\nSkipped (no manifest): {skipped_no_manifest}"
+                │       + "\n\nSubmit to API?"
+                │
+                ├── Show CTkMessagebox (yes/no)
+                │
+                ├── If user cancels:
+                │       Re-enable both buttons; return
+                │
+                └── self.app.run_async(
+                        contribute.submit_gl_contribution,
+                        result.contributions,
+                        on_done=_on_submit_done,
+                        on_error=_on_submit_error,
+                    )
+                        │
+                        ├── on_submit_error(exc):
+                        │       Log f"Submission failed: {exc}"
+                        │       show_toast(f"Submission failed: {exc}", style="error")
+                        │       Re-enable both buttons
+                        │
+                        └── on_submit_done(response: dict):
+                                count = response.get("count", len(result.contributions))
+                                Log f"Submitted {count} contribution(s). Thank you!"
+                                show_toast(
+                                    f"Contributed {count} key(s) — pending admin review",
+                                    style="success",
+                                )
+                                Re-enable both buttons
+```
+
+**Threading note:** The scan step and the submit step are dispatched as two separate `run_async()` calls chained through the `on_done` callback. This keeps each step independently cancellable and error-reportable, and it inserts the synchronous confirmation dialog on the GUI thread between the two background operations — a pattern the existing `apply_lua()` flow also uses for the Steam-restart dialog.
+
+---
+
+### 16.9 End-to-End Flow
+
+The following diagram captures the full lifecycle from a user who owns an incomplete DLC through to another user successfully downloading that DLC.
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  User A — Legitimate Steam owner of an "Incomplete" DLC                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+         │
+         │  1. Opens Sims 4 Updater → GreenLuma tab
+         │  2. Clicks "Contribute Keys"
+         │
+         ▼
+┌────────────────────────────────┐
+│  scan_gl_contributions()       │
+│  • Reads config.vdf            │
+│  • Reads depotcache/           │
+│  • Finds key + manifest        │
+│    for each incomplete DLC     │
+│  • Returns ScanResult          │
+└────────────────────────────────┘
+         │
+         │  3. GUI shows confirmation dialog listing DLC names
+         │  4. User A clicks "Yes"
+         │
+         ▼
+┌────────────────────────────────┐
+│  submit_gl_contribution()      │
+│  • POST /contribute/greenluma  │
+│  • Payload: entries[]          │
+└────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────────────────────────────────┐
+│  Cloudflare Worker (API)                                    │
+│  • Validates depot_id, key format, manifest size           │
+│  • Stores in KV as pending:{depot_id}                       │
+│  • Sends Discord notification to admin channel             │
+└────────────────────────────────────────────────────────────┘
+         │
+         │  5. Admin reviews Discord notification
+         │  6. Admin approves via admin dashboard
+         │
+         ▼
+┌────────────────────────────────────────────────────────────┐
+│  CDN Manifest Update                                        │
+│  • Entry moved: pending:{id} → approved:{id} in KV        │
+│  • Next manifest regeneration includes entry in            │
+│    "greenluma": { "depot_id": { ... } }                    │
+└────────────────────────────────────────────────────────────┘
+         │
+         │
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  User B — Any user of Sims 4 Updater                                         │
+└──────────────────────────────────────────────────────────────────────────────┘
+         │
+         │  7. Opens Sims 4 Updater → GreenLuma tab
+         │  8. "Apply CDN Keys" button is now active (manifest.greenluma non-empty)
+         │  9. Steam is not running (enforced by guard)
+         │  10. Clicks "Apply CDN Keys"
+         │
+         ▼
+┌────────────────────────────────────────────────────────────┐
+│  apply_cdn_keys(manifest)                                   │
+│  • Reads config.vdf, depotcache/, AppList                  │
+│  • For each entry in manifest.greenluma:                   │
+│    ├── Writes key → config.vdf (if missing)                │
+│    ├── Downloads .manifest from manifest_url (if missing)  │
+│    └── Adds App ID → AppList (if missing)                  │
+└────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌────────────────────────────────┐
+│  DLC status: "Ready"           │
+│  Readiness table refreshed     │
+│  Toast: "CDN keys applied"     │
+└────────────────────────────────┘
+```
+
+**Latency characteristics:**
+
+| Phase | Typical duration | Bottleneck |
+| --- | --- | --- |
+| `scan_gl_contributions()` | < 1 second | Local disk I/O (config.vdf + depotcache stat) |
+| `submit_gl_contribution()` | 1–5 seconds | Network upload (base64 manifest data, typically 50–200 KB per DLC) |
+| Admin review | Minutes to hours | Human |
+| `apply_cdn_keys()` | 1–10 seconds per DLC | Network download of `.manifest` files from CDN |
+
+---
+
+## 17. Glossary
 
 | Term | Definition |
 |------|-----------|

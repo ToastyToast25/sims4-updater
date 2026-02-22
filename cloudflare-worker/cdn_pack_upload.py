@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import contextlib
 import hashlib
 import json
 import os
@@ -110,6 +111,7 @@ def tprint(*args, **kwargs):
 
 # ── Config loader ────────────────────────────────────────────────
 
+
 def load_config() -> dict:
     if not CONFIG_FILE.is_file():
         print(f"ERROR: Config file not found: {CONFIG_FILE}")
@@ -119,6 +121,7 @@ def load_config() -> dict:
 
 
 # ── DLC catalog ───────────────────────────────────────────────────
+
 
 def load_dlc_catalog() -> dict:
     catalog_path = PROJECT_ROOT / "data" / "dlc_catalog.json"
@@ -149,6 +152,7 @@ def scan_installed_dlcs(game_dir: Path) -> list[str]:
 
 
 # ── File utilities ────────────────────────────────────────────────
+
 
 def fmt_size(size_bytes: int) -> str:
     if size_bytes >= 1_073_741_824:
@@ -184,6 +188,7 @@ def md5_file(path: Path) -> str:
 
 # ── SFTP with retry ──────────────────────────────────────────────
 
+
 def _connect_sftp(config: dict):
     """Connect to Whatbox SFTP with large window for max throughput."""
     transport = paramiko.Transport((config["whatbox_host"], config.get("whatbox_port", 22)))
@@ -216,10 +221,8 @@ def run_speedtest(config: dict) -> tuple[float, int]:
                 try:
                     sftp.stat(current)
                 except FileNotFoundError:
-                    try:
+                    with contextlib.suppress(OSError):
                         sftp.mkdir(current)
-                    except OSError:
-                        pass
 
             # Upload and time it
             start = time.monotonic()
@@ -227,10 +230,8 @@ def run_speedtest(config: dict) -> tuple[float, int]:
             elapsed = time.monotonic() - start
 
             # Clean up remote file
-            try:
+            with contextlib.suppress(OSError):
                 sftp.remove(SPEEDTEST_REMOTE_FILE)
-            except OSError:
-                pass
 
             single_speed = test_size / elapsed if elapsed > 0 else 0
 
@@ -272,10 +273,8 @@ def run_dual_speedtest(config: dict) -> tuple[float, float, int]:
             try:
                 sftp.stat(current)
             except FileNotFoundError:
-                try:
+                with contextlib.suppress(OSError):
                     sftp.mkdir(current)
-                except OSError:
-                    pass
 
     try:
         # ── Single connection test ──
@@ -288,10 +287,8 @@ def run_dual_speedtest(config: dict) -> tuple[float, float, int]:
             single_elapsed = time.monotonic() - start
             single_speed = test_size / single_elapsed
             print(f"        Single: {fmt_size(int(single_speed))}/s")
-            try:
+            with contextlib.suppress(OSError):
                 s1.remove(remote1)
-            except OSError:
-                pass
         finally:
             s1.close()
             t1.close()
@@ -324,10 +321,8 @@ def run_dual_speedtest(config: dict) -> tuple[float, float, int]:
 
             # Clean up
             for sftp, remote in [(s1, remote1), (s2, remote2)]:
-                try:
+                with contextlib.suppress(OSError):
                     sftp.remove(remote)
-                except OSError:
-                    pass
         finally:
             s1.close()
             t1.close()
@@ -363,7 +358,7 @@ def run_dual_speedtest(config: dict) -> tuple[float, float, int]:
 
     except Exception as e:
         print(f"  Speedtest failed: {e}")
-        print(f"  Falling back to 4 workers")
+        print("  Falling back to 4 workers")
         return 0, 0, 4
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -417,7 +412,8 @@ def upload_sftp_with_retry(
         tprint(
             f"\r  {tag}[{bar}] {pct:.1f}%  {fmt_size(sent)}/{fmt_size(total)}  "
             f"{speed_str}  {eta_str}   ",
-            end="", flush=True,
+            end="",
+            flush=True,
         )
 
     for attempt in range(1, max_retries + 1):
@@ -432,10 +428,8 @@ def upload_sftp_with_retry(
                     try:
                         sftp.stat(current)
                     except FileNotFoundError:
-                        try:
+                        with contextlib.suppress(OSError):
                             sftp.mkdir(current)
-                        except OSError:
-                            pass  # race condition with parallel workers
 
                 last_progress_time[0] = 0.0
                 upload_start[0] = time.monotonic()
@@ -449,9 +443,7 @@ def upload_sftp_with_retry(
         except (OSError, paramiko.SSHException, EOFError) as e:
             tprint()  # newline after any partial progress
             if attempt == max_retries:
-                raise ConnectionError(
-                    f"Upload failed after {max_retries} attempts: {e}"
-                ) from e
+                raise ConnectionError(f"Upload failed after {max_retries} attempts: {e}") from e
 
             delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
             tprint(f"  {tag}Connection error: {e}")
@@ -459,10 +451,11 @@ def upload_sftp_with_retry(
             time.sleep(delay)
 
             if _shutdown_requested:
-                raise KeyboardInterrupt("Shutdown requested during retry wait")
+                raise KeyboardInterrupt("Shutdown requested during retry wait") from None
 
 
 # ── Cloudflare KV with retry ─────────────────────────────────────
+
 
 def _kv_headers(config: dict) -> dict:
     return {"Authorization": f"Bearer {config['cloudflare_api_token']}"}
@@ -482,7 +475,9 @@ def kv_exists(config: dict, key: str) -> bool:
     for attempt in range(3):
         try:
             resp = requests.get(
-                _kv_url(config, key), headers=_kv_headers(config), timeout=15,
+                _kv_url(config, key),
+                headers=_kv_headers(config),
+                timeout=15,
             )
             return resp.status_code == 200
         except requests.RequestException:
@@ -519,7 +514,10 @@ def list_kv_entries(config: dict) -> list[str]:
         if cursor:
             params["cursor"] = cursor
         resp = requests.get(
-            url, headers=_kv_headers(config), params=params, timeout=30,
+            url,
+            headers=_kv_headers(config),
+            params=params,
+            timeout=30,
         )
         if resp.status_code != 200:
             print(f"ERROR listing KV: {resp.status_code}: {resp.text}")
@@ -533,6 +531,7 @@ def list_kv_entries(config: dict) -> list[str]:
 
 
 # ── Pack ──────────────────────────────────────────────────────────
+
 
 def pack_dlc(game_dir: Path, dlc_id: str, output_dir: Path) -> Path:
     dlc_dir = game_dir / dlc_id
@@ -564,6 +563,7 @@ def pack_dlc(game_dir: Path, dlc_id: str, output_dir: Path) -> Path:
 
 
 # ── Process single DLC (runs in worker thread) ───────────────────
+
 
 def process_dlc(
     game_dir: Path,
@@ -663,15 +663,60 @@ def process_dlc(
 
 # ── Manifest ──────────────────────────────────────────────────────
 
-def generate_manifest(dlc_downloads: dict, output_path: Path) -> None:
+
+def generate_manifest(
+    dlc_downloads: dict,
+    output_path: Path,
+    version: str = "",
+    language_downloads: dict | None = None,
+    patches: list | None = None,
+    versions: dict | None = None,
+    dlc_catalog: list | None = None,
+    preserve_from: Path | None = None,
+) -> None:
+    # Preserve metadata fields from existing manifest if provided
+    preserved = {}
+    _PRESERVE_KEYS = [
+        "entitlements_url", "self_update_url", "contribute_url",
+        "fingerprints", "fingerprints_url", "report_url",
+        "game_latest", "game_latest_date", "new_dlcs",
+        "greenluma",
+    ]
+    if preserve_from and preserve_from.is_file():
+        try:
+            with open(preserve_from, encoding="utf-8") as f:
+                old = json.load(f)
+            for key in _PRESERVE_KEYS:
+                if key in old and old[key]:
+                    preserved[key] = old[key]
+        except (OSError, json.JSONDecodeError):
+            pass
+
     manifest = {
-        "latest": "",
+        "latest": version,
+        **preserved,
         "dlc_downloads": dlc_downloads,
     }
+    if versions:
+        manifest["versions"] = versions
+    if language_downloads:
+        manifest["language_downloads"] = language_downloads
+    if patches:
+        manifest["patches"] = patches
+    if dlc_catalog:
+        manifest["dlc_catalog"] = dlc_catalog
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
     print(f"  Manifest written to: {output_path}")
     print(f"  DLC entries: {len(dlc_downloads)}")
+    if language_downloads:
+        print(f"  Language entries: {len(language_downloads)}")
+    if dlc_catalog:
+        print(f"  Catalog entries: {len(dlc_catalog)}")
+    if preserved:
+        print(f"  Preserved fields: {', '.join(preserved.keys())}")
+    if version:
+        print(f"  Version: {version}")
 
 
 def build_manifest_from_results(results: dict) -> dict:
@@ -688,29 +733,62 @@ def build_manifest_from_results(results: dict) -> dict:
 
 # ── Main ──────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Pack & upload DLCs to CDN (parallel)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--workers", default=DEFAULT_WORKERS,
-                        help="Parallel upload workers (default: auto via speedtest)")
+    parser.add_argument(
+        "--workers",
+        default=DEFAULT_WORKERS,
+        help="Parallel upload workers (default: auto via speedtest)",
+    )
     parser.add_argument("--only", nargs="+", help="Only process these DLC IDs")
     parser.add_argument("--skip-upload", action="store_true", help="Pack only, don't upload")
     parser.add_argument("--manifest-only", action="store_true", help="Generate manifest from KV")
     parser.add_argument("--fresh", action="store_true", help="Ignore local state file")
     parser.add_argument("--game-dir", type=Path, default=GAME_DIR, help="Game directory")
     parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR, help="Temp dir for ZIPs")
+    parser.add_argument("--version", default="", help="Game version for manifest 'latest' field")
+    parser.add_argument(
+        "--merge-languages",
+        type=Path,
+        default=None,
+        help="Path to language_downloads.json to merge into manifest",
+    )
+    parser.add_argument(
+        "--archive-version",
+        default="",
+        help="Archive current CDN content as this version before uploading",
+    )
     args = parser.parse_args()
 
     config = load_config()
     catalog = load_dlc_catalog()
 
+    # Archive current CDN content before uploading new DLCs
+    if args.archive_version:
+        from cdn_archive import cmd_create
+
+        print(f"  Archiving current CDN content as version {args.archive_version}...")
+        print()
+        cmd_create(config, args.archive_version)
+        print()
+
+    # Fetch existing versions index from live manifest (preserves archive history)
+    existing_versions = None
+    try:
+        resp = requests.get(f"{CDN_DOMAIN}/manifest.json", timeout=15)
+        if resp.status_code == 200:
+            live = resp.json()
+            if live.get("versions"):
+                existing_versions = live["versions"]
+    except Exception:
+        pass  # non-critical, new manifest just won't have versions
+
     # Determine worker count
-    if args.workers == "auto":
-        num_workers = None  # will be set by speedtest below
-    else:
-        num_workers = max(1, min(int(args.workers), 10))
+    num_workers = None if args.workers == "auto" else max(1, min(int(args.workers), 10))
 
     print("=" * 60)
     print("  Sims 4 DLC CDN Uploader")
@@ -723,9 +801,11 @@ def main():
         print("Running upload speedtest...")
         single, dual, recommended = run_dual_speedtest(config)
         num_workers = recommended
-        print(f"\n  Using {num_workers} workers "
-              f"(single: {fmt_size(int(single))}/s, "
-              f"dual: {fmt_size(int(dual))}/s)\n")
+        print(
+            f"\n  Using {num_workers} workers "
+            f"(single: {fmt_size(int(single))}/s, "
+            f"dual: {fmt_size(int(dual))}/s)\n"
+        )
     elif num_workers is None:
         num_workers = 4
 
@@ -738,19 +818,53 @@ def main():
         keys = list_kv_entries(config)
         dlc_keys = [k for k in keys if k.startswith("dlc/") and k.endswith(".zip")]
         print(f"Found {len(dlc_keys)} DLC entries on CDN")
+
+        # Load state file for MD5s from previous uploads
+        prev_state = load_state()
+        prev_completed = prev_state.get("completed", {})
+
         downloads = {}
         for key in sorted(dlc_keys):
             dlc_id = key.replace("dlc/", "").replace(".zip", "")
             dlc_name = get_dlc_name(catalog, dlc_id)
+
+            # Try to get real size via HEAD request
+            url = f"{CDN_DOMAIN}/{key}"
+            size = 0
+            try:
+                resp = requests.head(url, timeout=15, allow_redirects=True)
+                if resp.status_code == 200:
+                    size = int(resp.headers.get("Content-Length", 0))
+            except requests.RequestException:
+                pass
+
+            # Try to get MD5 from state file
+            md5 = prev_completed.get(dlc_id, {}).get("md5", "")
+
             downloads[dlc_id] = {
-                "url": f"{CDN_DOMAIN}/{key}",
-                "size": 0,
-                "md5": "",
+                "url": url,
+                "size": size,
+                "md5": md5,
                 "filename": f"{dlc_id}.zip",
             }
-            print(f"  {dlc_id}: {dlc_name}")
+            size_str = fmt_size(size) if size > 0 else "??"
+            md5_str = md5[:8] + "..." if md5 else "no MD5"
+            print(f"  {dlc_id}: {dlc_name} ({size_str}, {md5_str})")
+
+        # Load language downloads if provided
+        language_downloads = None
+        if args.merge_languages and args.merge_languages.is_file():
+            language_downloads = json.loads(args.merge_languages.read_text(encoding="utf-8"))
+            print(f"  Merging {len(language_downloads)} language entries")
+
         manifest_path = Path(__file__).parent / "manifest.json"
-        generate_manifest(downloads, manifest_path)
+        generate_manifest(
+            downloads,
+            manifest_path,
+            version=args.version,
+            language_downloads=language_downloads,
+            versions=existing_versions,
+        )
         return
 
     # Load state
@@ -781,13 +895,25 @@ def main():
     print(f"Total: {len(target_dlcs)}  |  Done: {already_done}  |  Remaining: {len(pending_dlcs)}")
     print()
 
+    # Load language downloads if provided
+    language_downloads = None
+    if args.merge_languages and args.merge_languages.is_file():
+        language_downloads = json.loads(args.merge_languages.read_text(encoding="utf-8"))
+        print(f"Merging {len(language_downloads)} language entries into manifest")
+
     if not pending_dlcs:
         print("All DLCs already uploaded! Use --fresh to re-upload.")
         results = state.get("completed", {})
         if results:
             downloads = build_manifest_from_results(results)
             manifest_path = Path(__file__).parent / "manifest.json"
-            generate_manifest(downloads, manifest_path)
+            generate_manifest(
+                downloads,
+                manifest_path,
+                version=args.version,
+                language_downloads=language_downloads,
+                versions=existing_versions,
+            )
         return
 
     # Run parallel uploads
@@ -804,8 +930,13 @@ def main():
                 break
             future = pool.submit(
                 process_dlc,
-                args.game_dir, dlc_id, catalog, config,
-                args.output_dir, state, args.skip_upload,
+                args.game_dir,
+                dlc_id,
+                catalog,
+                config,
+                args.output_dir,
+                state,
+                args.skip_upload,
             )
             future_to_dlc[future] = dlc_id
 
@@ -855,14 +986,20 @@ def main():
         speed = uploaded_bytes / total_time
         print(f"  Average speed: {fmt_size(int(speed))}/s")
     if _shutdown_requested:
-        print(f"\n  Stopped early. Run again to continue where you left off.")
+        print("\n  Stopped early. Run again to continue where you left off.")
 
     # Generate manifest from ALL completed (including previous runs)
     if results:
         print()
         downloads = build_manifest_from_results(results)
         manifest_path = Path(__file__).parent / "manifest.json"
-        generate_manifest(downloads, manifest_path)
+        generate_manifest(
+            downloads,
+            manifest_path,
+            version=args.version,
+            language_downloads=language_downloads,
+            versions=existing_versions,
+        )
 
         if not args.skip_upload and not _shutdown_requested:
             print("\n  Uploading manifest to CDN...")
@@ -877,10 +1014,8 @@ def main():
 
     # Clean up temp dir
     if args.output_dir.is_dir():
-        try:
+        with contextlib.suppress(OSError):
             args.output_dir.rmdir()
-        except OSError:
-            pass
 
     print(f"\n  State saved to: {STATE_FILE}")
     print("  Done!")

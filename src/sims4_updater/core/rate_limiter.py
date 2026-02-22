@@ -67,4 +67,4 @@ class TokenBucketRateLimiter:
                 deficit = byte_count - self._tokens
                 wait_time = deficit / self._max_rate
 
-            time.sleep(min(wait_time, 0.5))  # cap individual sleeps at 500ms
+            time.sleep(wait_time)

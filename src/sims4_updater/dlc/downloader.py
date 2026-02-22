@@ -7,24 +7,26 @@ Each DLC goes through a 3-phase pipeline:
   3. Register: enable in crack config via DLCManager
 
 ParallelDLCDownloader adds concurrent execution using a thread pool with
-a shared token-bucket rate limiter for global speed control.
+a shared token-bucket rate limiter for global speed control, and supports
+pause/resume via a shared ``proceed`` event.
 """
 
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import logging
 import threading
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable
 
-from ..patch.downloader import Downloader, ProgressCallback
-from ..patch.manifest import DLCDownloadEntry
 from ..core.exceptions import DownloadError
 from ..core.rate_limiter import TokenBucketRateLimiter
+from ..patch.downloader import Downloader
+from ..patch.manifest import DLCDownloadEntry
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ class DLCDownloadState(Enum):
     DOWNLOADING = "downloading"
     EXTRACTING = "extracting"
     REGISTERING = "registering"
+    EXTRACTED = "extracted"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
@@ -51,9 +54,7 @@ class DLCDownloadTask:
 
 
 # Callback: (dlc_id, state, progress_bytes, total_bytes, message)
-DLCStatusCallback = Callable[
-    [str, DLCDownloadState, int, int, str], None
-]
+DLCStatusCallback = Callable[[str, DLCDownloadState, int, int, str], None]
 
 
 class DLCDownloader:
@@ -65,6 +66,7 @@ class DLCDownloader:
         game_dir: str | Path,
         dlc_manager,  # DLCManager — avoids circular import
         cancel_event: threading.Event | None = None,
+        proceed_event: threading.Event | None = None,
         downloader: Downloader | None = None,
         register_lock: threading.Lock | None = None,
     ):
@@ -72,10 +74,12 @@ class DLCDownloader:
         self.game_dir = Path(game_dir)
         self._dlc_manager = dlc_manager
         self._cancel = cancel_event or threading.Event()
+        self._proceed = proceed_event  # None = no pause support
         self._register_lock = register_lock
         self._downloader = downloader or Downloader(
             download_dir=self.download_dir,
             cancel_event=self._cancel,
+            proceed_event=self._proceed,
         )
 
     def cancel(self):
@@ -85,6 +89,11 @@ class DLCDownloader:
     @property
     def cancelled(self) -> bool:
         return self._cancel.is_set()
+
+    def _wait_if_paused(self) -> None:
+        """Block until proceed event is set (unpaused). No-op if no event."""
+        if self._proceed is not None:
+            self._proceed.wait()
 
     # ── Single DLC ──────────────────────────────────────────────
 
@@ -98,10 +107,18 @@ class DLCDownloader:
 
         try:
             # Phase 1: Download
+            self._wait_if_paused()
+            if self.cancelled:
+                task.state = DLCDownloadState.CANCELLED
+                return task
+
             task.state = DLCDownloadState.DOWNLOADING
             if progress:
                 progress(
-                    entry.dlc_id, task.state, 0, entry.size,
+                    entry.dlc_id,
+                    task.state,
+                    0,
+                    entry.size,
                     f"Downloading {entry.dlc_id}...",
                 )
 
@@ -112,12 +129,16 @@ class DLCDownloader:
                 task.total_bytes = total
                 if progress:
                     progress(
-                        entry.dlc_id, DLCDownloadState.DOWNLOADING,
-                        downloaded, total, filename,
+                        entry.dlc_id,
+                        DLCDownloadState.DOWNLOADING,
+                        downloaded,
+                        total,
+                        filename,
                     )
 
             result = self._downloader.download_file(
-                file_entry, progress=dl_progress,
+                file_entry,
+                progress=dl_progress,
             )
 
             if self.cancelled:
@@ -125,14 +146,22 @@ class DLCDownloader:
                 return task
 
             # Phase 2: Extract to game directory
+            self._wait_if_paused()
+            if self.cancelled:
+                task.state = DLCDownloadState.CANCELLED
+                return task
+
             task.state = DLCDownloadState.EXTRACTING
             if progress:
                 progress(
-                    entry.dlc_id, task.state, 0, 0,
+                    entry.dlc_id,
+                    task.state,
+                    0,
+                    0,
                     f"Extracting {entry.dlc_id}...",
                 )
 
-            self._extract_zip(result.path, entry.dlc_id)
+            extracted_files = self._extract_zip(result.path, entry.dlc_id)
 
             # Clean up downloaded ZIP to save disk space
             try:
@@ -145,35 +174,45 @@ class DLCDownloader:
             expected = self.game_dir / entry.dlc_id / "SimulationFullBuild0.package"
             if not expected.is_file():
                 raise DownloadError(
-                    f"{entry.dlc_id} extraction incomplete: "
-                    f"SimulationFullBuild0.package not found"
+                    f"{entry.dlc_id} extraction incomplete: SimulationFullBuild0.package not found"
                 )
 
             if self.cancelled:
+                self._cleanup_extracted(extracted_files)
                 task.state = DLCDownloadState.CANCELLED
                 return task
 
             # Phase 3: Register in crack config
+            self._wait_if_paused()
+            if self.cancelled:
+                task.state = DLCDownloadState.CANCELLED
+                return task
+
             task.state = DLCDownloadState.REGISTERING
             if progress:
                 progress(
-                    entry.dlc_id, task.state, 0, 0,
+                    entry.dlc_id,
+                    task.state,
+                    0,
+                    0,
                     f"Registering {entry.dlc_id}...",
                 )
 
             registered = self._register_dlc(entry.dlc_id)
 
-            task.state = DLCDownloadState.COMPLETED
             if registered:
+                task.state = DLCDownloadState.COMPLETED
                 msg = f"{entry.dlc_id} installed successfully"
             else:
-                msg = (
-                    f"{entry.dlc_id} extracted but registration failed "
-                    f"\u2014 use Apply Changes to register manually"
-                )
+                task.state = DLCDownloadState.EXTRACTED
+                msg = f"{entry.dlc_id} extracted but registration failed \u2014 enable in DLC tab"
             if progress:
                 progress(
-                    entry.dlc_id, task.state, entry.size, entry.size, msg,
+                    entry.dlc_id,
+                    task.state,
+                    entry.size,
+                    entry.size,
+                    msg,
                 )
 
         except DownloadError as e:
@@ -211,13 +250,18 @@ class DLCDownloader:
 
     # ── Extraction ──────────────────────────────────────────────
 
-    def _extract_zip(self, archive_path: Path, dlc_id: str):
-        """Extract a standard zip archive to the game directory."""
+    def _extract_zip(self, archive_path: Path, dlc_id: str) -> list[Path]:
+        """Extract a standard zip archive to the game directory.
+
+        Returns list of extracted file paths for cleanup on cancel.
+        """
+        extracted: list[Path] = []
         try:
             with zipfile.ZipFile(archive_path, "r") as zf:
                 game_dir_resolved = self.game_dir.resolve()
                 for member in zf.namelist():
                     if self.cancelled:
+                        self._cleanup_extracted(extracted)
                         raise DownloadError("Extraction cancelled.")
                     # Path traversal protection
                     target = (self.game_dir / member).resolve()
@@ -225,14 +269,33 @@ class DLCDownloader:
                         logger.warning("Skipping unsafe zip path: %s", member)
                         continue
                     zf.extract(member, self.game_dir)
+                    if target.is_file():
+                        extracted.append(target)
         except zipfile.BadZipFile as e:
-            raise DownloadError(
-                f"Corrupt archive for {dlc_id}: {e}"
-            ) from e
+            raise DownloadError(f"Corrupt archive for {dlc_id}: {e}") from e
+        except DownloadError:
+            raise
         except OSError as e:
-            raise DownloadError(
-                f"Extraction failed for {dlc_id}: {e}"
-            ) from e
+            raise DownloadError(f"Extraction failed for {dlc_id}: {e}") from e
+        return extracted
+
+    def _cleanup_extracted(self, files: list[Path]) -> None:
+        """Remove extracted files on cancel/failure (best-effort)."""
+        for f in reversed(files):
+            with contextlib.suppress(OSError):
+                f.unlink(missing_ok=True)
+        # Remove empty directories left behind
+        dirs = sorted(
+            {f.parent for f in files},
+            key=lambda p: len(p.parts),
+            reverse=True,
+        )
+        for d in dirs:
+            try:
+                if d.is_dir() and not any(d.iterdir()):
+                    d.rmdir()
+            except OSError:
+                pass
 
     # ── Registration ────────────────────────────────────────────
 
@@ -280,8 +343,9 @@ class ParallelDLCDownloader:
     """Orchestrates parallel DLC downloads with shared rate limiting.
 
     Each worker thread gets its own ``Downloader`` (and ``requests.Session``)
-    but shares a single ``TokenBucketRateLimiter`` for global speed control
-    and a ``threading.Lock`` for serialising crack-config writes.
+    but shares a single ``TokenBucketRateLimiter`` for global speed control,
+    a ``threading.Lock`` for serialising crack-config writes, and a
+    ``proceed`` event for pause/resume control.
     """
 
     def __init__(
@@ -298,6 +362,8 @@ class ParallelDLCDownloader:
         self._game_dir = Path(game_dir)
         self._dlc_manager = dlc_manager
         self._cancel = cancel_event or threading.Event()
+        self._proceed = threading.Event()
+        self._proceed.set()  # start in running (unpaused) state
         self._max_workers = max(1, min(max_workers, 10))
         self._rate_limiter = TokenBucketRateLimiter(speed_limit_bytes)
         self._register_lock = threading.Lock()
@@ -306,8 +372,21 @@ class ParallelDLCDownloader:
         """Update the global speed limit at runtime."""
         self._rate_limiter.set_limit(bytes_per_sec)
 
+    def pause(self) -> None:
+        """Pause all workers at next checkpoint."""
+        self._proceed.clear()
+
+    def resume(self) -> None:
+        """Resume paused workers."""
+        self._proceed.set()
+
+    @property
+    def paused(self) -> bool:
+        return not self._proceed.is_set()
+
     def cancel(self) -> None:
         self._cancel.set()
+        self._proceed.set()  # unblock any paused workers so they can exit
 
     @property
     def cancelled(self) -> bool:
@@ -348,8 +427,11 @@ class ParallelDLCDownloader:
                     )
                     if progress:
                         progress(
-                            entry.dlc_id, DLCDownloadState.FAILED,
-                            0, 0, str(e),
+                            entry.dlc_id,
+                            DLCDownloadState.FAILED,
+                            0,
+                            0,
+                            str(e),
                         )
                 with results_lock:
                     results.append(task)
@@ -367,12 +449,14 @@ class ParallelDLCDownloader:
             download_dir=self._dlcs_dir,
             cancel_event=self._cancel,
             rate_limiter=self._rate_limiter,
+            proceed_event=self._proceed,
         )
         worker = DLCDownloader(
             download_dir=self._download_dir,
             game_dir=self._game_dir,
             dlc_manager=self._dlc_manager,
             cancel_event=self._cancel,
+            proceed_event=self._proceed,
             downloader=dl,
             register_lock=self._register_lock,
         )

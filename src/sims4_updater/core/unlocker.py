@@ -240,6 +240,38 @@ def get_status(log: Callable[[str], None] | None = None) -> UnlockerStatus:
     )
 
 
+def _fetch_cdn_entitlements(dst: Path, log: Callable[[str], None]) -> bool:
+    """Try to download entitlements.ini from CDN. Returns True on success."""
+    try:
+        from ..config import Settings
+
+        settings = Settings.load()
+        if not settings.manifest_url:
+            return False
+
+        import requests as _req
+
+        resp = _req.get(settings.manifest_url, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        url = data.get("entitlements_url", "")
+        if not url:
+            return False
+
+        log(f"Fetching latest entitlements from CDN...")
+        ent_resp = _req.get(url, timeout=30)
+        ent_resp.raise_for_status()
+        if len(ent_resp.content) < 100:
+            return False  # Sanity check — too small to be valid
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes(ent_resp.content)
+        log(f"Downloaded entitlements.ini from CDN ({len(ent_resp.content):,} bytes).")
+        return True
+    except Exception:
+        return False
+
+
 def install(log: Callable[[str], None]) -> None:
     """Install the DLC Unlocker."""
     if not is_admin():
@@ -284,9 +316,10 @@ def install(log: Callable[[str], None]) -> None:
     appdata_dir.mkdir(parents=True, exist_ok=True)
     log(f"Config directory: {appdata_dir}")
 
-    # Copy entitlements config (appdata — no admin needed)
-    shutil.copy2(src_entitlements, dst_entitlements)
-    log("Entitlements config copied.")
+    # Try CDN entitlements first, fall back to bundled copy
+    if not _fetch_cdn_entitlements(dst_entitlements, log):
+        shutil.copy2(src_entitlements, dst_entitlements)
+        log("Entitlements config copied from bundled file.")
 
     # Copy version.dll to client directory (Program Files — needs admin)
     _copy_with_retry(src_dll, dst_dll, log)

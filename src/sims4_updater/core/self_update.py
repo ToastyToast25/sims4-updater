@@ -42,8 +42,15 @@ class AppUpdateInfo:
     release_notes: str = ""
 
 
-def check_for_app_update(timeout: int = 15) -> AppUpdateInfo:
+def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
     """Check GitHub Releases for a newer version of the updater.
+
+    Uses the self_update_url from a cached manifest if available,
+    falls back to hardcoded GITHUB_API.
+
+    Args:
+        timeout: HTTP timeout in seconds.
+        manifest: Optional cached Manifest object to read self_update_url from.
 
     Returns:
         AppUpdateInfo with comparison result and download URL.
@@ -51,9 +58,13 @@ def check_for_app_update(timeout: int = 15) -> AppUpdateInfo:
     Raises:
         SelfUpdateError on network or API errors.
     """
+    api_url = GITHUB_API
+    if manifest and getattr(manifest, "self_update_url", ""):
+        api_url = manifest.self_update_url
+
     try:
         resp = requests.get(
-            GITHUB_API,
+            api_url,
             headers={"Accept": "application/vnd.github+json"},
             timeout=timeout,
         )

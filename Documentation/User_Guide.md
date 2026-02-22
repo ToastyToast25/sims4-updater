@@ -65,6 +65,8 @@
    - 9.7 [Apply LUA](#97-apply-lua)
    - 9.8 [Fix AppList](#98-fix-applist)
    - 9.9 [Activity Log](#99-activity-log)
+   - 9.10 [Apply CDN Keys](#910-apply-cdn-keys)
+   - 9.11 [Contribute Keys](#911-contribute-keys)
 10. [Settings Tab](#10-settings-tab)
     - 10.1 [Card 1: Game and Updates](#101-card-1-game-and-updates)
     - 10.2 [Card 2: GreenLuma](#102-card-2-greenluma)
@@ -851,6 +853,57 @@ The scrollable **Activity Log** at the bottom of the GreenLuma tab records all o
 The log persists across multiple operations within the same session. A **Clear** button in the log header erases all entries.
 
 All action buttons are disabled while a background operation is running to prevent concurrent modifications to Steam's configuration files.
+
+### 9.10 Apply CDN Keys
+
+The **Apply CDN Keys** button downloads decryption keys, manifest files, and AppList entries from the CDN and applies them directly to your Steam installation for any DLCs currently listed as "Incomplete" in the readiness list.
+
+> **Requirement:** Steam must not be running when this operation is performed. If the Steam process is detected as active, a dialog appears asking you to close it before continuing. The operation will not proceed while Steam is open, because Steam holds exclusive locks on `config.vdf` and the `depotcache` directory.
+
+When clicked, the operation runs in the background and performs the following steps for each incomplete DLC:
+
+1. Queries the CDN for available key and manifest data for the DLC's depot ID.
+2. Downloads the depot decryption key and writes it into `config.vdf` under the `depots` section.
+3. Downloads the `.manifest` file and copies it into the Steam `depotcache` directory.
+4. Verifies that an AppList entry exists for the DLC's Steam App ID and adds one if absent.
+
+The activity log reports progress in real time as each DLC is processed. Upon completion, a summary line states how many keys were applied, how many manifests were copied, and how many AppList entries were added or confirmed.
+
+After the operation finishes, the DLC readiness list refreshes automatically. DLCs that previously showed as "Incomplete" due to missing keys or manifests will now show as "Ready" if the CDN had data available for them. DLCs for which the CDN has no data remain "Incomplete" and are reported in the log.
+
+This button is styled as the primary accent button in its row, distinguishing it as the recommended first action when incomplete DLCs are present.
+
+### 9.11 Contribute Keys
+
+The **Contribute Keys** button allows users who legitimately own Sims 4 DLCs through Steam to submit their depot decryption keys and manifest files to the contribution API, where they are reviewed by an administrator before being made available to others via the CDN.
+
+When clicked, the application scans two locations in your Steam installation:
+
+- **`config.vdf`** — Searched for depot decryption keys corresponding to DLC depot IDs that are currently marked as "Incomplete" for other users.
+- **`depotcache\`** — Searched for `.manifest` files belonging to the same incomplete depots.
+
+Only data for DLCs that are currently incomplete in the CDN is collected. Keys and manifests for DLCs that are already fully available are not included.
+
+Before any data is transmitted, a confirmation dialog appears listing exactly which DLCs will be contributed:
+
+```
+The following DLC data will be submitted for review:
+
+  EP05 — Outdoor Retreat     (key + manifest)
+  GP03 — Vampires            (key only)
+  SP12 — Paranormal          (manifest only)
+
+This data will be sent to the contribution API for admin review.
+Continue?
+```
+
+Confirming submits the collected keys and manifest files to the contribution API endpoint. The submission is fire-and-forget — no response data is displayed, and the operation completes with a toast confirming how many DLCs were submitted. The activity log records the list of contributed DLC IDs.
+
+> **Note:** Contributed data is not applied immediately. Submissions enter an admin review queue. Once approved, the data becomes available to all users via the CDN and will be applied when they next run **Apply CDN Keys**.
+>
+> **Privacy note:** Only depot decryption keys (cryptographic values tied to Steam depot IDs) and `.manifest` file content are transmitted. No Steam account credentials, usernames, personal identifiers, or system information are included in the submission.
+
+This button is styled as a secondary button in the same row as **Apply CDN Keys**. It is only meaningful if your Steam installation holds valid decryption keys for DLCs that are currently incomplete — that is, if you own those DLCs through Steam.
 
 ---
 

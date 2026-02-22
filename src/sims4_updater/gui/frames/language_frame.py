@@ -9,9 +9,9 @@ anadius.cfg + registry + RldOrigin.ini.
 
 from __future__ import annotations
 
+import threading
 import tkinter as tk
 import tkinter.simpledialog
-import threading
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -30,7 +30,6 @@ _UNAVAIL_COLOR = theme.COLORS["text_muted"]
 
 
 class LanguageFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -48,6 +47,7 @@ class LanguageFrame(ctk.CTkFrame):
         self._installed_langs: dict[str, bool] = {}
         self._lang_downloads: dict = {}  # {locale_code: LanguageDownloadEntry}
         self._row_widgets: dict[str, dict] = {}  # code -> widget refs
+        self._selected_version: str | None = None  # None = latest
 
         # ── Top section ───────────────────────────────────────────
         top = ctk.CTkFrame(self, fg_color="transparent")
@@ -75,40 +75,56 @@ class LanguageFrame(ctk.CTkFrame):
 
         # Current language
         ctk.CTkLabel(
-            self._card, text="Current",
+            self._card,
+            text="Current",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(
-            row=0, column=0,
+            row=0,
+            column=0,
             padx=(theme.CARD_PAD_X, 8),
-            pady=(theme.CARD_PAD_Y, 4), sticky="w",
+            pady=(theme.CARD_PAD_Y, 4),
+            sticky="w",
         )
 
         self._current_badge = StatusBadge(
-            self._card, text="Detecting...", style="muted",
+            self._card,
+            text="Detecting...",
+            style="muted",
         )
         self._current_badge.grid(
-            row=0, column=1, padx=0,
-            pady=(theme.CARD_PAD_Y, 4), sticky="w",
+            row=0,
+            column=1,
+            padx=0,
+            pady=(theme.CARD_PAD_Y, 4),
+            sticky="w",
         )
 
         # Packs summary
         ctk.CTkLabel(
-            self._card, text="Packs",
+            self._card,
+            text="Packs",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(
-            row=1, column=0,
+            row=1,
+            column=0,
             padx=(theme.CARD_PAD_X, 8),
-            pady=(4, theme.CARD_PAD_Y), sticky="w",
+            pady=(4, theme.CARD_PAD_Y),
+            sticky="w",
         )
 
         self._packs_badge = StatusBadge(
-            self._card, text="...", style="muted",
+            self._card,
+            text="...",
+            style="muted",
         )
         self._packs_badge.grid(
-            row=1, column=1, padx=0,
-            pady=(4, theme.CARD_PAD_Y), sticky="w",
+            row=1,
+            column=1,
+            padx=0,
+            pady=(4, theme.CARD_PAD_Y),
+            sticky="w",
         )
 
         # ── Language selector + buttons ──────────────────────────
@@ -180,6 +196,32 @@ class LanguageFrame(ctk.CTkFrame):
         )
         self._refresh_btn.grid(row=0, column=4, sticky="ew")
 
+        # Version picker row
+        ver_row = ctk.CTkFrame(top, fg_color="transparent")
+        ver_row.grid(row=4, column=0, padx=30, pady=(0, 10), sticky="ew")
+
+        ctk.CTkLabel(
+            ver_row,
+            text="Content Version",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text"],
+        ).pack(side="left", padx=(0, 8))
+
+        self._version_var = ctk.StringVar(value="Latest")
+        self._version_menu = ctk.CTkOptionMenu(
+            ver_row,
+            values=["Latest"],
+            variable=self._version_var,
+            width=250,
+            height=30,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card_alt"],
+            button_color=theme.COLORS["bg_card_alt"],
+            button_hover_color=theme.COLORS["card_hover"],
+            command=self._on_version_changed,
+        )
+        self._version_menu.pack(side="left")
+
         # ── Language Packs list (scrollable) ─────────────────────
         pack_section = ctk.CTkFrame(self, fg_color="transparent")
         pack_section.grid(row=1, column=0, sticky="nsew", padx=30, pady=(0, 8))
@@ -238,7 +280,8 @@ class LanguageFrame(ctk.CTkFrame):
             header_row,
             text="Clear",
             font=ctk.CTkFont(size=11),
-            height=24, width=60,
+            height=24,
+            width=60,
             corner_radius=4,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -279,9 +322,20 @@ class LanguageFrame(ctk.CTkFrame):
     def on_show(self):
         self._refresh_status()
 
+    def _on_version_changed(self, choice: str):
+        """Handle version dropdown change — reload language packs from archived manifest."""
+        if choice == "Latest":
+            self._selected_version = None
+        else:
+            self._selected_version = choice.split(" (")[0].strip()
+        if not self._busy:
+            self._refresh_status()
+
     def _refresh_status(self):
         from ...language.changer import (
-            get_current_language, LANGUAGES, get_installed_languages,
+            LANGUAGES,
+            get_current_language,
+            get_installed_languages,
         )
 
         def _bg():
@@ -293,6 +347,7 @@ class LanguageFrame(ctk.CTkFrame):
             game_dir_valid = False
             if game_dir:
                 from pathlib import Path
+
                 game_dir_valid = Path(game_dir).is_dir()
 
             # Check which language packs are installed
@@ -302,11 +357,35 @@ class LanguageFrame(ctk.CTkFrame):
 
             # Fetch manifest for language download entries
             lang_downloads = {}
+            version_choices = ["Latest"]
             try:
                 manifest_url = self.app.settings.manifest_url
                 if manifest_url:
-                    updater = self.app.updater
-                    manifest = updater.patch_client.fetch_manifest()
+                    client = self.app.updater.patch_client
+                    main_manifest = client.fetch_manifest()
+
+                    # Build version choices from archived versions
+                    for ver_str in sorted(
+                        main_manifest.archived_versions,
+                        key=lambda v: [int(x) for x in v.split(".")],
+                        reverse=True,
+                    ):
+                        av = main_manifest.archived_versions[ver_str]
+                        parts = []
+                        if av.date:
+                            parts.append(av.date)
+                        if av.language_count:
+                            parts.append(f"{av.language_count} langs")
+                        label = f"{ver_str} ({', '.join(parts)})" if parts else ver_str
+                        version_choices.append(label)
+
+                    # Use archived manifest if version selected
+                    if self._selected_version:
+                        manifest = client.fetch_version_manifest(
+                            self._selected_version,
+                        )
+                    else:
+                        manifest = main_manifest
                     lang_downloads = manifest.language_downloads
             except Exception:
                 pass  # Manifest fetch failure is non-fatal
@@ -318,6 +397,7 @@ class LanguageFrame(ctk.CTkFrame):
                 "game_dir_valid": game_dir_valid,
                 "installed_langs": installed_langs,
                 "lang_downloads": lang_downloads,
+                "version_choices": version_choices,
             }
 
         def _done(info):
@@ -325,6 +405,24 @@ class LanguageFrame(ctk.CTkFrame):
             name = info["name"]
             self._installed_langs = info["installed_langs"]
             self._lang_downloads = info["lang_downloads"]
+
+            # Merge any new languages from CDN into the language list
+            for lang_code in self._lang_downloads:
+                if lang_code not in self._languages:
+                    self._languages[lang_code] = lang_code  # Use code as display name
+
+            # Update language dropdown with merged list
+            lang_values = [
+                f"{n}  ({c})" for c, n in self._languages.items()
+            ]
+            self._lang_dropdown.configure(values=lang_values)
+
+            # Update version dropdown
+            ver_choices = info.get("version_choices", ["Latest"])
+            if len(ver_choices) > 1:
+                self._version_menu.configure(values=ver_choices)
+            else:
+                self._version_menu.configure(values=["Latest"])
 
             self._current_badge.set_status(f"{name}  ({code})", "info")
 
@@ -335,19 +433,19 @@ class LanguageFrame(ctk.CTkFrame):
                     break
 
             # Packs summary badge
-            installed_count = sum(
-                1 for v in self._installed_langs.values() if v
-            )
+            installed_count = sum(1 for v in self._installed_langs.values() if v)
             missing_count = len(self._languages) - installed_count
             gd = info["game_dir"]
 
             if not gd or not info["game_dir_valid"]:
                 self._packs_badge.set_status(
-                    "Set game directory in Settings", "warning",
+                    "Set game directory in Settings",
+                    "warning",
                 )
             elif missing_count == 0:
                 self._packs_badge.set_status(
-                    f"All {installed_count} packs installed", "success",
+                    f"All {installed_count} packs installed",
+                    "success",
                 )
             else:
                 self._packs_badge.set_status(
@@ -367,9 +465,9 @@ class LanguageFrame(ctk.CTkFrame):
             # Update Download All button
             has_downloads = bool(self._lang_downloads)
             downloadable_missing = sum(
-                1 for code in self._languages
-                if not self._installed_langs.get(code, False)
-                and code in self._lang_downloads
+                1
+                for code in self._languages
+                if not self._installed_langs.get(code, False) and code in self._lang_downloads
             )
             if has_downloads and downloadable_missing > 0:
                 self._dl_all_btn.configure(
@@ -550,17 +648,23 @@ class LanguageFrame(ctk.CTkFrame):
         def on_enter(e, rf=row_frame):
             self._animator.cancel_all(rf, tag="row_hover")
             self._animator.animate_color(
-                rf, "border_color",
-                theme.COLORS["border"], theme.COLORS["accent"],
-                theme.ANIM_FAST, tag="row_hover",
+                rf,
+                "border_color",
+                theme.COLORS["border"],
+                theme.COLORS["accent"],
+                theme.ANIM_FAST,
+                tag="row_hover",
             )
 
         def on_leave(e, rf=row_frame):
             self._animator.cancel_all(rf, tag="row_hover")
             self._animator.animate_color(
-                rf, "border_color",
-                theme.COLORS["accent"], theme.COLORS["border"],
-                theme.ANIM_NORMAL, tag="row_hover",
+                rf,
+                "border_color",
+                theme.COLORS["accent"],
+                theme.COLORS["border"],
+                theme.ANIM_NORMAL,
+                tag="row_hover",
             )
 
         row_frame.bind("<Enter>", on_enter)
@@ -602,6 +706,7 @@ class LanguageFrame(ctk.CTkFrame):
         # Check if language pack is installed
         if game_dir and self._installed_langs and not self._installed_langs.get(code, False):
             from ...language.changer import get_strings_filename
+
             filename = get_strings_filename(code) or code
 
             # If a download is available in the manifest, offer to download it
@@ -652,7 +757,9 @@ class LanguageFrame(ctk.CTkFrame):
 
         def _bg():
             result = set_language(
-                code, game_dir=game_dir, log=self._enqueue_log,
+                code,
+                game_dir=game_dir,
+                log=self._enqueue_log,
             )
 
             if not game_dir:
@@ -682,7 +789,8 @@ class LanguageFrame(ctk.CTkFrame):
                 self._log(f"Language changed to {name} ({code})! Updated: {detail}")
                 self._log("Restart the game for the language change to take effect.")
                 self.app.show_toast(
-                    f"Language changed to {name}! Restart the game.", "success",
+                    f"Language changed to {name}! Restart the game.",
+                    "success",
                 )
             else:
                 self._log(
@@ -735,7 +843,8 @@ class LanguageFrame(ctk.CTkFrame):
             if success:
                 self._enqueue_log(f"{name} pack installed. Applying language change...")
                 self.app.show_toast(
-                    f"{name} language pack installed!", "success",
+                    f"{name} language pack installed!",
+                    "success",
                 )
                 # Now apply the language config
                 self._refresh_status()
@@ -743,7 +852,8 @@ class LanguageFrame(ctk.CTkFrame):
             else:
                 self._set_busy(False)
                 self.app.show_toast(
-                    f"Download failed for {name}. Language not changed.", "error",
+                    f"Download failed for {name}. Language not changed.",
+                    "error",
                 )
                 self._refresh_status()
 
@@ -765,14 +875,16 @@ class LanguageFrame(ctk.CTkFrame):
         game_dir = self.app.settings.game_path
         if not game_dir:
             self.app.show_toast(
-                "Set game directory in Settings first.", "warning",
+                "Set game directory in Settings first.",
+                "warning",
             )
             return
 
         entry = self._lang_downloads.get(code)
         if not entry:
             self.app.show_toast(
-                f"No download available for {code}.", "warning",
+                f"No download available for {code}.",
+                "warning",
             )
             return
 
@@ -806,11 +918,13 @@ class LanguageFrame(ctk.CTkFrame):
             self._set_busy(False)
             if success:
                 self.app.show_toast(
-                    f"{name} language pack installed!", "success",
+                    f"{name} language pack installed!",
+                    "success",
                 )
             else:
                 self.app.show_toast(
-                    f"Download failed for {name}.", "error",
+                    f"Download failed for {name}.",
+                    "error",
                 )
             self._refresh_status()
 
@@ -830,19 +944,22 @@ class LanguageFrame(ctk.CTkFrame):
         game_dir = self.app.settings.game_path
         if not game_dir:
             self.app.show_toast(
-                "Set game directory in Settings first.", "warning",
+                "Set game directory in Settings first.",
+                "warning",
             )
             return
 
         if not self._lang_downloads:
             self.app.show_toast(
-                "No language packs available in manifest.", "warning",
+                "No language packs available in manifest.",
+                "warning",
             )
             return
 
         # Count how many are actually missing and downloadable
         missing = {
-            code: entry for code, entry in self._lang_downloads.items()
+            code: entry
+            for code, entry in self._lang_downloads.items()
             if not self._installed_langs.get(code, False)
         }
         if not missing:
@@ -881,11 +998,13 @@ class LanguageFrame(ctk.CTkFrame):
             failed = sum(1 for v in results.values() if not v)
             if failed == 0 and succeeded > 0:
                 self.app.show_toast(
-                    f"All {succeeded} language pack(s) installed!", "success",
+                    f"All {succeeded} language pack(s) installed!",
+                    "success",
                 )
             elif succeeded > 0:
                 self.app.show_toast(
-                    f"{succeeded} installed, {failed} failed.", "warning",
+                    f"{succeeded} installed, {failed} failed.",
+                    "warning",
                 )
             else:
                 self.app.show_toast("All downloads failed.", "error")
@@ -909,15 +1028,17 @@ class LanguageFrame(ctk.CTkFrame):
         game_dir = self.app.settings.game_path
         if not game_dir:
             self.app.show_toast(
-                "Set game directory in Settings first.", "warning",
+                "Set game directory in Settings first.",
+                "warning",
             )
             return
 
-        from ...language.steam import SteamLanguageDownloader
         from ...config import get_app_dir
+        from ...language.steam import SteamLanguageDownloader
 
         app_dir = get_app_dir()
         from pathlib import Path as _Path
+
         downloader = SteamLanguageDownloader(
             app_dir=app_dir,
             game_dir=_Path(game_dir),
@@ -951,7 +1072,8 @@ class LanguageFrame(ctk.CTkFrame):
                 else:
                     self._set_busy(False)
                     self.app.show_toast(
-                        "Failed to install DepotDownloader.", "error",
+                        "Failed to install DepotDownloader.",
+                        "error",
                     )
 
             def _install_err(e):
@@ -960,7 +1082,9 @@ class LanguageFrame(ctk.CTkFrame):
                 self.app.show_toast(f"Install failed: {e}", "error")
 
             self.app.run_async(
-                _install_bg, on_done=_install_done, on_error=_install_err,
+                _install_bg,
+                on_done=_install_done,
+                on_error=_install_err,
             )
             return
 
@@ -988,7 +1112,7 @@ class LanguageFrame(ctk.CTkFrame):
         self.app.settings.save()
 
         self._set_busy(True)
-        self._log(f"--- Downloading language packs from Steam ---")
+        self._log("--- Downloading language packs from Steam ---")
 
         # Thread-safe auth dialog helpers using threading.Event
         _auth_result = {"value": None}
@@ -1030,10 +1154,7 @@ class LanguageFrame(ctk.CTkFrame):
             return _auth_result["value"]
 
         # Only download languages that are missing
-        missing_codes = [
-            code for code, installed in self._installed_langs.items()
-            if not installed
-        ]
+        missing_codes = [code for code, installed in self._installed_langs.items() if not installed]
 
         def _bg():
             return downloader.download_languages(
@@ -1048,10 +1169,7 @@ class LanguageFrame(ctk.CTkFrame):
             self._set_busy(False)
             if result.success:
                 count = len(result.installed_locales)
-                self._log(
-                    f"Steam download complete! "
-                    f"{count} language pack(s) installed."
-                )
+                self._log(f"Steam download complete! {count} language pack(s) installed.")
                 self.app.show_toast(
                     f"{count} language pack(s) downloaded from Steam!",
                     "success",
@@ -1059,7 +1177,8 @@ class LanguageFrame(ctk.CTkFrame):
             else:
                 self._log(f"Steam download failed: {result.error}")
                 self.app.show_toast(
-                    f"Steam download failed: {result.error}", "error",
+                    f"Steam download failed: {result.error}",
+                    "error",
                 )
             self._refresh_status()
 

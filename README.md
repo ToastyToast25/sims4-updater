@@ -44,6 +44,8 @@ Full management of [GreenLuma 2025](https://cs.rin.ru/forum/viewtopic.php?f=29&t
 - Fix AppList (remove duplicates, add missing entries)
 - Launch Steam through `DLLInjector.exe` with automatic Steam-restart handling
 - Per-DLC readiness indicators (key present, manifest cached, AppList entry) shown in the DLC tab
+- **Crowd-sourced key contribution**: users who own DLCs through Steam can contribute their decryption keys and manifest files to help other users
+- **CDN key distribution**: automatically download and apply decryption keys, manifest files, and AppList entries from the CDN for DLCs that other users have contributed
 
 ### DLC Packer
 
@@ -145,7 +147,7 @@ Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 1
 | **DLC Downloader** | Download individual DLC archives from the CDN with live progress bars, parallel threads, resume, and MD5 verification. |
 | **DLC Packer** | Pack installed DLC folders into distributable ZIP archives. Import ZIP archives from others. |
 | **DLC Unlocker** | Install or uninstall the EA DLC Unlocker. Status detection with admin elevation when required. |
-| **GreenLuma** | Install/uninstall GreenLuma 2025, apply LUA manifests, verify configuration, fix AppList, and launch Steam via DLLInjector. |
+| **GreenLuma** | Install/uninstall GreenLuma 2025, apply LUA manifests, verify configuration, fix AppList, apply CDN keys, contribute keys, and launch Steam via DLLInjector. |
 | **Language** | Select from 18 languages. Optionally download language files from Steam depots. |
 | **Mods** | Manage game modifications. |
 | **Diagnostics** | System health checks and DLC file validator. |
@@ -288,6 +290,8 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
 | `fingerprints` | No | Version hashes for auto-detection |
 | `fingerprints_url` | No | URL to a crowd-sourced fingerprints JSON |
 | `report_url` | No | URL where clients POST learned hashes |
+| `contribute_url` | No | URL for DLC/GreenLuma contribution submissions |
+| `greenluma` | No | Dict of depot_id → {key, manifest_id, manifest_url} for GreenLuma CDN keys |
 
 #### Multi-Step Updates
 
@@ -475,7 +479,7 @@ GitHub Actions workflow (`.github/workflows/build.yml`):
 sims4-updater/
 ├── src/
 │   ├── sims4_updater/
-│   │   ├── __init__.py              # VERSION string ("2.1.0")
+│   │   ├── __init__.py              # VERSION string ("2.2.0")
 │   │   ├── __main__.py              # CLI argparse entry point + GUI launcher
 │   │   ├── constants.py             # SENTINEL_FILES, registry paths, get_data_dir(), get_tools_dir()
 │   │   ├── config.py                # Settings dataclass, get_app_dir() -> %LOCALAPPDATA%\ToastyToast25\
@@ -496,7 +500,7 @@ sims4-updater/
 │   │   │   ├── contribute.py        # DLC contribution scanner — submit unknown DLC metadata to API
 │   │   │   └── utils.py             # Size parsing utilities
 │   │   ├── patch/
-│   │   │   ├── manifest.py          # Manifest, PatchEntry, FileEntry, DLCDownloadEntry, parse_manifest()
+│   │   │   ├── manifest.py          # Manifest, PatchEntry, FileEntry, DLCDownloadEntry, GreenLumaEntry, parse_manifest()
 │   │   │   ├── planner.py           # UpdatePlan, plan_update() — BFS shortest-path planner
 │   │   │   ├── downloader.py        # HTTP download with resume + MD5 verification + progress callbacks
 │   │   │   └── client.py            # PatchClient — fetch manifest, check update, download orchestration
@@ -514,7 +518,8 @@ sims4-updater/
 │   │   │   ├── config_vdf.py        # Steam config.vdf parsing and depot key management
 │   │   │   ├── lua_parser.py        # LUA manifest file parser
 │   │   │   ├── manifest_cache.py    # depotcache .manifest file management
-│   │   │   └── orchestrator.py      # High-level GL operations (readiness, apply, verify)
+│   │   │   ├── orchestrator.py      # High-level GL operations (readiness, apply, verify, CDN keys)
+│   │   │   └── contribute.py        # GL contribution scanner — extract + submit depot keys/manifests
 │   │   ├── language/
 │   │   │   ├── changer.py           # LANGUAGES dict, registry + RldOrigin.ini language setter
 │   │   │   ├── downloader.py        # Steam depot-based language file downloader

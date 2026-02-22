@@ -5,20 +5,22 @@ Download manager with resume, progress callbacks, MD5 verification, and cancella
 from __future__ import annotations
 
 import hashlib
-import os
+import ssl
 import threading
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING
 
 import requests
 import requests.adapters
-import ssl
 import urllib3
 
-from .manifest import FileEntry
 from ..core.exceptions import DownloadError, IntegrityError
+from .manifest import FileEntry
 
+if TYPE_CHECKING:
+    from ..core.rate_limiter import TokenBucketRateLimiter
 
 # Type alias for progress callbacks: (bytes_downloaded, total_bytes, filename)
 ProgressCallback = Callable[[int, int, str], None]
@@ -46,13 +48,15 @@ class Downloader:
         self,
         download_dir: str | Path,
         cancel_event: threading.Event | None = None,
-        rate_limiter: "TokenBucketRateLimiter | None" = None,
+        rate_limiter: TokenBucketRateLimiter | None = None,
+        proceed_event: threading.Event | None = None,
     ):
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self._cancel = cancel_event or threading.Event()
         self._session: requests.Session | None = None
         self._rate_limiter = rate_limiter
+        self._proceed = proceed_event  # None = no pause support
 
     @property
     def session(self) -> requests.Session:
@@ -98,17 +102,16 @@ class Downloader:
         partial_path = final_path.with_suffix(final_path.suffix + ".partial")
 
         # If final file exists and MD5 matches, skip download
-        if final_path.is_file() and entry.md5:
-            if _verify_md5(final_path, entry.md5):
-                if progress:
-                    progress(entry.size, entry.size, entry.filename)
-                return DownloadResult(
-                    entry=entry,
-                    path=final_path,
-                    verified=True,
-                    resumed=False,
-                    bytes_downloaded=0,
-                )
+        if final_path.is_file() and entry.md5 and _verify_md5(final_path, entry.md5):
+            if progress:
+                progress(entry.size, entry.size, entry.filename)
+            return DownloadResult(
+                entry=entry,
+                path=final_path,
+                verified=True,
+                resumed=False,
+                bytes_downloaded=0,
+            )
 
         # Resume support
         resume_from = 0
@@ -135,9 +138,7 @@ class Downloader:
                 if "/" in content_range:
                     total_size = int(content_range.rsplit("/", 1)[1])
                 else:
-                    total_size = resume_from + int(
-                        resp.headers.get("Content-Length", 0)
-                    )
+                    total_size = resume_from + int(resp.headers.get("Content-Length", 0))
                 mode = "ab"
                 resumed = True
             else:
@@ -153,6 +154,8 @@ class Downloader:
 
             with open(partial_path, mode) as f:
                 for chunk in resp.iter_content(CHUNK_SIZE):
+                    if self._proceed is not None:
+                        self._proceed.wait()  # block if paused
                     if self.cancelled:
                         raise DownloadError("Download cancelled.")
                     f.write(chunk)
@@ -165,13 +168,9 @@ class Downloader:
         except DownloadError:
             raise
         except requests.RequestException as e:
-            raise DownloadError(
-                f"Failed to download {entry.filename}: {e}"
-            ) from e
+            raise DownloadError(f"Failed to download {entry.filename}: {e}") from e
         except OSError as e:
-            raise DownloadError(
-                f"I/O error writing {entry.filename}: {e}"
-            ) from e
+            raise DownloadError(f"I/O error writing {entry.filename}: {e}") from e
 
         # Verify MD5 if provided
         verified = False
@@ -216,9 +215,9 @@ class Downloader:
 
             base = cumulative
 
-            def file_progress(downloaded: int, file_total: int, filename: str):
+            def file_progress(downloaded: int, file_total: int, filename: str, _base=base):
                 if progress:
-                    progress(base + downloaded, total_size, filename)
+                    progress(_base + downloaded, total_size, filename)
 
             result = self.download_file(entry, progress=file_progress, subdir=subdir)
             cumulative += entry.size
@@ -250,7 +249,7 @@ def _create_session() -> requests.Session:
         backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504],
     )
-    adapter = _TimeoutSSLAdapter(ctx, retry=retry)
+    adapter = _TimeoutSSLAdapter(ctx, max_retries=retry)
     session.mount("https://", adapter)
     session.mount("http://", requests.adapters.HTTPAdapter(max_retries=retry))
     session.headers["User-Agent"] = "Sims4Updater/2.0"

@@ -6,7 +6,6 @@ and submits metadata to the contribution API for review.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -14,11 +13,9 @@ from pathlib import Path
 import requests
 
 from .. import VERSION
+from ..constants import CONTRIBUTE_URL
 
 log = logging.getLogger(__name__)
-
-# Contribution API endpoint
-CONTRIBUTE_URL = "https://api.hyperabyss.com/contribute"
 
 
 @dataclass
@@ -134,6 +131,8 @@ def find_missing_dlcs(
 def submit_contribution(
     contribution: DLCContribution,
     timeout: int = 30,
+    url: str = "",
+    manifest=None,
 ) -> dict:
     """
     Submit a DLC contribution to the API.
@@ -141,6 +140,8 @@ def submit_contribution(
     Args:
         contribution: The contribution payload.
         timeout: Request timeout in seconds.
+        url: Override the contribution API URL (uses settings/constant if empty).
+        manifest: Optional cached Manifest to read contribute_url from.
 
     Returns:
         API response dict with 'status' and 'message' keys.
@@ -148,10 +149,16 @@ def submit_contribution(
     Raises:
         requests.RequestException: On network errors.
     """
+    if not url and manifest and getattr(manifest, "contribute_url", ""):
+        url = manifest.contribute_url
+    endpoint = url or CONTRIBUTE_URL
+    if not endpoint:
+        return {"status": "error", "message": "Contribution URL not configured."}
+
     contribution.app_version = VERSION
 
     resp = requests.post(
-        CONTRIBUTE_URL,
+        endpoint,
         json=contribution.to_dict(),
         timeout=timeout,
         headers={"Content-Type": "application/json"},
@@ -171,6 +178,7 @@ def scan_and_submit(
     dlc_id: str,
     dlc_name: str,
     progress=None,
+    url: str = "",
 ) -> dict:
     """
     Scan a single DLC folder and submit its metadata.
@@ -180,6 +188,7 @@ def scan_and_submit(
         dlc_id: DLC ID to scan (e.g. "EP01").
         dlc_name: Human-readable DLC name.
         progress: Optional callback(current, total, filename).
+        url: Override the contribution API URL.
 
     Returns:
         API response dict.
@@ -202,4 +211,4 @@ def scan_and_submit(
         files=files,
     )
 
-    return submit_contribution(contribution)
+    return submit_contribution(contribution, url=url)

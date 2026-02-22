@@ -52,6 +52,7 @@ class Settings:
     last_known_version: str = ""
     enabled_dlcs: list[str] = field(default_factory=list)
     manifest_url: str = "https://cdn.hyperabyss.com/manifest.json"
+    contribute_url: str = "https://api.hyperabyss.com/contribute"
     theme: str = "dark"
     download_concurrency: int = 3
     download_speed_limit: int = 0  # MB/s, 0 = unlimited
@@ -63,6 +64,13 @@ class Settings:
     greenluma_manifest_dir: str = ""  # Path to directory containing .manifest files
     skip_game_update: bool = False  # DLC-only mode: skip base game updates
     window_geometry: str = ""  # Window size+position as "WxH+X+Y"
+
+    def __post_init__(self):
+        # Fill in critical URL defaults when empty (e.g. migrated from older settings)
+        if not self.manifest_url:
+            self.manifest_url = "https://cdn.hyperabyss.com/manifest.json"
+        if not self.contribute_url:
+            self.contribute_url = "https://api.hyperabyss.com/contribute"
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

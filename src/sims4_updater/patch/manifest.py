@@ -63,16 +63,17 @@ class ManifestDLC:
     pack_type: str = "other"
     names: dict[str, str] = field(default_factory=dict)
     description: str = ""
+    steam_app_id: int | None = None
 
 
 @dataclass
 class DLCDownloadEntry:
     """A downloadable DLC content archive."""
 
-    dlc_id: str       # e.g. "EP01"
-    url: str          # direct download URL
-    size: int = 0     # archive size in bytes
-    md5: str = ""     # verification hash
+    dlc_id: str  # e.g. "EP01"
+    url: str  # direct download URL
+    size: int = 0  # archive size in bytes
+    md5: str = ""  # verification hash
     filename: str = ""  # derived from URL if not specified
 
     def __post_init__(self):
@@ -82,8 +83,10 @@ class DLCDownloadEntry:
     def to_file_entry(self) -> FileEntry:
         """Convert to FileEntry for use with Downloader."""
         return FileEntry(
-            url=self.url, size=self.size,
-            md5=self.md5, filename=self.filename,
+            url=self.url,
+            size=self.size,
+            md5=self.md5,
+            filename=self.filename,
         )
 
 
@@ -91,10 +94,10 @@ class DLCDownloadEntry:
 class LanguageDownloadEntry:
     """A downloadable language pack (Strings file) archive."""
 
-    locale_code: str   # e.g. "da_DK"
-    url: str           # direct download URL
-    size: int = 0      # archive size in bytes
-    md5: str = ""      # verification hash
+    locale_code: str  # e.g. "da_DK"
+    url: str  # direct download URL
+    size: int = 0  # archive size in bytes
+    md5: str = ""  # verification hash
     filename: str = ""  # derived from URL if not specified
 
     def __post_init__(self):
@@ -104,9 +107,33 @@ class LanguageDownloadEntry:
     def to_file_entry(self) -> FileEntry:
         """Convert to FileEntry for use with Downloader."""
         return FileEntry(
-            url=self.url, size=self.size,
-            md5=self.md5, filename=self.filename,
+            url=self.url,
+            size=self.size,
+            md5=self.md5,
+            filename=self.filename,
         )
+
+
+@dataclass
+class ArchivedVersion:
+    """An archived version available for DLC/language download."""
+
+    version: str
+    date: str = ""
+    manifest_url: str = ""
+    dlc_count: int = 0
+    language_count: int = 0
+
+
+@dataclass
+class GreenLumaEntry:
+    """A GreenLuma depot entry with decryption key and manifest reference."""
+
+    depot_id: str
+    dlc_id: str = ""
+    key: str = ""  # 64-char hex decryption key
+    manifest_id: str = ""
+    manifest_url: str = ""  # CDN URL for the binary .manifest file
 
 
 @dataclass
@@ -125,6 +152,11 @@ class Manifest:
     dlc_catalog: list[ManifestDLC] = field(default_factory=list)
     dlc_downloads: dict[str, DLCDownloadEntry] = field(default_factory=dict)
     language_downloads: dict[str, LanguageDownloadEntry] = field(default_factory=dict)
+    archived_versions: dict[str, ArchivedVersion] = field(default_factory=dict)
+    entitlements_url: str = ""
+    self_update_url: str = ""
+    contribute_url: str = ""
+    greenluma: dict[str, GreenLumaEntry] = field(default_factory=dict)
 
     @property
     def patch_pending(self) -> bool:
@@ -175,32 +207,35 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
     if isinstance(raw_fp, dict):
         for version, hashes in raw_fp.items():
             if isinstance(hashes, dict):
-                fingerprints[version] = {
-                    str(k): str(v) for k, v in hashes.items()
-                }
+                fingerprints[version] = {str(k): str(v) for k, v in hashes.items()}
 
     # Parse optional new_dlcs list
     new_dlcs = []
     for dlc_raw in data.get("new_dlcs", []):
         if isinstance(dlc_raw, dict) and "id" in dlc_raw:
-            new_dlcs.append(PendingDLC(
-                id=dlc_raw["id"],
-                name=dlc_raw.get("name", dlc_raw["id"]),
-                status=dlc_raw.get("status", "pending"),
-            ))
+            new_dlcs.append(
+                PendingDLC(
+                    id=dlc_raw["id"],
+                    name=dlc_raw.get("name", dlc_raw["id"]),
+                    status=dlc_raw.get("status", "pending"),
+                )
+            )
 
     # Parse optional dlc_catalog list (remote catalog updates)
     dlc_catalog = []
     for dlc_raw in data.get("dlc_catalog", []):
         if isinstance(dlc_raw, dict) and "id" in dlc_raw:
-            dlc_catalog.append(ManifestDLC(
-                id=dlc_raw["id"],
-                code=dlc_raw.get("code", ""),
-                code2=dlc_raw.get("code2", ""),
-                pack_type=dlc_raw.get("type", "other"),
-                names=dlc_raw.get("names", {}),
-                description=dlc_raw.get("description", ""),
-            ))
+            dlc_catalog.append(
+                ManifestDLC(
+                    id=dlc_raw["id"],
+                    code=dlc_raw.get("code", ""),
+                    code2=dlc_raw.get("code2", ""),
+                    pack_type=dlc_raw.get("type", "other"),
+                    names=dlc_raw.get("names", {}),
+                    description=dlc_raw.get("description", ""),
+                    steam_app_id=dlc_raw.get("steam_app_id"),
+                )
+            )
 
     # Parse optional dlc_downloads: {dlc_id: {url, size, md5}}
     dlc_downloads = {}
@@ -230,6 +265,34 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                     filename=lang_data.get("filename", ""),
                 )
 
+    # Parse optional versions index: {version_str: {date, manifest_url, ...}}
+    archived_versions: dict[str, ArchivedVersion] = {}
+    raw_versions = data.get("versions", {})
+    if isinstance(raw_versions, dict):
+        for ver_str, ver_data in raw_versions.items():
+            if isinstance(ver_data, dict) and "manifest_url" in ver_data:
+                archived_versions[ver_str] = ArchivedVersion(
+                    version=ver_str,
+                    date=ver_data.get("date", ""),
+                    manifest_url=ver_data["manifest_url"],
+                    dlc_count=int(ver_data.get("dlc_count", 0)),
+                    language_count=int(ver_data.get("language_count", 0)),
+                )
+
+    # Parse optional greenluma: {depot_id: {dlc_id, key, manifest_id, manifest_url}}
+    greenluma: dict[str, GreenLumaEntry] = {}
+    raw_gl = data.get("greenluma", {})
+    if isinstance(raw_gl, dict):
+        for depot_id, gl_data in raw_gl.items():
+            if isinstance(gl_data, dict) and "key" in gl_data:
+                greenluma[depot_id] = GreenLumaEntry(
+                    depot_id=depot_id,
+                    dlc_id=gl_data.get("dlc_id", ""),
+                    key=gl_data.get("key", ""),
+                    manifest_id=gl_data.get("manifest_id", ""),
+                    manifest_url=gl_data.get("manifest_url", ""),
+                )
+
     return Manifest(
         latest=latest,
         patches=patches,
@@ -243,6 +306,11 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         dlc_catalog=dlc_catalog,
         dlc_downloads=dlc_downloads,
         language_downloads=language_downloads,
+        archived_versions=archived_versions,
+        entitlements_url=data.get("entitlements_url", ""),
+        self_update_url=data.get("self_update_url", ""),
+        contribute_url=data.get("contribute_url", ""),
+        greenluma=greenluma,
     )
 
 
@@ -253,12 +321,14 @@ def _parse_patch_entry(entry: dict) -> PatchEntry:
 
     files = []
     for f in entry.get("files", []):
-        files.append(FileEntry(
-            url=f["url"],
-            size=int(f.get("size", 0)),
-            md5=f.get("md5", ""),
-            filename=f.get("filename", ""),
-        ))
+        files.append(
+            FileEntry(
+                url=f["url"],
+                size=int(f.get("size", 0)),
+                md5=f.get("md5", ""),
+                filename=f.get("filename", ""),
+            )
+        )
 
     crack = None
     crack_data = entry.get("crack")

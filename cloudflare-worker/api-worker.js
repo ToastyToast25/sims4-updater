@@ -41,6 +41,11 @@ export default {
       return handleContribution(request, env);
     }
 
+    // GreenLuma key + manifest contribution
+    if (path === "/contribute/greenluma" && request.method === "POST") {
+      return handleGLContribution(request, env);
+    }
+
     // Admin routes
     if (path.startsWith("/admin")) {
       // Check admin auth
@@ -53,6 +58,9 @@ export default {
       if (path === "/admin/list" && request.method === "GET") {
         return listContributions(env);
       }
+      if (path === "/admin/gl/list" && request.method === "GET") {
+        return listGLContributions(env);
+      }
       if (path.startsWith("/admin/approve/") && (request.method === "POST" || request.method === "GET")) {
         const id = path.replace("/admin/approve/", "");
         return updateStatus(env, id, "approved");
@@ -60,6 +68,14 @@ export default {
       if (path.startsWith("/admin/reject/") && (request.method === "POST" || request.method === "GET")) {
         const id = path.replace("/admin/reject/", "");
         return updateStatus(env, id, "rejected");
+      }
+      if (path.startsWith("/admin/gl/approve/") && (request.method === "POST" || request.method === "GET")) {
+        const depotId = path.replace("/admin/gl/approve/", "");
+        return updateGLStatus(env, depotId, "approved");
+      }
+      if (path.startsWith("/admin/gl/reject/") && (request.method === "POST" || request.method === "GET")) {
+        const depotId = path.replace("/admin/gl/reject/", "");
+        return updateGLStatus(env, depotId, "rejected");
       }
     }
 
@@ -217,6 +233,226 @@ async function handleContribution(request, env) {
     message: `Contribution for ${body.dlc_id} submitted for review.`,
     id,
   });
+}
+
+// ---------------------------------------------------------------------------
+// GreenLuma contribution handling
+// ---------------------------------------------------------------------------
+
+async function handleGLContribution(request, env) {
+  // Rate limit (shared with file contributions)
+  if (await checkRateLimit(request, env)) {
+    return json({ error: "Rate limited. Max 5 submissions per hour." }, 429);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  if (!body.entries || !Array.isArray(body.entries) || body.entries.length === 0) {
+    return json({ error: "Missing required field: entries[] (non-empty array)" }, 400);
+  }
+
+  if (body.entries.length > 50) {
+    return json({ error: "Too many entries (max 50 per submission)" }, 400);
+  }
+
+  // Validate each entry
+  const validEntries = [];
+  for (const e of body.entries) {
+    if (!e.depot_id || !e.key || !e.manifest_id || !e.manifest_b64) {
+      return json({
+        error: `Entry ${e.depot_id || "?"}: missing required fields (depot_id, key, manifest_id, manifest_b64)`,
+      }, 400);
+    }
+    if (!/^\d+$/.test(e.depot_id)) {
+      return json({ error: `Invalid depot_id: ${e.depot_id} (must be numeric)` }, 400);
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(e.key)) {
+      return json({ error: `Invalid key for depot ${e.depot_id} (must be 64-char hex)` }, 400);
+    }
+    if (!/^\d+$/.test(e.manifest_id)) {
+      return json({ error: `Invalid manifest_id for depot ${e.depot_id} (must be numeric)` }, 400);
+    }
+
+    // Validate base64 and size
+    let decoded;
+    try {
+      decoded = atob(e.manifest_b64);
+    } catch {
+      return json({ error: `Invalid base64 for depot ${e.depot_id}` }, 400);
+    }
+    if (decoded.length > 500000) {
+      return json({ error: `Manifest too large for depot ${e.depot_id} (${decoded.length} bytes, max 500KB)` }, 400);
+    }
+    if (decoded.length < 10) {
+      return json({ error: `Manifest too small for depot ${e.depot_id} (${decoded.length} bytes)` }, 400);
+    }
+
+    validEntries.push({
+      depot_id: e.depot_id,
+      dlc_id: e.dlc_id || "",
+      dlc_name: e.dlc_name || "",
+      key: e.key.toLowerCase(),
+      manifest_id: e.manifest_id,
+      manifest_size: decoded.length,
+    });
+  }
+
+  // Store each entry
+  const stored = [];
+  const skipped = [];
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const now = new Date().toISOString();
+
+  for (const entry of validEntries) {
+    // Check for duplicate
+    const existing = await env.CONTRIBUTIONS.get(`gl:${entry.depot_id}`);
+    if (existing) {
+      const parsed = JSON.parse(existing);
+      if (parsed.status === "pending") {
+        skipped.push(entry.depot_id);
+        continue;
+      }
+    }
+
+    const record = {
+      id: `${Date.now()}-gl-${entry.depot_id}`,
+      ...entry,
+      status: "pending",
+      submitted_at: now,
+      ip,
+      app_version: body.app_version || "unknown",
+    };
+
+    // Store record (without manifest binary to keep it lean)
+    await env.CONTRIBUTIONS.put(`gl:${entry.depot_id}`, JSON.stringify(record));
+
+    // Store manifest binary separately
+    const matchingEntry = body.entries.find((e) => e.depot_id === entry.depot_id);
+    if (matchingEntry) {
+      await env.CONTRIBUTIONS.put(`gl_manifest:${entry.depot_id}`, matchingEntry.manifest_b64);
+    }
+
+    stored.push(entry.depot_id);
+  }
+
+  // Update GL index
+  const indexData = await env.CONTRIBUTIONS.get("gl_index");
+  const index = indexData ? JSON.parse(indexData) : [];
+  for (const depotId of stored) {
+    if (!index.includes(depotId)) {
+      index.push(depotId);
+    }
+  }
+  await env.CONTRIBUTIONS.put("gl_index", JSON.stringify(index));
+
+  // Discord notification
+  if (env.DISCORD_WEBHOOK && stored.length > 0) {
+    const pw = encodeURIComponent(env.ADMIN_PASSWORD);
+    const fields = validEntries
+      .filter((e) => stored.includes(e.depot_id))
+      .map((e) => ({
+        name: `${e.dlc_id || e.depot_id}`,
+        value: `Depot: ${e.depot_id}\nKey: \`${e.key.slice(0, 8)}...${e.key.slice(-8)}\`\nManifest: ${e.manifest_id} (${e.manifest_size} bytes)`,
+        inline: true,
+      }));
+
+    // Add approve/reject links for each entry
+    const actionLines = stored.map((d) =>
+      `[Approve ${d}](https://api.hyperabyss.com/admin/gl/approve/${d}?pw=${pw}) | [Reject](https://api.hyperabyss.com/admin/gl/reject/${d}?pw=${pw})`
+    );
+
+    const embed = {
+      title: `GreenLuma Keys: ${stored.length} depot(s)`,
+      color: 0x9b59b6,
+      fields: [
+        ...fields.slice(0, 20),
+        { name: "Actions", value: actionLines.join("\n") },
+        { name: "App Version", value: body.app_version || "unknown", inline: true },
+      ],
+      footer: { text: `IP: ${ip}` },
+      timestamp: now,
+    };
+
+    try {
+      await fetch(env.DISCORD_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "CDN Contributions", embeds: [embed] }),
+      });
+    } catch {
+      // Best effort
+    }
+  }
+
+  return json({
+    status: "accepted",
+    message: `${stored.length} depot(s) submitted, ${skipped.length} skipped (already pending).`,
+    stored,
+    skipped,
+  });
+}
+
+async function listGLContributions(env) {
+  const indexData = await env.CONTRIBUTIONS.get("gl_index");
+  const index = indexData ? JSON.parse(indexData) : [];
+
+  const contributions = [];
+  for (const depotId of index) {
+    const data = await env.CONTRIBUTIONS.get(`gl:${depotId}`);
+    if (data) {
+      contributions.push(JSON.parse(data));
+    }
+  }
+
+  contributions.sort((a, b) => {
+    if (a.status === "pending" && b.status !== "pending") return -1;
+    if (a.status !== "pending" && b.status === "pending") return 1;
+    return new Date(b.submitted_at) - new Date(a.submitted_at);
+  });
+
+  return json(contributions);
+}
+
+async function updateGLStatus(env, depotId, newStatus) {
+  const data = await env.CONTRIBUTIONS.get(`gl:${depotId}`);
+  if (!data) {
+    return json({ error: "GL contribution not found" }, 404);
+  }
+
+  const contribution = JSON.parse(data);
+  contribution.status = newStatus;
+  contribution.reviewed_at = new Date().toISOString();
+
+  await env.CONTRIBUTIONS.put(`gl:${depotId}`, JSON.stringify(contribution));
+
+  // Discord notification
+  if (env.DISCORD_WEBHOOK) {
+    const color = newStatus === "approved" ? 0x2ecc71 : 0xe74c3c;
+    try {
+      await fetch(env.DISCORD_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: "CDN Contributions",
+          embeds: [{
+            title: `GL ${depotId} ${newStatus.toUpperCase()}`,
+            color,
+            description: `GreenLuma depot ${depotId} (${contribution.dlc_id}) has been ${newStatus}.`,
+            timestamp: contribution.reviewed_at,
+          }],
+        }),
+      });
+    } catch {
+      // Best effort
+    }
+  }
+
+  return json({ status: newStatus, depot_id: depotId });
 }
 
 // ---------------------------------------------------------------------------

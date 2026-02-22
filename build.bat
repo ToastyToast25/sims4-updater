@@ -13,7 +13,7 @@ if errorlevel 1 (
 
 :: Install dependencies
 echo Installing dependencies...
-pip install -q customtkinter requests pywin32 pyinstaller
+pip install -q customtkinter requests pywin32 pyinstaller py7zr
 echo.
 
 :: Build

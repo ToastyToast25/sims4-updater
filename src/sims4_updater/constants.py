@@ -4,9 +4,14 @@ from pathlib import Path
 APP_NAME = "Sims 4 Updater"
 APP_VERSION = "2.0.0"
 
-# Manifest URL - configurable, backend-agnostic
-MANIFEST_URL = ""
-FALLBACK_MANIFEST_URLS = []
+# Manifest URL
+MANIFEST_URL = "https://cdn.hyperabyss.com/manifest.json"
+FALLBACK_MANIFEST_URLS = [
+    "https://raw.githubusercontent.com/ToastyToast25/sims4-updater/main/cloudflare-worker/manifest.json",
+]
+
+# Contribution API endpoint
+CONTRIBUTE_URL = "https://api.hyperabyss.com/contribute"
 
 # EA OAuth2
 EA_CLIENT_ID = "JUNO_PC_CLIENT"

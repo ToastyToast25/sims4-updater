@@ -188,6 +188,33 @@ class GreenLumaFrame(ctk.CTkFrame):
         )
         self._fix_btn.grid(row=0, column=5, padx=(5, 0), sticky="ew")
 
+        # Row 2: CDN key actions
+        self._apply_cdn_btn = ctk.CTkButton(
+            btn_frame,
+            text="Apply CDN Keys",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["accent"],
+            hover_color=theme.COLORS["accent_hover"],
+            command=self._on_apply_cdn_keys,
+        )
+        self._apply_cdn_btn.grid(row=1, column=0, columnspan=3, padx=(0, 5),
+                                 pady=(6, 0), sticky="ew")
+
+        self._contribute_btn = ctk.CTkButton(
+            btn_frame,
+            text="Contribute Keys",
+            font=ctk.CTkFont(size=13),
+            height=theme.BUTTON_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card_alt"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._on_contribute_keys,
+        )
+        self._contribute_btn.grid(row=1, column=3, columnspan=3, padx=(5, 0),
+                                  pady=(6, 0), sticky="ew")
+
         # ── Scrollable body (DLC readiness + log) ────────────────
         body = ctk.CTkFrame(self, fg_color="transparent")
         body.grid(row=1, column=0, sticky="nsew", padx=30, pady=(0, 15))
@@ -471,6 +498,8 @@ class GreenLumaFrame(ctk.CTkFrame):
         self._launch_btn.configure(state=state)
         self._apply_lua_btn.configure(state=state)
         self._fix_btn.configure(state=state)
+        self._apply_cdn_btn.configure(state=state)
+        self._contribute_btn.configure(state=state)
 
     # ── Install GreenLuma ────────────────────────────────────────
 
@@ -753,6 +782,151 @@ class GreenLumaFrame(ctk.CTkFrame):
             self.app.show_toast(f"Apply failed: {e}", "error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
+
+    # ── Apply CDN Keys ────────────────────────────────────────────
+
+    def _on_apply_cdn_keys(self):
+        if self._busy or not self._steam_info:
+            if not self._steam_info:
+                self.app.show_toast("Steam path not detected.", "warning")
+            return
+
+        # Check if CDN manifest has greenluma entries
+        manifest = getattr(self.app.updater.patch_client, "_manifest", None)
+        if not manifest or not getattr(manifest, "greenluma", None):
+            self.app.show_toast("No CDN keys available yet.", "info")
+            return
+
+        # Check Steam is not running
+        from ...greenluma.steam import is_steam_running
+
+        if is_steam_running():
+            self.app.show_toast("Close Steam before applying CDN keys.", "warning")
+            return
+
+        self._set_busy(True)
+        self._log("--- Applying CDN Keys ---")
+        steam_info = self._steam_info
+        gl_entries = manifest.greenluma
+
+        def _bg():
+            from ...greenluma.orchestrator import GreenLumaOrchestrator
+            orch = GreenLumaOrchestrator(steam_info)
+            return orch.apply_cdn_keys(
+                gl_entries, progress=self._enqueue_log
+            )
+
+        def _done(result):
+            self._set_busy(False)
+            keys, manifests, applist_count = result
+            msg = (
+                f"Applied: {keys} keys, {manifests} manifests, "
+                f"{applist_count} AppList entries"
+            )
+            self._log(msg)
+            self.app.show_toast(msg, "success")
+            self._refresh_status()
+
+        def _err(e):
+            self._set_busy(False)
+            self._enqueue_log(f"Apply CDN keys failed: {e}")
+            self.app.show_toast(f"Apply CDN keys failed: {e}", "error")
+
+        self.app.run_async(_bg, on_done=_done, on_error=_err)
+
+    # ── Contribute Keys ───────────────────────────────────────────
+
+    def _on_contribute_keys(self):
+        if self._busy or not self._steam_info:
+            if not self._steam_info:
+                self.app.show_toast("Steam path not detected.", "warning")
+            return
+
+        if not self._readiness:
+            self.app.show_toast("DLC readiness not loaded yet.", "info")
+            return
+
+        # Check if there are any incomplete DLCs
+        incomplete = [r for r in self._readiness if not r.ready]
+        if not incomplete:
+            self.app.show_toast("All DLCs are already ready!", "success")
+            return
+
+        self._set_busy(True)
+        self._log("--- Scanning for contributable keys ---")
+        steam_info = self._steam_info
+        readiness = self._readiness
+
+        def _bg():
+            from ...greenluma.contribute import scan_gl_contributions
+            result = scan_gl_contributions(
+                steam_info, readiness, progress=self._enqueue_log
+            )
+            return result
+
+        def _scan_done(scan_result):
+            if scan_result.count == 0:
+                self._set_busy(False)
+                self._log(
+                    f"No contributable data found. "
+                    f"Missing key: {len(scan_result.skipped_no_key)}, "
+                    f"Missing manifest: {len(scan_result.skipped_no_manifest)}"
+                )
+                self.app.show_toast(
+                    "No keys/manifests found for incomplete DLCs on this machine.",
+                    "info",
+                )
+                return
+
+            # Confirm before submitting
+            names = ", ".join(c.dlc_id for c in scan_result.contributions)
+            confirm = tkinter.messagebox.askyesno(
+                "Contribute GreenLuma Keys",
+                f"Found keys + manifests for {scan_result.count} DLC(s):\n\n"
+                f"{names}\n\n"
+                f"Submit to CDN for review?",
+                parent=self.winfo_toplevel(),
+            )
+            if not confirm:
+                self._set_busy(False)
+                self._log("Contribution cancelled by user.")
+                return
+
+            # Submit in background
+            self._log(f"Submitting {scan_result.count} depot(s)...")
+            contributions = scan_result.contributions
+
+            def _submit_bg():
+                from ...greenluma.contribute import submit_gl_contribution
+                return submit_gl_contribution(contributions)
+
+            def _submit_done(resp):
+                self._set_busy(False)
+                status = resp.get("status", "error")
+                message = resp.get("message", "Unknown response")
+                if status == "accepted":
+                    self.app.show_toast(message, "success")
+                    self._log(f"Submitted: {message}")
+                elif status == "rate_limited":
+                    self.app.show_toast(message, "warning")
+                    self._log(f"Rate limited: {message}")
+                else:
+                    self.app.show_toast(message, "error")
+                    self._log(f"Submit error: {message}")
+
+            def _submit_err(e):
+                self._set_busy(False)
+                self._enqueue_log(f"Submit failed: {e}")
+                self.app.show_toast(f"Submit failed: {e}", "error")
+
+            self.app.run_async(_submit_bg, on_done=_submit_done, on_error=_submit_err)
+
+        def _err(e):
+            self._set_busy(False)
+            self._enqueue_log(f"Scan failed: {e}")
+            self.app.show_toast(f"Scan failed: {e}", "error")
+
+        self.app.run_async(_bg, on_done=_scan_done, on_error=_err)
 
     # ── Fix AppList ──────────────────────────────────────────────
 

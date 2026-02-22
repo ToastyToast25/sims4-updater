@@ -165,6 +165,7 @@ sims4-updater/                         # Project root
         lua_parser.py                  # LUA manifest file parser (addappid/setManifestid)
         manifest_cache.py              # depotcache .manifest file management
         orchestrator.py                # High-level GL operations (readiness, apply LUA, verify)
+        contribute.py                  # GL contribution scanner: extracts depot keys from config.vdf and .manifest files from depotcache for incomplete DLCs, base64 encodes manifests, submits to contribution API
       language/
         __init__.py
         changer.py                     # LANGUAGES dict, get/set registry + RldOrigin.ini
@@ -720,8 +721,11 @@ Manifest
   ├── fingerprints: dict[version, dict[sentinel, md5]]
   ├── new_dlcs: list[PendingDLC]
   ├── dlc_catalog: list[ManifestDLC]
-  └── dlc_downloads: dict[dlc_id, DLCDownloadEntry]
+  ├── dlc_downloads: dict[dlc_id, DLCDownloadEntry]
+  └── greenluma_entries: list[GreenLumaEntry]
 ```
+
+`GreenLumaEntry` carries the depot ID, decryption key, manifest ID, and CDN URL for a single Steam depot, used by the CDN key application pipeline to populate `config.vdf` and `depotcache/` for incomplete DLCs.
 
 `patch_pending` is a computed property: `bool(game_latest and game_latest != latest)`. It signals to the UI that a newer EA release exists but no patch for it is available yet.
 
@@ -1234,6 +1238,8 @@ class VerifyResult:
 
 `fix_applist(steam_info, catalog)` — Reads the AppList, removes duplicates, and adds any DLC Steam App IDs from the catalog that are missing. Returns `(added_count, removed_duplicates_count)`.
 
+`apply_cdn_keys(manifest, steam_info, log)` — Downloads GreenLuma key and manifest data from the CDN entries declared in the patch manifest's `greenluma_entries` list, writes each depot decryption key into `config.vdf`, and places the corresponding `.manifest` file into `depotcache/`. Intended for DLCs that are incomplete (missing key or manifest) after a standard LUA apply. Returns an `ApplyResult` with counts of keys and manifests written.
+
 ---
 
 ## 6. Layer 3: GUI
@@ -1634,7 +1640,7 @@ The GreenLuma Manager tab is the primary interface for all GreenLuma operations.
 - Steam — running/not-running badge (mutations are blocked while Steam is running)
 - Summary — count of ready DLCs vs. total catalog entries
 
-**Action button bar** (six buttons, full-width):
+**Action button bar** (eight buttons, full-width):
 
 | Button | Action |
 | --- | --- |
@@ -1644,6 +1650,8 @@ The GreenLuma Manager tab is the primary interface for all GreenLuma operations.
 | Launch via GL | Spawn `DLLInjector.exe` as a detached process |
 | Apply LUA | Run the full `orchestrator.apply_lua()` pipeline |
 | Fix AppList | Deduplicate AppList and fill in any missing catalog IDs |
+| Apply CDN Keys | Run `orchestrator.apply_cdn_keys()` to download and apply depot keys/manifests from the CDN manifest for any incomplete DLCs |
+| Contribute Keys | Run the `contribute.py` scanner to extract depot keys and base64-encoded manifests from the local Steam installation and submit them to the contribution API |
 
 **DLC Readiness list** — a scrollable list showing every catalog DLC that has a `steam_app_id`, with three inline indicators (AppList, Key, Manifest) displayed as colored checkmarks or dashes. A filter segmented control allows switching between All / Ready / Incomplete views.
 
