@@ -47,15 +47,20 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
+      - name: Move patcher to expected location
+        shell: bash
+        run: |
+          if [ -d patcher ]; then
+            mv patcher ../patcher
+          fi
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
       - name: Run tests
-        run: |
-          $env:PYTHONPATH = "src"
-          python -m pytest tests/ -v --tb=short
+        run: python -m pytest tests/ -v --tb=short
 
   build-check:
     runs-on: windows-latest

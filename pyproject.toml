@@ -19,6 +19,12 @@ dev = [
     "ruff>=0.8.0",
     "pyinstaller>=6.11",
 ]
+cdn = [
+    "paramiko>=3.0",
+    "bcrypt>=4.0",
+    "cryptography>=41.0",
+    "pynacl>=1.5",
+]
 
 [project.scripts]
 sims4-updater = "sims4_updater.__main__:main"
@@ -38,3 +44,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

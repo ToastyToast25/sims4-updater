@@ -578,7 +578,9 @@ def main():
 
             launch()
         except ImportError:
-            print("Sims 4 Updater v2.0.0")
+            from sims4_updater import VERSION
+
+            print(f"Sims 4 Updater v{VERSION}")
             print("GUI requires customtkinter: pip install customtkinter")
             print()
             print("Commands:")

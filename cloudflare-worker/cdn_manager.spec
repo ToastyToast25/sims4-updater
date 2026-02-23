@@ -71,6 +71,8 @@ a = Analysis(
         'patcher.patch_maker',
         'patcher.patcher',
         'patcher.myzipfile',
+        'patcher.cache',
+        'patcher.subprocess_',
         'patcher.files',
         'patcher.utils',
         'patcher.exceptions',

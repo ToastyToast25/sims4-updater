@@ -562,7 +562,7 @@ sims4-updater/
 │   │           ├── diagnostics_frame.py # System checks and file validator
 │   │           ├── settings_frame.py    # Settings (2-card layout: Game & Updates / GreenLuma)
 │   │           └── progress_frame.py    # Live progress bars, log, cancel button
-│   └── patch_maker/                 # Patch creation CLI tool (registered as patch-maker entry point)
+│   └── mods/                        # Mod management — install/enable/disable bundled mods
 ├── data/
 │   ├── version_hashes.json          # Bundled sentinel-file hash database (135+ versions)
 │   └── dlc_catalog.json             # All 109 DLCs with localized names, pack types, Steam App IDs

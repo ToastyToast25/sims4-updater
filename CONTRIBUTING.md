@@ -636,6 +636,7 @@ Full technical documentation lives in the `Documentation/` directory. Read these
 | `Documentation/DLC_Management_System.md` | DLC catalog, all five crack config formats, download pipeline, EA Unlocker, Steam pricing |
 | `Documentation/DLC_Packer_and_Distribution.md` | DLC packer class, ZIP format spec, manifest generation, import flow, distribution workflow |
 | `Documentation/GreenLuma_Integration.md` | GreenLuma 2025 installation, configuration, and Steam launch orchestration |
+| `Documentation/CDN_Infrastructure.md` | Cloudflare Worker proxy, KV routing, seedbox integration, CDN Manager GUI |
 
 The `Architecture_and_Developer_Guide.md` is the best starting point for understanding how the pieces fit together.
 
@@ -699,7 +700,7 @@ Two modules were added to `src/sims4_updater/core/` in version 2.3.0:
 
 | Module | Purpose |
 | --- | --- |
-| `core/process.py` | Subprocess management utilities — launching external tools (xdelta3, unrar, DepotDownloader) with controlled stdout/stderr capture and timeout handling |
+| `core/process.py` | Game process detection — `is_game_running()`, `get_game_pid()`, `kill_game_process()` for checking and managing running Sims 4 instances |
 | `core/backup.py` | Pre-patch backup management — creates timestamped snapshots of files scheduled for modification, stores them under `sims4_updater_backups/`, and exposes a restore API consumed by the Settings tab |
 
 When contributing features that invoke external processes, prefer the helpers in `core/process.py` over calling `subprocess` directly. When modifying files in place during patching, check whether `backup_enabled` is set in `Settings` and call the appropriate `core/backup.py` function before overwriting.

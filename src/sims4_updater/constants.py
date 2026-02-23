@@ -10,11 +10,6 @@ FALLBACK_MANIFEST_URLS: list[str] = []
 # Contribution API endpoint
 CONTRIBUTE_URL = "https://api.hyperabyss.com/contribute"
 
-# EA OAuth2
-EA_CLIENT_ID = "JUNO_PC_CLIENT"
-EA_AUTH_URL = "https://accounts.ea.com/connect/auth"
-EA_TOKEN_URL = "https://accounts.ea.com/connect/token"
-
 # The Sims 4 registry keys for auto-detection
 REGISTRY_PATHS = [
     r"SOFTWARE\Maxis\The Sims 4",
