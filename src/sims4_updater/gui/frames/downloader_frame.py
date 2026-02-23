@@ -900,7 +900,12 @@ class DownloaderFrame(ctk.CTkFrame):
             results = downloader.download_parallel(entries, progress=progress_cb)
             self.app._enqueue_gui(self._on_downloads_done, results)
         except Exception as e:
-            self.app._enqueue_gui(self._on_downloads_error, e)
+            from ...core.exceptions import AccessRequiredError, BannedError
+
+            if isinstance(e, (BannedError, AccessRequiredError)):
+                self.app._enqueue_gui(self.app._show_error, e)
+            else:
+                self.app._enqueue_gui(self._on_downloads_error, e)
         finally:
             self._active_downloader = None
             downloader.close()
