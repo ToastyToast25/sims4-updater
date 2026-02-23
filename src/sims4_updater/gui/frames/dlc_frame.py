@@ -1304,6 +1304,7 @@ class DLCFrame(ctk.CTkFrame):
     def _fetch_dlc_downloads_bg(self):
         """Background: fetch manifest and return dlc_downloads dict."""
         manifest = self.app.updater.patch_client.fetch_manifest()
+        self.app.ensure_cdn_auth()
         return manifest.dlc_downloads
 
     def _on_dlc_downloads_loaded(self, dlc_downloads):

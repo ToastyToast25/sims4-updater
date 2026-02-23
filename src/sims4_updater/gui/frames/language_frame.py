@@ -375,6 +375,7 @@ class LanguageFrame(ctk.CTkFrame):
                 if manifest_url:
                     client = self.app.updater.patch_client
                     main_manifest = client.fetch_manifest()
+                    self.app.ensure_cdn_auth()
 
                     # Build version choices from archived versions
                     for ver_str in sorted(
