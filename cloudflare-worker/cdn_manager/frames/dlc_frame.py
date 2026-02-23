@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import StatusBadge, LogPanel
+from ..components import LogPanel, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -34,7 +34,8 @@ class DLCFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="DLC Upload",
+            self,
+            text="DLC Upload",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
@@ -49,7 +50,9 @@ class DLCFrame(ctk.CTkFrame):
         path_frame.grid_columnconfigure(0, weight=1)
 
         self._game_dir_entry = ctk.CTkEntry(
-            path_frame, font=ctk.CTkFont(size=12), height=36,
+            path_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text="Game directory...",
         )
         self._game_dir_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
@@ -57,7 +60,10 @@ class DLCFrame(ctk.CTkFrame):
             self._game_dir_entry.insert(0, self.app.config_data.game_dir)
 
         ctk.CTkButton(
-            path_frame, text="Browse", height=36, width=80,
+            path_frame,
+            text="Browse",
+            height=36,
+            width=80,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_game_dir,
         ).grid(row=0, column=1)
@@ -67,7 +73,9 @@ class DLCFrame(ctk.CTkFrame):
         btn_row.grid(row=1, column=0, pady=(8, 0), sticky="ew")
 
         self._scan_btn = ctk.CTkButton(
-            btn_row, text="Scan", height=32,
+            btn_row,
+            text="Scan",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -76,7 +84,9 @@ class DLCFrame(ctk.CTkFrame):
         self._scan_btn.pack(side="left", padx=(0, 4))
 
         self._upload_btn = ctk.CTkButton(
-            btn_row, text="Upload Selected", height=32,
+            btn_row,
+            text="Upload Selected",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
             hover_color="#3ae882",
@@ -87,7 +97,9 @@ class DLCFrame(ctk.CTkFrame):
         self._upload_btn.pack(side="left", padx=(0, 4))
 
         self._resume_btn = ctk.CTkButton(
-            btn_row, text="Resume Upload", height=32,
+            btn_row,
+            text="Resume Upload",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["warning"],
             hover_color="#ffc048",
@@ -96,7 +108,9 @@ class DLCFrame(ctk.CTkFrame):
         )
 
         self._cancel_btn = ctk.CTkButton(
-            btn_row, text="Cancel", height=32,
+            btn_row,
+            text="Cancel",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
@@ -105,7 +119,10 @@ class DLCFrame(ctk.CTkFrame):
 
         # Selection helpers
         ctk.CTkButton(
-            btn_row, text="All", height=28, width=50,
+            btn_row,
+            text="All",
+            height=28,
+            width=50,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -114,7 +131,10 @@ class DLCFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(12, 2))
 
         ctk.CTkButton(
-            btn_row, text="Missing", height=28, width=65,
+            btn_row,
+            text="Missing",
+            height=28,
+            width=65,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -123,7 +143,10 @@ class DLCFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 2))
 
         ctk.CTkButton(
-            btn_row, text="None", height=28, width=50,
+            btn_row,
+            text="None",
+            height=28,
+            width=50,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -134,21 +157,31 @@ class DLCFrame(ctk.CTkFrame):
         # Force checkbox
         self._force_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
-            btn_row, text="Force", variable=self._force_var,
-            font=ctk.CTkFont(size=11), height=28, width=60,
-            checkbox_width=16, checkbox_height=16,
+            btn_row,
+            text="Force",
+            variable=self._force_var,
+            font=ctk.CTkFont(size=11),
+            height=28,
+            width=60,
+            checkbox_width=16,
+            checkbox_height=16,
         ).pack(side="left", padx=(12, 0))
 
         # Workers
         ctk.CTkLabel(
-            btn_row, text="Workers:",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            btn_row,
+            text="Workers:",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         ).pack(side="left", padx=(12, 4))
 
         self._worker_var = ctk.StringVar(value="Auto")
         ctk.CTkOptionMenu(
-            btn_row, values=["Auto"] + [str(i) for i in range(1, 11)],
-            variable=self._worker_var, width=70, height=28,
+            btn_row,
+            values=["Auto"] + [str(i) for i in range(1, 11)],
+            variable=self._worker_var,
+            width=70,
+            height=28,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             button_color=theme.COLORS["bg_card_alt"],
@@ -158,26 +191,32 @@ class DLCFrame(ctk.CTkFrame):
         # Progress (hidden initially)
         self._progress_frame = ctk.CTkFrame(self, fg_color="transparent", height=70)
         self._progress_bar = ctk.CTkProgressBar(
-            self._progress_frame, height=16,
+            self._progress_frame,
+            height=16,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             progress_color=theme.COLORS["accent"],
         )
         self._progress_bar.pack(fill="x", padx=0, pady=(0, 2))
         self._progress_bar.set(0)
         self._progress_label = ctk.CTkLabel(
-            self._progress_frame, text="",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            self._progress_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         )
         self._progress_label.pack(anchor="w")
 
         # Sub-progress: current DLC byte-level
         self._sub_progress_label = ctk.CTkLabel(
-            self._progress_frame, text="",
-            font=ctk.CTkFont(size=10), text_color=theme.COLORS["text_dim"],
+            self._progress_frame,
+            text="",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["text_dim"],
         )
         self._sub_progress_label.pack(anchor="w", pady=(2, 0))
         self._sub_progress_bar = ctk.CTkProgressBar(
-            self._progress_frame, height=8,
+            self._progress_frame,
+            height=8,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             progress_color=theme.COLORS["success"],
         )
@@ -190,20 +229,27 @@ class DLCFrame(ctk.CTkFrame):
 
         # DLC list
         self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color=theme.COLORS["bg_dark"],
+            self,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS,
-            border_width=1, border_color=theme.COLORS["border"],
+            border_width=1,
+            border_color=theme.COLORS["border"],
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
         self._scroll.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 4),
+            sticky="nsew",
         )
         for col, w in [(0, 30), (1, 60), (2, 0), (3, 80), (4, 80), (5, 90)]:
             self._scroll.grid_columnconfigure(col, weight=1 if w == 0 else 0, minsize=w)
 
         self._placeholder = ctk.CTkLabel(
-            self._scroll, text="Click 'Scan' to detect installed DLCs",
+            self._scroll,
+            text="Click 'Scan' to detect installed DLCs",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
@@ -218,6 +264,7 @@ class DLCFrame(ctk.CTkFrame):
 
     def _browse_game_dir(self):
         from tkinter import filedialog
+
         path = filedialog.askdirectory(title="Select Sims 4 Game Directory")
         if path:
             self._game_dir_entry.delete(0, "end")
@@ -233,17 +280,22 @@ class DLCFrame(ctk.CTkFrame):
         self._log.log("Scanning for installed DLCs...")
         self._scan_btn.configure(state="disabled")
         self.app.run_async(
-            self._bg_scan, game_dir,
+            self._bg_scan,
+            game_dir,
             on_done=self._on_scan_done,
             on_error=self._on_scan_error,
         )
 
     def _bg_scan(self, game_dir: str):
-        from ..backend.dlc_ops import (
-            scan_installed_dlcs, load_dlc_catalog, get_dlc_name,
-            get_dlc_type, get_folder_size, fmt_size,
-        )
         from ..backend.connection import ConnectionManager
+        from ..backend.dlc_ops import (
+            fmt_size,
+            get_dlc_name,
+            get_dlc_type,
+            get_folder_size,
+            load_dlc_catalog,
+            scan_installed_dlcs,
+        )
 
         game_path = Path(game_dir)
         dlcs = scan_installed_dlcs(game_path)
@@ -253,20 +305,21 @@ class DLCFrame(ctk.CTkFrame):
         for dlc_id in dlcs:
             dlc_dir = game_path / dlc_id
             folder_size = get_folder_size(dlc_dir) if dlc_dir.is_dir() else 0
-            dlc_info.append({
-                "id": dlc_id,
-                "name": get_dlc_name(catalog, dlc_id),
-                "type": get_dlc_type(catalog, dlc_id),
-                "size": folder_size,
-                "size_str": fmt_size(folder_size),
-            })
+            dlc_info.append(
+                {
+                    "id": dlc_id,
+                    "name": get_dlc_name(catalog, dlc_id),
+                    "type": get_dlc_type(catalog, dlc_id),
+                    "size": folder_size,
+                    "size_str": fmt_size(folder_size),
+                }
+            )
 
         # Check CDN status via KV listing
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         cdn_keys = conn.kv_list()
         cdn_dlcs = {
-            k.replace("dlc/", "").replace(".zip", "")
-            for k in cdn_keys if k.startswith("dlc/")
+            k.replace("dlc/", "").replace(".zip", "") for k in cdn_keys if k.startswith("dlc/")
         }
 
         statuses = {}
@@ -287,7 +340,8 @@ class DLCFrame(ctk.CTkFrame):
 
         if not dlc_info:
             ctk.CTkLabel(
-                self._scroll, text="No DLCs found in the game directory",
+                self._scroll,
+                text="No DLCs found in the game directory",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=6, pady=40)
@@ -297,14 +351,18 @@ class DLCFrame(ctk.CTkFrame):
         # Headers
         for col, text in enumerate(["", "ID", "Name", "Type", "Size", "Status"]):
             ctk.CTkLabel(
-                self._scroll, text=text,
+                self._scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=4, pady=(4, 6), sticky="w")
 
         type_colors = {
-            "expansion": "#e94560", "game_pack": "#6c5ce7",
-            "stuff_pack": "#00b894", "kit": "#fdcb6e", "free_pack": "#74b9ff",
+            "expansion": "#e94560",
+            "game_pack": "#6c5ce7",
+            "stuff_pack": "#00b894",
+            "kit": "#fdcb6e",
+            "free_pack": "#74b9ff",
         }
 
         for i, info in enumerate(dlc_info):
@@ -314,29 +372,39 @@ class DLCFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=(status == "missing"))
             ctk.CTkCheckBox(
-                self._scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=16, checkbox_height=16,
+                self._scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16,
             ).grid(row=row, column=0, padx=4, pady=2)
 
             ctk.CTkLabel(
-                self._scroll, text=dlc_id,
+                self._scroll,
+                text=dlc_id,
                 font=ctk.CTkFont("Consolas", 11),
             ).grid(row=row, column=1, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=info["name"],
+                self._scroll,
+                text=info["name"],
                 font=ctk.CTkFont(size=11),
             ).grid(row=row, column=2, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=info["type"].replace("_", " ").title(),
+                self._scroll,
+                text=info["type"].replace("_", " ").title(),
                 font=ctk.CTkFont(size=10),
                 text_color=type_colors.get(info["type"], theme.COLORS["text_muted"]),
             ).grid(row=row, column=3, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=info["size_str"],
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._scroll,
+                text=info["size_str"],
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=4, padx=4, pady=2, sticky="e")
 
             badge = StatusBadge(self._scroll)
@@ -358,6 +426,7 @@ class DLCFrame(ctk.CTkFrame):
 
         # Check for resumable upload session
         from ..backend.dlc_ops import get_pending_resume
+
         remaining = get_pending_resume()
         if remaining:
             # Filter to DLCs that are actually in our scan list
@@ -427,10 +496,18 @@ class DLCFrame(ctk.CTkFrame):
 
         # Show progress
         self._progress_frame.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 0), sticky="ew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 0),
+            sticky="ew",
         )
         self._scroll.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(80, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(80, 4),
+            sticky="nsew",
         )
         self._progress_bar.set(0)
         self._sub_progress_bar.set(0)
@@ -451,11 +528,14 @@ class DLCFrame(ctk.CTkFrame):
         ).start()
 
     def _bg_upload(self, game_dir: str, dlc_ids: list[str], num_workers: int, force: bool):
-        from ..backend.dlc_ops import (
-            process_single_dlc, fmt_size,
-            start_upload_session, record_dlc_complete, finish_upload_session,
-        )
         from ..backend.connection import ConnectionManager
+        from ..backend.dlc_ops import (
+            finish_upload_session,
+            fmt_size,
+            process_single_dlc,
+            record_dlc_complete,
+            start_upload_session,
+        )
 
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         game_path = Path(game_dir)
@@ -482,8 +562,12 @@ class DLCFrame(ctk.CTkFrame):
                     return
                 last_sub_update[0] = now
                 self.app._enqueue_gui(
-                    self._update_sub_progress, dlc_id, sent, total_bytes,
+                    self._update_sub_progress,
+                    dlc_id,
+                    sent,
+                    total_bytes,
                 )
+
             return progress_cb
 
         def log(msg, level="info"):
@@ -496,7 +580,10 @@ class DLCFrame(ctk.CTkFrame):
                     break
                 future = pool.submit(
                     process_single_dlc,
-                    game_path, dlc_id, conn, output_dir,
+                    game_path,
+                    dlc_id,
+                    conn,
+                    output_dir,
                     force=force,
                     cancel_event=self._cancel_event,
                     log_cb=log,
@@ -528,7 +615,11 @@ class DLCFrame(ctk.CTkFrame):
                 progress = completed / total
                 elapsed = time.time() - start_time
                 self.app._enqueue_gui(
-                    self._update_progress, progress, completed, total, elapsed,
+                    self._update_progress,
+                    progress,
+                    completed,
+                    total,
+                    elapsed,
                 )
 
         # Mark session complete if all finished without cancellation
@@ -538,6 +629,7 @@ class DLCFrame(ctk.CTkFrame):
         # Auto-update manifest with new DLC entries
         if uploaded_entries and not self._cancel_event.is_set():
             from ..backend.manifest_ops import merge_dlc_entries_and_publish
+
             merge_dlc_entries_and_publish(conn, uploaded_entries, log_cb=log)
 
         total_time = time.time() - start_time
@@ -549,8 +641,11 @@ class DLCFrame(ctk.CTkFrame):
             self._cancel_btn.pack_forget()
             self._progress_frame.grid_forget()
             self._scroll.grid(
-                row=2, column=0,
-                padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew",
+                row=2,
+                column=0,
+                padx=theme.SECTION_PAD,
+                pady=(10, 4),
+                sticky="nsew",
             )
             self.app.end_operation()
             msg = f"Upload complete: {uploaded} uploaded"
@@ -586,6 +681,7 @@ class DLCFrame(ctk.CTkFrame):
 
     def _update_sub_progress(self, dlc_id: str, sent: int, total_bytes: int):
         from ..backend.dlc_ops import fmt_size
+
         if total_bytes > 0:
             pct = sent / total_bytes
             self._sub_progress_bar.set(pct)

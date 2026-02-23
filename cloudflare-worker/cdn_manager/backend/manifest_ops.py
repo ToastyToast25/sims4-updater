@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from .connection import CDN_DOMAIN, ConnectionManager
+from .connection import ConnectionManager
 from .dlc_ops import fmt_size
 
 
@@ -49,8 +49,7 @@ def audit_dlc_entries(
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(_check, dlc_id, entry): dlc_id
-            for dlc_id, entry in dlc_downloads.items()
+            pool.submit(_check, dlc_id, entry): dlc_id for dlc_id, entry in dlc_downloads.items()
         }
         for done_count, future in enumerate(as_completed(futures), 1):
             results.append(future.result())
@@ -90,8 +89,7 @@ def audit_language_entries(
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
-            pool.submit(_check, locale, entry): locale
-            for locale, entry in lang_downloads.items()
+            pool.submit(_check, locale, entry): locale for locale, entry in lang_downloads.items()
         }
         for done_count, future in enumerate(as_completed(futures), 1):
             results.append(future.result())
@@ -109,10 +107,9 @@ def fix_sizes(
     """Fix entries with wrong/zero sizes. Returns list of (id, issue, old, new)."""
     fixes = []
     for entry_id, issue, manifest_size, real_size, _ in audit_results:
-        if issue in ("size_zero", "size_mismatch") and real_size > 0:
-            if entry_id in downloads:
-                downloads[entry_id]["size"] = real_size
-                fixes.append((entry_id, issue, manifest_size, real_size))
+        if issue in ("size_zero", "size_mismatch") and real_size > 0 and entry_id in downloads:
+            downloads[entry_id]["size"] = real_size
+            fixes.append((entry_id, issue, manifest_size, real_size))
     return fixes
 
 
@@ -142,9 +139,7 @@ def diff_manifests(original: dict, modified: dict) -> list[str]:
         old_size = original["dlc_downloads"][dlc_id].get("size", 0)
         new_size = modified["dlc_downloads"][dlc_id].get("size", 0)
         if old_size != new_size:
-            changes.append(
-                f"DLC {dlc_id} size: {fmt_size(old_size)} -> {fmt_size(new_size)}"
-            )
+            changes.append(f"DLC {dlc_id} size: {fmt_size(old_size)} -> {fmt_size(new_size)}")
 
     # Language changes
     old_langs = set(original.get("language_downloads", {}).keys())
@@ -210,6 +205,7 @@ def merge_dlc_entries_and_publish(
     new_entries: {dlc_id: {url, size, md5, filename}}
     Returns True on success.
     """
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
@@ -254,6 +250,7 @@ def merge_language_entries_and_publish(
     new_entries: {locale: {url, size, md5, filename}}
     Returns True on success.
     """
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
@@ -292,7 +289,10 @@ def _publish_manifest_dict(conn: ConnectionManager, manifest: dict, log) -> bool
 
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8",
+            mode="w",
+            suffix=".json",
+            delete=False,
+            encoding="utf-8",
         ) as tmp:
             json.dump(manifest, tmp, indent=2, ensure_ascii=False)
             tmp_path = Path(tmp.name)
@@ -331,9 +331,9 @@ def detect_orphans(
 
     # Content keys only (skip metadata-like keys)
     content_keys = {
-        k for k in kv_keys
-        if k.startswith(("dlc/", "language/", "patches/", "archives/"))
-        or k == "manifest.json"
+        k
+        for k in kv_keys
+        if k.startswith(("dlc/", "language/", "patches/", "archives/")) or k == "manifest.json"
     }
 
     in_kv_not_manifest = sorted(content_keys - expected_keys)

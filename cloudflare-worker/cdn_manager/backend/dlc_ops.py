@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Event
 
@@ -16,6 +16,7 @@ STATE_FILE = Path(__file__).resolve().parent.parent.parent / "upload_state.json"
 
 
 # -- Upload state persistence -----------------------------------------------
+
 
 def load_upload_state() -> dict:
     """Load the upload state file. Returns empty dict if missing/corrupt."""
@@ -30,7 +31,8 @@ def load_upload_state() -> dict:
 def save_upload_state(state: dict) -> None:
     """Write the upload state file."""
     STATE_FILE.write_text(
-        json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8",
+        json.dumps(state, indent=2, ensure_ascii=False),
+        encoding="utf-8",
     )
 
 
@@ -38,7 +40,7 @@ def start_upload_session(dlc_ids: list[str]) -> dict:
     """Create a new upload session in the state file."""
     state = {
         "session": {
-            "started": datetime.now(timezone.utc).isoformat(),
+            "started": datetime.now(UTC).isoformat(),
             "dlc_ids": dlc_ids,
             "completed": {},
             "finished": False,
@@ -55,7 +57,7 @@ def record_dlc_complete(dlc_id: str, entry: dict) -> None:
     completed = session.get("completed", {})
     completed[dlc_id] = {
         **entry,
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
     }
     session["completed"] = completed
     state["session"] = session

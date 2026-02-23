@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import StatusBadge, LogPanel
+from ..components import LogPanel, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -32,7 +32,8 @@ class ManifestFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="Manifest Editor",
+            self,
+            text="Manifest Editor",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
@@ -41,7 +42,9 @@ class ManifestFrame(ctk.CTkFrame):
         header.grid(row=1, column=0, padx=theme.SECTION_PAD, sticky="ew")
 
         self._load_btn = ctk.CTkButton(
-            header, text="Load from CDN", height=32,
+            header,
+            text="Load from CDN",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -50,7 +53,9 @@ class ManifestFrame(ctk.CTkFrame):
         self._load_btn.pack(side="left", padx=(0, 6))
 
         self._audit_btn = ctk.CTkButton(
-            header, text="Audit", height=32,
+            header,
+            text="Audit",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -60,7 +65,9 @@ class ManifestFrame(ctk.CTkFrame):
         self._audit_btn.pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
-            header, text="Fix Sizes", height=32,
+            header,
+            text="Fix Sizes",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -68,7 +75,9 @@ class ManifestFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
-            header, text="Diff", height=32,
+            header,
+            text="Diff",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -76,7 +85,9 @@ class ManifestFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
-            header, text="Save Local", height=32,
+            header,
+            text="Save Local",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -84,7 +95,9 @@ class ManifestFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
-            header, text="Upload to CDN", height=32,
+            header,
+            text="Upload to CDN",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
             hover_color="#3ae882",
@@ -94,7 +107,8 @@ class ManifestFrame(ctk.CTkFrame):
 
         # Tabview
         self._tabview = ctk.CTkTabview(
-            self, fg_color=theme.COLORS["bg_card"],
+            self,
+            fg_color=theme.COLORS["bg_card"],
             segmented_button_fg_color=theme.COLORS["bg_card_alt"],
             segmented_button_selected_color=theme.COLORS["accent"],
             segmented_button_selected_hover_color=theme.COLORS["accent_hover"],
@@ -102,7 +116,11 @@ class ManifestFrame(ctk.CTkFrame):
             segmented_button_unselected_hover_color=theme.COLORS["card_hover"],
         )
         self._tabview.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 4),
+            sticky="nsew",
         )
 
         # Overview tab
@@ -110,13 +128,16 @@ class ManifestFrame(ctk.CTkFrame):
         overview.grid_columnconfigure(1, weight=1)
 
         self._overview_fields = {}
-        for i, (key, label) in enumerate([
-            ("latest", "Latest Version"),
-            ("game_latest", "Game Latest"),
-            ("game_latest_date", "Game Latest Date"),
-        ]):
+        for i, (key, label) in enumerate(
+            [
+                ("latest", "Latest Version"),
+                ("game_latest", "Game Latest"),
+                ("game_latest_date", "Game Latest Date"),
+            ]
+        ):
             ctk.CTkLabel(
-                overview, text=f"{label}:",
+                overview,
+                text=f"{label}:",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=i, column=0, padx=(12, 8), pady=4, sticky="w")
@@ -136,13 +157,15 @@ class ManifestFrame(ctk.CTkFrame):
         offset = 3
         for i, (key, label) in enumerate(meta_keys):
             ctk.CTkLabel(
-                overview, text=f"{label}:",
+                overview,
+                text=f"{label}:",
                 font=ctk.CTkFont(*theme.FONT_SMALL),
                 text_color=theme.COLORS["text_dim"],
             ).grid(row=offset + i, column=0, padx=(12, 8), pady=2, sticky="w")
 
             lbl = ctk.CTkLabel(
-                overview, text="\u2014",
+                overview,
+                text="\u2014",
                 font=ctk.CTkFont(size=10),
                 text_color=theme.COLORS["text_muted"],
             )
@@ -150,13 +173,18 @@ class ManifestFrame(ctk.CTkFrame):
             self._meta_labels[key] = lbl
 
         self._summary_label = ctk.CTkLabel(
-            overview, text="Load the manifest to see contents",
+            overview,
+            text="Load the manifest to see contents",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
         self._summary_label.grid(
-            row=offset + len(meta_keys), column=0, columnspan=2,
-            padx=12, pady=(12, 4), sticky="w",
+            row=offset + len(meta_keys),
+            column=0,
+            columnspan=2,
+            padx=12,
+            pady=(12, 4),
+            sticky="w",
         )
 
         # DLC tab
@@ -168,7 +196,8 @@ class ManifestFrame(ctk.CTkFrame):
         self._dlc_scroll.grid(row=0, column=0, sticky="nsew", padx=4, pady=(4, 0))
 
         ctk.CTkLabel(
-            self._dlc_scroll, text="Load manifest first",
+            self._dlc_scroll,
+            text="Load manifest first",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=0, column=0, pady=30)
@@ -176,7 +205,10 @@ class ManifestFrame(ctk.CTkFrame):
         dlc_btn_frame = ctk.CTkFrame(dlc_tab, fg_color="transparent")
         dlc_btn_frame.grid(row=1, column=0, padx=4, pady=(4, 4), sticky="ew")
         ctk.CTkButton(
-            dlc_btn_frame, text="Add DLC", height=26, width=80,
+            dlc_btn_frame,
+            text="Add DLC",
+            height=26,
+            width=80,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -184,7 +216,10 @@ class ManifestFrame(ctk.CTkFrame):
             command=self._add_dlc_entry,
         ).pack(side="left", padx=(0, 4))
         ctk.CTkButton(
-            dlc_btn_frame, text="Remove Selected", height=26, width=110,
+            dlc_btn_frame,
+            text="Remove Selected",
+            height=26,
+            width=110,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
@@ -203,7 +238,8 @@ class ManifestFrame(ctk.CTkFrame):
         self._lang_scroll.grid(row=0, column=0, sticky="nsew", padx=4, pady=(4, 0))
 
         ctk.CTkLabel(
-            self._lang_scroll, text="Load manifest first",
+            self._lang_scroll,
+            text="Load manifest first",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=0, column=0, pady=30)
@@ -211,7 +247,10 @@ class ManifestFrame(ctk.CTkFrame):
         lang_btn_frame = ctk.CTkFrame(lang_tab, fg_color="transparent")
         lang_btn_frame.grid(row=1, column=0, padx=4, pady=(4, 4), sticky="ew")
         ctk.CTkButton(
-            lang_btn_frame, text="Add Language", height=26, width=100,
+            lang_btn_frame,
+            text="Add Language",
+            height=26,
+            width=100,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -219,7 +258,10 @@ class ManifestFrame(ctk.CTkFrame):
             command=self._add_lang_entry,
         ).pack(side="left", padx=(0, 4))
         ctk.CTkButton(
-            lang_btn_frame, text="Remove Selected", height=26, width=110,
+            lang_btn_frame,
+            text="Remove Selected",
+            height=26,
+            width=110,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
@@ -235,12 +277,14 @@ class ManifestFrame(ctk.CTkFrame):
         patches_tab.grid_rowconfigure(0, weight=1)
 
         self._patches_scroll = ctk.CTkScrollableFrame(
-            patches_tab, fg_color=theme.COLORS["bg_dark"],
+            patches_tab,
+            fg_color=theme.COLORS["bg_dark"],
         )
         self._patches_scroll.grid(row=0, column=0, sticky="nsew", padx=4, pady=(4, 0))
 
         ctk.CTkLabel(
-            self._patches_scroll, text="No patches",
+            self._patches_scroll,
+            text="No patches",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=0, column=0, pady=30)
@@ -248,7 +292,10 @@ class ManifestFrame(ctk.CTkFrame):
         patches_btn_frame = ctk.CTkFrame(patches_tab, fg_color="transparent")
         patches_btn_frame.grid(row=1, column=0, padx=4, pady=(4, 4), sticky="ew")
         ctk.CTkButton(
-            patches_btn_frame, text="Add Patch", height=26, width=80,
+            patches_btn_frame,
+            text="Add Patch",
+            height=26,
+            width=80,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -256,7 +303,10 @@ class ManifestFrame(ctk.CTkFrame):
             command=self._add_patch_entry,
         ).pack(side="left", padx=(0, 4))
         ctk.CTkButton(
-            patches_btn_frame, text="Remove Selected", height=26, width=110,
+            patches_btn_frame,
+            text="Remove Selected",
+            height=26,
+            width=110,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
@@ -272,7 +322,8 @@ class ManifestFrame(ctk.CTkFrame):
         raw_tab.grid_rowconfigure(0, weight=1)
 
         self._json_editor = ctk.CTkTextbox(
-            raw_tab, font=ctk.CTkFont("Consolas", 11),
+            raw_tab,
+            font=ctk.CTkFont("Consolas", 11),
             fg_color=theme.COLORS["bg_deeper"],
             corner_radius=theme.CORNER_RADIUS_SMALL,
             wrap="none",
@@ -302,6 +353,7 @@ class ManifestFrame(ctk.CTkFrame):
 
     def _bg_load(self):
         from ..backend.connection import ConnectionManager
+
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         return conn.fetch_manifest()
 
@@ -351,7 +403,8 @@ class ManifestFrame(ctk.CTkFrame):
         dlc_downloads = manifest.get("dlc_downloads", {})
         if not dlc_downloads:
             ctk.CTkLabel(
-                self._dlc_scroll, text="No DLC entries",
+                self._dlc_scroll,
+                text="No DLC entries",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=5, pady=30)
@@ -359,7 +412,8 @@ class ManifestFrame(ctk.CTkFrame):
 
         for col, text in enumerate(["", "ID", "Size", "MD5", "Status"]):
             ctk.CTkLabel(
-                self._dlc_scroll, text=text,
+                self._dlc_scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=6, pady=(4, 6), sticky="w")
@@ -369,26 +423,34 @@ class ManifestFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=False)
             ctk.CTkCheckBox(
-                self._dlc_scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=14, checkbox_height=14,
+                self._dlc_scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=14,
+                checkbox_height=14,
             ).grid(row=row, column=0, padx=4, pady=1)
             self._dlc_check_vars[dlc_id] = var
 
             ctk.CTkLabel(
-                self._dlc_scroll, text=dlc_id,
+                self._dlc_scroll,
+                text=dlc_id,
                 font=ctk.CTkFont("Consolas", 11),
             ).grid(row=row, column=1, padx=6, pady=1, sticky="w")
 
             size = entry.get("size", 0)
             ctk.CTkLabel(
-                self._dlc_scroll, text=fmt_size(size) if size else "0",
+                self._dlc_scroll,
+                text=fmt_size(size) if size else "0",
                 font=ctk.CTkFont(size=10),
                 text_color=theme.COLORS["text_muted"] if size else theme.COLORS["error"],
             ).grid(row=row, column=2, padx=6, pady=1, sticky="w")
 
             md5 = entry.get("md5", "")
             ctk.CTkLabel(
-                self._dlc_scroll, text=(md5[:12] + "...") if md5 else "none",
+                self._dlc_scroll,
+                text=(md5[:12] + "...") if md5 else "none",
                 font=ctk.CTkFont("Consolas", 9),
                 text_color=theme.COLORS["text_muted"] if md5 else theme.COLORS["error"],
             ).grid(row=row, column=3, padx=6, pady=1, sticky="w")
@@ -412,7 +474,8 @@ class ManifestFrame(ctk.CTkFrame):
         lang_downloads = manifest.get("language_downloads", {})
         if not lang_downloads:
             ctk.CTkLabel(
-                self._lang_scroll, text="No language entries",
+                self._lang_scroll,
+                text="No language entries",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=4, pady=30)
@@ -420,7 +483,8 @@ class ManifestFrame(ctk.CTkFrame):
 
         for col, text in enumerate(["", "Locale", "Size", "MD5"]):
             ctk.CTkLabel(
-                self._lang_scroll, text=text,
+                self._lang_scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=6, pady=(4, 6), sticky="w")
@@ -430,25 +494,34 @@ class ManifestFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=False)
             ctk.CTkCheckBox(
-                self._lang_scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=14, checkbox_height=14,
+                self._lang_scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=14,
+                checkbox_height=14,
             ).grid(row=row, column=0, padx=4, pady=1)
             self._lang_check_vars[locale] = var
 
             ctk.CTkLabel(
-                self._lang_scroll, text=locale,
+                self._lang_scroll,
+                text=locale,
                 font=ctk.CTkFont("Consolas", 11),
             ).grid(row=row, column=1, padx=6, pady=1, sticky="w")
 
             size = entry.get("size", 0)
             ctk.CTkLabel(
-                self._lang_scroll, text=fmt_size(size) if size else "0",
-                font=ctk.CTkFont(size=10), text_color=theme.COLORS["text_muted"],
+                self._lang_scroll,
+                text=fmt_size(size) if size else "0",
+                font=ctk.CTkFont(size=10),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=2, padx=6, pady=1, sticky="w")
 
             md5 = entry.get("md5", "")
             ctk.CTkLabel(
-                self._lang_scroll, text=(md5[:12] + "...") if md5 else "none",
+                self._lang_scroll,
+                text=(md5[:12] + "...") if md5 else "none",
                 font=ctk.CTkFont("Consolas", 9),
                 text_color=theme.COLORS["text_muted"] if md5 else theme.COLORS["error"],
             ).grid(row=row, column=3, padx=6, pady=1, sticky="w")
@@ -463,7 +536,8 @@ class ManifestFrame(ctk.CTkFrame):
         patches = manifest.get("patches", [])
         if not patches:
             ctk.CTkLabel(
-                self._patches_scroll, text="No patches in manifest",
+                self._patches_scroll,
+                text="No patches in manifest",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=5, pady=30)
@@ -471,7 +545,8 @@ class ManifestFrame(ctk.CTkFrame):
 
         for col, text in enumerate(["", "From", "To", "Size", "URL"]):
             ctk.CTkLabel(
-                self._patches_scroll, text=text,
+                self._patches_scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=6, pady=(4, 6), sticky="w")
@@ -481,26 +556,36 @@ class ManifestFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=False)
             ctk.CTkCheckBox(
-                self._patches_scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=14, checkbox_height=14,
+                self._patches_scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=14,
+                checkbox_height=14,
             ).grid(row=row, column=0, padx=4, pady=1)
             self._patch_check_vars[i] = var
 
             for col, key in enumerate(["from_version", "to_version"], start=1):
                 ctk.CTkLabel(
-                    self._patches_scroll, text=patch.get(key, ""),
+                    self._patches_scroll,
+                    text=patch.get(key, ""),
                     font=ctk.CTkFont("Consolas", 10),
                 ).grid(row=row, column=col, padx=6, pady=1, sticky="w")
 
             size = patch.get("size", 0)
             ctk.CTkLabel(
-                self._patches_scroll, text=fmt_size(size) if size else "?",
-                font=ctk.CTkFont(size=10), text_color=theme.COLORS["text_muted"],
+                self._patches_scroll,
+                text=fmt_size(size) if size else "?",
+                font=ctk.CTkFont(size=10),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=3, padx=6, pady=1, sticky="w")
 
             ctk.CTkLabel(
-                self._patches_scroll, text=patch.get("url", ""),
-                font=ctk.CTkFont(size=9), text_color=theme.COLORS["text_dim"],
+                self._patches_scroll,
+                text=patch.get("url", ""),
+                font=ctk.CTkFont(size=9),
+                text_color=theme.COLORS["text_dim"],
             ).grid(row=row, column=4, padx=6, pady=1, sticky="w")
 
     # -- Audit ---------------------------------------------------------------
@@ -520,10 +605,12 @@ class ManifestFrame(ctk.CTkFrame):
         )
 
     def _bg_audit(self):
-        from ..backend.manifest_ops import (
-            audit_dlc_entries, audit_language_entries, detect_orphans,
-        )
         from ..backend.connection import ConnectionManager
+        from ..backend.manifest_ops import (
+            audit_dlc_entries,
+            audit_language_entries,
+            detect_orphans,
+        )
 
         dlc = audit_dlc_entries(self._manifest.get("dlc_downloads", {}))
         lang = audit_language_entries(self._manifest.get("language_downloads", {}))
@@ -562,23 +649,27 @@ class ManifestFrame(ctk.CTkFrame):
         in_kv_not_manifest, in_manifest_not_kv = orphans
         if in_kv_not_manifest:
             self._log.log(
-                f"Orphan KV keys ({len(in_kv_not_manifest)} not in manifest):", "warning",
+                f"Orphan KV keys ({len(in_kv_not_manifest)} not in manifest):",
+                "warning",
             )
             for key in in_kv_not_manifest[:20]:
                 self._log.log(f"  KV orphan: {key}", "warning")
             if len(in_kv_not_manifest) > 20:
                 self._log.log(
-                    f"  ... and {len(in_kv_not_manifest) - 20} more", "warning",
+                    f"  ... and {len(in_kv_not_manifest) - 20} more",
+                    "warning",
                 )
         if in_manifest_not_kv:
             self._log.log(
-                f"Missing KV keys ({len(in_manifest_not_kv)} in manifest but not KV):", "error",
+                f"Missing KV keys ({len(in_manifest_not_kv)} in manifest but not KV):",
+                "error",
             )
             for key in in_manifest_not_kv[:20]:
                 self._log.log(f"  Missing KV: {key}", "error")
             if len(in_manifest_not_kv) > 20:
                 self._log.log(
-                    f"  ... and {len(in_manifest_not_kv) - 20} more", "error",
+                    f"  ... and {len(in_manifest_not_kv) - 20} more",
+                    "error",
                 )
 
         total = issues + l_issues + len(in_manifest_not_kv)
@@ -603,8 +694,8 @@ class ManifestFrame(ctk.CTkFrame):
             self.app.show_toast("Load manifest and run audit first", "warning")
             return
 
-        from ..backend.manifest_ops import fix_sizes
         from ..backend.dlc_ops import fmt_size
+        from ..backend.manifest_ops import fix_sizes
 
         dlc_fixes = fix_sizes(self._manifest.get("dlc_downloads", {}), self._audit_results)
         lang_fixes = fix_sizes(
@@ -617,7 +708,7 @@ class ManifestFrame(ctk.CTkFrame):
             self._log.log("No sizes to fix")
             return
 
-        for eid, issue, old, new in dlc_fixes + lang_fixes:
+        for eid, _issue, old, new in dlc_fixes + lang_fixes:
             self._log.log(f"Fixed {eid}: {fmt_size(old)} -> {fmt_size(new)}", "success")
 
         self._json_editor.delete("1.0", "end")
@@ -633,6 +724,7 @@ class ManifestFrame(ctk.CTkFrame):
             return
         self._apply_overview_edits()
         from ..backend.manifest_ops import diff_manifests
+
         for change in diff_manifests(self._original_manifest, self._manifest):
             self._log.log(f"  {change}")
 
@@ -658,7 +750,9 @@ class ManifestFrame(ctk.CTkFrame):
                 return
 
         from pathlib import Path
+
         from ..backend.manifest_ops import save_manifest_local
+
         output = Path(__file__).resolve().parent.parent.parent / "manifest.json"
         save_manifest_local(self._manifest, output)
         self._log.log(f"Saved to {output}", "success")
@@ -690,11 +784,15 @@ class ManifestFrame(ctk.CTkFrame):
     def _bg_upload(self):
         import tempfile
         from pathlib import Path
+
         from ..backend.connection import ConnectionManager
 
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8",
+            mode="w",
+            suffix=".json",
+            delete=False,
+            encoding="utf-8",
         ) as tmp:
             json.dump(self._manifest, tmp, indent=2, ensure_ascii=False)
             tmp_path = Path(tmp.name)
@@ -709,19 +807,24 @@ class ManifestFrame(ctk.CTkFrame):
         """Sync the raw JSON editor with the current manifest dict."""
         self._json_editor.delete("1.0", "end")
         self._json_editor.insert(
-            "1.0", json.dumps(self._manifest, indent=2, ensure_ascii=False),
+            "1.0",
+            json.dumps(self._manifest, indent=2, ensure_ascii=False),
         )
 
     def _add_dlc_entry(self):
         if not self._manifest:
             self.app.show_toast("Load manifest first", "warning")
             return
-        dialog = _AddEntryDialog(self, "Add DLC Entry", [
-            ("DLC ID", "e.g. EP01"),
-            ("URL", "https://cdn.hyperabyss.com/dlc/EP01.zip"),
-            ("Size (bytes)", "0"),
-            ("MD5", ""),
-        ])
+        dialog = _AddEntryDialog(
+            self,
+            "Add DLC Entry",
+            [
+                ("DLC ID", "e.g. EP01"),
+                ("URL", "https://cdn.hyperabyss.com/dlc/EP01.zip"),
+                ("Size (bytes)", "0"),
+                ("MD5", ""),
+            ],
+        )
         self.wait_window(dialog)
         if not dialog.result:
             return
@@ -762,12 +865,16 @@ class ManifestFrame(ctk.CTkFrame):
         if not self._manifest:
             self.app.show_toast("Load manifest first", "warning")
             return
-        dialog = _AddEntryDialog(self, "Add Language Entry", [
-            ("Locale", "e.g. de_DE"),
-            ("URL", "https://cdn.hyperabyss.com/language/de_DE.zip"),
-            ("Size (bytes)", "0"),
-            ("MD5", ""),
-        ])
+        dialog = _AddEntryDialog(
+            self,
+            "Add Language Entry",
+            [
+                ("Locale", "e.g. de_DE"),
+                ("URL", "https://cdn.hyperabyss.com/language/de_DE.zip"),
+                ("Size (bytes)", "0"),
+                ("MD5", ""),
+            ],
+        )
         self.wait_window(dialog)
         if not dialog.result:
             return
@@ -808,12 +915,16 @@ class ManifestFrame(ctk.CTkFrame):
         if not self._manifest:
             self.app.show_toast("Load manifest first", "warning")
             return
-        dialog = _AddEntryDialog(self, "Add Patch Entry", [
-            ("From Version", "e.g. 1.120.140.1020"),
-            ("To Version", "e.g. 1.121.372.1020"),
-            ("URL", "https://cdn.hyperabyss.com/patches/..."),
-            ("Size (bytes)", "0"),
-        ])
+        dialog = _AddEntryDialog(
+            self,
+            "Add Patch Entry",
+            [
+                ("From Version", "e.g. 1.120.140.1020"),
+                ("To Version", "e.g. 1.121.372.1020"),
+                ("URL", "https://cdn.hyperabyss.com/patches/..."),
+                ("Size (bytes)", "0"),
+            ],
+        )
         self.wait_window(dialog)
         if not dialog.result:
             return
@@ -826,12 +937,14 @@ class ManifestFrame(ctk.CTkFrame):
             self.app.show_toast("Invalid size — must be a number", "warning")
             return
         patches = self._manifest.setdefault("patches", [])
-        patches.append({
-            "from_version": from_ver,
-            "to_version": to_ver,
-            "url": dialog.result[2],
-            "size": size,
-        })
+        patches.append(
+            {
+                "from_version": from_ver,
+                "to_version": to_ver,
+                "url": dialog.result[2],
+                "size": size,
+            }
+        )
         self._populate_patches_tab(self._manifest)
         self._sync_json_editor()
         self._log.log(f"Added patch entry: {from_ver} -> {to_ver}", "success")
@@ -874,12 +987,15 @@ class _AddEntryDialog(ctk.CTkToplevel):
 
         for i, (label, placeholder) in enumerate(fields):
             ctk.CTkLabel(
-                self, text=f"{label}:",
+                self,
+                text=f"{label}:",
                 font=ctk.CTkFont(size=11, weight="bold"),
             ).grid(row=i, column=0, padx=(15, 6), pady=4, sticky="w")
 
             entry = ctk.CTkEntry(
-                self, height=30, font=ctk.CTkFont(size=11),
+                self,
+                height=30,
+                font=ctk.CTkFont(size=11),
                 placeholder_text=placeholder,
             )
             entry.grid(row=i, column=1, padx=(0, 15), pady=4, sticky="ew")
@@ -888,17 +1004,28 @@ class _AddEntryDialog(ctk.CTkToplevel):
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(
-            row=len(fields), column=0, columnspan=2, padx=15, pady=(8, 12), sticky="ew",
+            row=len(fields),
+            column=0,
+            columnspan=2,
+            padx=15,
+            pady=(8, 12),
+            sticky="ew",
         )
         ctk.CTkButton(
-            btn_frame, text="Add", width=80, height=30,
+            btn_frame,
+            text="Add",
+            width=80,
+            height=30,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
             command=self._ok,
         ).pack(side="right", padx=(6, 0))
         ctk.CTkButton(
-            btn_frame, text="Cancel", width=70, height=30,
+            btn_frame,
+            text="Cancel",
+            width=70,
+            height=30,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],

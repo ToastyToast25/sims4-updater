@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import json
 import time
@@ -16,6 +17,7 @@ CDN_DOMAIN = "https://cdn.hyperabyss.com"
 
 def _retry(max_retries: int = 3, base_delay: float = 2):
     """Decorator: retry with exponential backoff on any exception."""
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -26,7 +28,9 @@ def _retry(max_retries: int = 3, base_delay: float = 2):
                     if attempt == max_retries:
                         raise
                     time.sleep(base_delay * (2 ** (attempt - 1)))
+
         return wrapper
+
     return decorator
 
 
@@ -210,10 +214,8 @@ class ConnectionManager:
                         try:
                             sftp.stat(current)
                         except FileNotFoundError:
-                            try:
+                            with contextlib.suppress(OSError):
                                 sftp.mkdir(current)
-                            except OSError:
-                                pass
 
                     sftp.put(str(local_path), remote_path, callback=progress_cb)
                     self.release_sftp(transport, sftp)
@@ -228,9 +230,7 @@ class ConnectionManager:
                     raise
             except Exception as e:
                 if attempt == max_retries:
-                    raise ConnectionError(
-                        f"Upload failed after {max_retries} attempts: {e}"
-                    ) from e
+                    raise ConnectionError(f"Upload failed after {max_retries} attempts: {e}") from e
                 delay = retry_base * (2 ** (attempt - 1))
                 time.sleep(delay)
 
@@ -336,12 +336,13 @@ class ConnectionManager:
             if cursor:
                 params["cursor"] = cursor
             resp = requests.get(
-                url, headers=self._kv_headers(), params=params, timeout=30,
+                url,
+                headers=self._kv_headers(),
+                params=params,
+                timeout=30,
             )
             if resp.status_code != 200:
-                raise RuntimeError(
-                    f"KV list failed: {resp.status_code} {resp.text[:200]}"
-                )
+                raise RuntimeError(f"KV list failed: {resp.status_code} {resp.text[:200]}")
             data = resp.json()
             all_keys.extend(e.get("name", "") for e in data.get("result", []))
             cursor = data.get("result_info", {}).get("cursor")
@@ -402,7 +403,8 @@ class ConnectionManager:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = backup_dir / f"manifest_{ts}.json"
             backup_path.write_text(
-                json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8",
+                json.dumps(current, indent=2, ensure_ascii=False),
+                encoding="utf-8",
             )
         except Exception:
             pass  # Don't fail the publish if backup fails

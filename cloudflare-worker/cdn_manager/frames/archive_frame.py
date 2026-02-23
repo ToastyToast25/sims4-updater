@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import time
 from threading import Thread
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
 from .. import theme
-from ..components import StatusBadge, LogPanel
+from ..components import LogPanel, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -30,7 +29,8 @@ class ArchiveFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="Archive Manager",
+            self,
+            text="Archive Manager",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
@@ -39,7 +39,8 @@ class ArchiveFrame(ctk.CTkFrame):
         header.grid(row=1, column=0, padx=theme.SECTION_PAD, sticky="ew")
 
         self._refresh_btn = ctk.CTkButton(
-            header, text="Refresh",
+            header,
+            text="Refresh",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
@@ -49,7 +50,8 @@ class ArchiveFrame(ctk.CTkFrame):
         self._refresh_btn.pack(side="left", padx=(0, 6))
 
         self._create_btn = ctk.CTkButton(
-            header, text="Create Archive",
+            header,
+            text="Create Archive",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
@@ -60,7 +62,8 @@ class ArchiveFrame(ctk.CTkFrame):
         self._create_btn.pack(side="left", padx=(0, 6))
 
         self._verify_btn = ctk.CTkButton(
-            header, text="Verify Selected",
+            header,
+            text="Verify Selected",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -70,7 +73,8 @@ class ArchiveFrame(ctk.CTkFrame):
         self._verify_btn.pack(side="left", padx=(0, 6))
 
         self._delete_btn = ctk.CTkButton(
-            header, text="Delete Selected",
+            header,
+            text="Delete Selected",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
@@ -80,7 +84,8 @@ class ArchiveFrame(ctk.CTkFrame):
         self._delete_btn.pack(side="left", padx=(0, 6))
 
         self._promote_btn = ctk.CTkButton(
-            header, text="Promote (Rollback)",
+            header,
+            text="Promote (Rollback)",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["warning"],
@@ -93,30 +98,36 @@ class ArchiveFrame(ctk.CTkFrame):
         # Progress
         self._progress_frame = ctk.CTkFrame(self, fg_color="transparent", height=40)
         self._progress_bar = ctk.CTkProgressBar(
-            self._progress_frame, height=16,
+            self._progress_frame,
+            height=16,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             progress_color=theme.COLORS["accent"],
         )
         self._progress_bar.pack(fill="x", pady=(0, 2))
         self._progress_bar.set(0)
         self._progress_label = ctk.CTkLabel(
-            self._progress_frame, text="",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            self._progress_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         )
         self._progress_label.pack(anchor="w")
 
         # Archive list
         self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color=theme.COLORS["bg_dark"],
+            self,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS,
-            border_width=1, border_color=theme.COLORS["border"],
+            border_width=1,
+            border_color=theme.COLORS["border"],
         )
         self._scroll.grid(row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew")
         for col, w in [(0, 30), (1, 120), (2, 90), (3, 60), (4, 60), (5, 90)]:
             self._scroll.grid_columnconfigure(col, weight=1 if w == 0 else 0, minsize=w)
 
         ctk.CTkLabel(
-            self._scroll, text="Click 'Refresh' to load archived versions",
+            self._scroll,
+            text="Click 'Refresh' to load archived versions",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=0, column=0, columnspan=6, pady=40)
@@ -155,7 +166,8 @@ class ArchiveFrame(ctk.CTkFrame):
 
         if not archives:
             ctk.CTkLabel(
-                self._scroll, text="No archived versions found",
+                self._scroll,
+                text="No archived versions found",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=6, pady=40)
@@ -165,7 +177,8 @@ class ArchiveFrame(ctk.CTkFrame):
         # Header row
         for col, text in enumerate(["", "Version", "Date", "DLCs", "Langs", "Status"]):
             ctk.CTkLabel(
-                self._scroll, text=text,
+                self._scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=4, pady=(4, 6), sticky="w")
@@ -175,28 +188,40 @@ class ArchiveFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=False)
             ctk.CTkCheckBox(
-                self._scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=16, checkbox_height=16,
+                self._scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16,
             ).grid(row=row, column=0, padx=4, pady=2)
 
             ctk.CTkLabel(
-                self._scroll, text=version,
+                self._scroll,
+                text=version,
                 font=ctk.CTkFont("Consolas", 11),
             ).grid(row=row, column=1, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=info.get("date", "—"),
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._scroll,
+                text=info.get("date", "—"),
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=2, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=str(info.get("dlc_count", 0)),
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._scroll,
+                text=str(info.get("dlc_count", 0)),
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=3, padx=4, pady=2, sticky="e")
 
             ctk.CTkLabel(
-                self._scroll, text=str(info.get("language_count", 0)),
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._scroll,
+                text=str(info.get("language_count", 0)),
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=4, padx=4, pady=2, sticky="e")
 
             badge = StatusBadge(self._scroll)
@@ -228,7 +253,8 @@ class ArchiveFrame(ctk.CTkFrame):
         existing = [v for v in self._archive_rows if v == version]
         if existing:
             confirm = _ConfirmDialog(
-                self, "Overwrite Archive",
+                self,
+                "Overwrite Archive",
                 f"Archive {version} already exists. Overwrite?",
             )
             self.wait_window(confirm)
@@ -240,7 +266,9 @@ class ArchiveFrame(ctk.CTkFrame):
         self._log.log(f"Creating archive for {version}...")
 
         Thread(
-            target=self._bg_create, args=(version,), daemon=True,
+            target=self._bg_create,
+            args=(version,),
+            daemon=True,
         ).start()
 
     def _bg_create(self, version: str):
@@ -286,7 +314,9 @@ class ArchiveFrame(ctk.CTkFrame):
         self._log.log(f"Verifying {len(selected)} archive(s)...")
 
         Thread(
-            target=self._bg_verify, args=(selected,), daemon=True,
+            target=self._bg_verify,
+            args=(selected,),
+            daemon=True,
         ).start()
 
     def _bg_verify(self, versions: list[str]):
@@ -303,21 +333,28 @@ class ArchiveFrame(ctk.CTkFrame):
         for vi, version in enumerate(versions):
             log(f"Verifying archive {version} ({vi + 1}/{total_versions})...")
 
-            def progress_cb(done, total):
-                overall = (vi + done / max(total, 1)) / total_versions
+            def progress_cb(done, total, _vi=vi, _version=version):
+                overall = (_vi + done / max(total, 1)) / total_versions
                 self.app._enqueue_gui(
-                    self._update_progress, overall,
-                    f"Checking {version}: {done}/{total} URLs",
+                    self._update_progress,
+                    overall,
+                    f"Checking {_version}: {done}/{total} URLs",
                 )
 
             try:
                 ok_count, broken_count, broken = verify_archive(
-                    conn, version, log_cb=log, progress_cb=progress_cb,
+                    conn,
+                    version,
+                    log_cb=log,
+                    progress_cb=progress_cb,
                 )
             except Exception as e:
                 log(f"Verify failed for {version}: {e}", "error")
                 self.app._enqueue_gui(
-                    self._update_badge, version, "Error", "error",
+                    self._update_badge,
+                    version,
+                    "Error",
+                    "error",
                 )
                 all_ok = False
                 continue
@@ -325,14 +362,20 @@ class ArchiveFrame(ctk.CTkFrame):
             if broken_count == 0:
                 log(f"Archive {version}: all {ok_count} URLs OK", "success")
                 self.app._enqueue_gui(
-                    self._update_badge, version, "Verified", "success",
+                    self._update_badge,
+                    version,
+                    "Verified",
+                    "success",
                 )
             else:
                 log(f"Archive {version}: {broken_count} broken URLs", "error")
                 for label, url, status in broken:
                     log(f"  BROKEN [{status}] {label}: {url}", "error")
                 self.app._enqueue_gui(
-                    self._update_badge, version, f"{broken_count} broken", "error",
+                    self._update_badge,
+                    version,
+                    f"{broken_count} broken",
+                    "error",
                 )
                 all_ok = False
 
@@ -359,7 +402,8 @@ class ArchiveFrame(ctk.CTkFrame):
             return
 
         confirm = _ConfirmDialog(
-            self, "Delete Archives",
+            self,
+            "Delete Archives",
             f"Delete {len(selected)} archive(s)?\n\n"
             + "\n".join(f"  - {v}" for v in selected)
             + "\n\nThis removes files from seedbox, KV entries, and manifest.",
@@ -373,7 +417,9 @@ class ArchiveFrame(ctk.CTkFrame):
         self._log.log(f"Deleting {len(selected)} archive(s)...")
 
         Thread(
-            target=self._bg_delete, args=(selected,), daemon=True,
+            target=self._bg_delete,
+            args=(selected,),
+            daemon=True,
         ).start()
 
     def _bg_delete(self, versions: list[str]):
@@ -421,7 +467,8 @@ class ArchiveFrame(ctk.CTkFrame):
 
         version = selected[0]
         confirm = _ConfirmDialog(
-            self, "Promote Archive",
+            self,
+            "Promote Archive",
             f"Promote (rollback to) archive {version}?\n\n"
             "This will REPLACE the current CDN content with the archived version.\n"
             "All existing DLC and language files will be overwritten.",
@@ -435,7 +482,9 @@ class ArchiveFrame(ctk.CTkFrame):
         self._log.log(f"Promoting archive {version}...")
 
         Thread(
-            target=self._bg_promote, args=(version,), daemon=True,
+            target=self._bg_promote,
+            args=(version,),
+            daemon=True,
         ).start()
 
     def _bg_promote(self, version: str):
@@ -470,8 +519,11 @@ class ArchiveFrame(ctk.CTkFrame):
 
     def _set_buttons_state(self, state: str):
         for btn in (
-            self._refresh_btn, self._create_btn,
-            self._verify_btn, self._delete_btn, self._promote_btn,
+            self._refresh_btn,
+            self._create_btn,
+            self._verify_btn,
+            self._delete_btn,
+            self._promote_btn,
         ):
             btn.configure(state=state)
 
@@ -482,10 +534,18 @@ class ArchiveFrame(ctk.CTkFrame):
 
     def _show_progress(self):
         self._progress_frame.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 0), sticky="ew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 0),
+            sticky="ew",
         )
         self._scroll.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(50, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(50, 4),
+            sticky="nsew",
         )
         self._progress_bar.set(0)
         self._progress_label.configure(text="")
@@ -493,7 +553,11 @@ class ArchiveFrame(ctk.CTkFrame):
     def _hide_progress(self):
         self._progress_frame.grid_forget()
         self._scroll.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 4),
+            sticky="nsew",
         )
 
     def _update_progress(self, progress: float, text: str):
@@ -502,6 +566,7 @@ class ArchiveFrame(ctk.CTkFrame):
 
 
 # -- Dialogs ------------------------------------------------------------------
+
 
 class _VersionInputDialog(ctk.CTkToplevel):
     """Simple modal dialog to get a version string."""
@@ -518,12 +583,15 @@ class _VersionInputDialog(ctk.CTkToplevel):
         self.configure(fg_color=theme.COLORS["bg_card"])
 
         ctk.CTkLabel(
-            self, text=prompt,
+            self,
+            text=prompt,
             font=ctk.CTkFont(*theme.FONT_BODY),
         ).pack(padx=20, pady=(20, 8))
 
         self._entry = ctk.CTkEntry(
-            self, height=36, font=ctk.CTkFont("Consolas", 12),
+            self,
+            height=36,
+            font=ctk.CTkFont("Consolas", 12),
             placeholder_text="e.g. 1.121.372.1020",
         )
         self._entry.pack(padx=20, fill="x")
@@ -534,7 +602,10 @@ class _VersionInputDialog(ctk.CTkToplevel):
         btn_frame.pack(padx=20, pady=(12, 15), fill="x")
 
         ctk.CTkButton(
-            btn_frame, text="OK", width=80, height=32,
+            btn_frame,
+            text="OK",
+            width=80,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -542,7 +613,10 @@ class _VersionInputDialog(ctk.CTkToplevel):
         ).pack(side="right", padx=(6, 0))
 
         ctk.CTkButton(
-            btn_frame, text="Cancel", width=80, height=32,
+            btn_frame,
+            text="Cancel",
+            width=80,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -571,16 +645,21 @@ class _ConfirmDialog(ctk.CTkToplevel):
         self.configure(fg_color=theme.COLORS["bg_card"])
 
         ctk.CTkLabel(
-            self, text=message,
+            self,
+            text=message,
             font=ctk.CTkFont(*theme.FONT_BODY),
-            wraplength=400, justify="left",
+            wraplength=400,
+            justify="left",
         ).pack(padx=20, pady=(20, 15), anchor="w")
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(padx=20, pady=(0, 15), fill="x")
 
         ctk.CTkButton(
-            btn_frame, text="Yes", width=80, height=32,
+            btn_frame,
+            text="Yes",
+            width=80,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -588,7 +667,10 @@ class _ConfirmDialog(ctk.CTkToplevel):
         ).pack(side="right", padx=(6, 0))
 
         ctk.CTkButton(
-            btn_frame, text="No", width=80, height=32,
+            btn_frame,
+            text="No",
+            width=80,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],

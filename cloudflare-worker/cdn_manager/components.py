@@ -28,6 +28,7 @@ def get_animator() -> Animator:
 
 # -- InfoCard ---------------------------------------------------------------
 
+
 class InfoCard(ctk.CTkFrame):
     """CTkFrame with animated border glow on hover."""
 
@@ -46,17 +47,23 @@ class InfoCard(ctk.CTkFrame):
     def _on_enter(self, _event):
         _animator.cancel_all(self, tag="card_hover")
         _animator.animate_color(
-            self, "border_color",
-            self._base_border, self._hover_border,
-            theme.ANIM_FAST, tag="card_hover",
+            self,
+            "border_color",
+            self._base_border,
+            self._hover_border,
+            theme.ANIM_FAST,
+            tag="card_hover",
         )
 
     def _on_leave(self, _event):
         _animator.cancel_all(self, tag="card_hover")
         _animator.animate_color(
-            self, "border_color",
-            self._hover_border, self._base_border,
-            theme.ANIM_FAST, tag="card_hover",
+            self,
+            "border_color",
+            self._hover_border,
+            self._base_border,
+            theme.ANIM_FAST,
+            tag="card_hover",
         )
 
 
@@ -102,13 +109,18 @@ class StatusBadge(ctk.CTkFrame):
         super().__init__(parent, **kwargs)
 
         self._dot = ctk.CTkLabel(
-            self, text="\u25cf", font=ctk.CTkFont(size=8),
-            text_color=s["dot"], width=12,
+            self,
+            text="\u25cf",
+            font=ctk.CTkFont(size=8),
+            text_color=s["dot"],
+            width=12,
         )
         self._dot.pack(side="left", padx=(10, 0), pady=4)
 
         self._label = ctk.CTkLabel(
-            self, text=text, font=ctk.CTkFont(*theme.FONT_SMALL),
+            self,
+            text=text,
+            font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=s["text"],
         )
         self._label.pack(side="left", padx=(2, 10), pady=4)
@@ -123,8 +135,12 @@ class StatusBadge(ctk.CTkFrame):
                 old_bg = old_bg[0]
             _animator.cancel_all(self, tag="badge")
             _animator.animate_color(
-                self, "fg_color", old_bg, s["bg"],
-                theme.ANIM_FAST, tag="badge",
+                self,
+                "fg_color",
+                old_bg,
+                s["bg"],
+                theme.ANIM_FAST,
+                tag="badge",
             )
             self._dot.configure(text_color=s["dot"])
             self._label.configure(text_color=s["text"])
@@ -175,8 +191,11 @@ class ToastNotification(ctk.CTkFrame):
     def __init__(self, parent, message: str, style: str = "success"):
         s = _TOAST_STYLES.get(style, _TOAST_STYLES["info"])
         super().__init__(
-            parent, corner_radius=8, fg_color=s["bg"],
-            border_width=1, border_color=s["border"],
+            parent,
+            corner_radius=8,
+            fg_color=s["bg"],
+            border_width=1,
+            border_color=s["border"],
         )
         self._parent = parent
         self._dismiss_id = None
@@ -185,21 +204,30 @@ class ToastNotification(ctk.CTkFrame):
         self._duration = min(s["base_duration"] + extra, 8000)
 
         icon = ctk.CTkLabel(
-            self, text=s["icon"], font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=s["text"], width=20,
+            self,
+            text=s["icon"],
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=s["text"],
+            width=20,
         )
         icon.pack(side="left", padx=(12, 0), pady=10)
 
         msg = ctk.CTkLabel(
-            self, text=message, font=ctk.CTkFont(*theme.FONT_BODY),
+            self,
+            text=message,
+            font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=s["text"],
         )
         msg.pack(side="left", padx=(6, 8), pady=10)
 
         if style == "error":
             close_btn = ctk.CTkLabel(
-                self, text="\u2715", font=ctk.CTkFont(size=12, weight="bold"),
-                text_color=s["text"], width=20, cursor="hand2",
+                self,
+                text="\u2715",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=s["text"],
+                width=20,
+                cursor="hand2",
             )
             close_btn.pack(side="right", padx=(0, 8), pady=10)
             close_btn.bind("<Button-1>", lambda e: self._dismiss())
@@ -217,9 +245,14 @@ class ToastNotification(ctk.CTkFrame):
         self.place(relx=1.0, rely=0.0, x=300, y=y, anchor="ne")
         self.lift()
         _animator.animate(
-            self, theme.TOAST_SLIDE_MS,
+            self,
+            theme.TOAST_SLIDE_MS,
             on_tick=lambda t, _y=y: self.place(
-                relx=1.0, rely=0.0, x=int(300 * (1 - t)) - 10, y=_y, anchor="ne",
+                relx=1.0,
+                rely=0.0,
+                x=int(300 * (1 - t)) - 10,
+                y=_y,
+                anchor="ne",
             ),
             on_done=self._start_dismiss_timer,
             easing=ease_out_cubic,
@@ -249,10 +282,14 @@ class ToastNotification(ctk.CTkFrame):
             self._dismiss_id = None
         _animator.cancel_all(self)
         _animator.animate(
-            self, theme.TOAST_SLIDE_MS,
+            self,
+            theme.TOAST_SLIDE_MS,
             on_tick=lambda t: self.place(
-                relx=1.0, rely=0.0, x=-10 + int(310 * t),
-                y=self._compute_y_offset(), anchor="ne",
+                relx=1.0,
+                rely=0.0,
+                x=-10 + int(310 * t),
+                y=self._compute_y_offset(),
+                anchor="ne",
             ),
             on_done=self._destroy,
             easing=ease_out_cubic,
@@ -274,9 +311,14 @@ def _reflow_toasts():
         y = toast._compute_y_offset()
         with contextlib.suppress(Exception):
             _animator.animate(
-                toast, 150,
+                toast,
+                150,
                 on_tick=lambda t, _toast=toast, _y=y: _toast.place(
-                    relx=1.0, rely=0.0, x=-10, y=_y, anchor="ne",
+                    relx=1.0,
+                    rely=0.0,
+                    x=-10,
+                    y=_y,
+                    anchor="ne",
                 ),
                 easing=ease_out_cubic,
             )
@@ -320,13 +362,18 @@ class LogPanel(ctk.CTkFrame):
         toolbar.grid_columnconfigure(2, weight=1)
 
         ctk.CTkLabel(
-            toolbar, text="Log", font=ctk.CTkFont(*theme.FONT_SMALL, "bold"),
+            toolbar,
+            text="Log",
+            font=ctk.CTkFont(*theme.FONT_SMALL, "bold"),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=0, column=0, padx=(4, 8))
 
         self._level_menu = ctk.CTkOptionMenu(
-            toolbar, values=["All", "Info+", "Warnings+", "Errors"],
-            width=90, height=22, corner_radius=4,
+            toolbar,
+            values=["All", "Info+", "Warnings+", "Errors"],
+            width=90,
+            height=22,
+            corner_radius=4,
             font=ctk.CTkFont(size=10),
             fg_color=theme.COLORS["bg_card_alt"],
             button_color=theme.COLORS["bg_card_alt"],
@@ -340,8 +387,12 @@ class LogPanel(ctk.CTkFrame):
         btn_frame.grid(row=0, column=3)
 
         self._copy_btn = ctk.CTkButton(
-            btn_frame, text="Copy", width=50, height=22,
-            corner_radius=4, font=ctk.CTkFont(size=10),
+            btn_frame,
+            text="Copy",
+            width=50,
+            height=22,
+            corner_radius=4,
+            font=ctk.CTkFont(size=10),
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
             command=self.copy_to_clipboard,
@@ -349,8 +400,12 @@ class LogPanel(ctk.CTkFrame):
         self._copy_btn.pack(side="left", padx=2)
 
         self._export_btn = ctk.CTkButton(
-            btn_frame, text="Export", width=55, height=22,
-            corner_radius=4, font=ctk.CTkFont(size=10),
+            btn_frame,
+            text="Export",
+            width=55,
+            height=22,
+            corner_radius=4,
+            font=ctk.CTkFont(size=10),
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
             command=self._export_dialog,
@@ -358,8 +413,12 @@ class LogPanel(ctk.CTkFrame):
         self._export_btn.pack(side="left", padx=2)
 
         self._clear_btn = ctk.CTkButton(
-            btn_frame, text="Clear", width=50, height=22,
-            corner_radius=4, font=ctk.CTkFont(size=10),
+            btn_frame,
+            text="Clear",
+            width=50,
+            height=22,
+            corner_radius=4,
+            font=ctk.CTkFont(size=10),
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
             command=self.clear,
@@ -368,10 +427,13 @@ class LogPanel(ctk.CTkFrame):
 
         # Log textbox
         self._textbox = ctk.CTkTextbox(
-            self, font=ctk.CTkFont("Consolas", 11),
+            self,
+            font=ctk.CTkFont("Consolas", 11),
             fg_color=theme.COLORS["bg_deeper"],
-            corner_radius=0, border_width=0,
-            state="disabled", wrap="none",
+            corner_radius=0,
+            border_width=0,
+            state="disabled",
+            wrap="none",
             activate_scrollbars=True,
         )
         self._textbox.grid(row=1, column=0, sticky="nsew", padx=4, pady=(4, 4))
@@ -380,7 +442,8 @@ class LogPanel(ctk.CTkFrame):
         for level, color in _LOG_COLORS.items():
             self._textbox._textbox.tag_configure(level, foreground=color)
         self._textbox._textbox.tag_configure(
-            "timestamp", foreground=theme.COLORS["text_dim"],
+            "timestamp",
+            foreground=theme.COLORS["text_dim"],
         )
 
     def log(self, message: str, level: str = "info"):
@@ -420,6 +483,7 @@ class LogPanel(ctk.CTkFrame):
 
     def _export_dialog(self):
         from tkinter import filedialog
+
         path = filedialog.asksaveasfilename(
             defaultextension=".log",
             filetypes=[("Log files", "*.log"), ("Text files", "*.txt")],

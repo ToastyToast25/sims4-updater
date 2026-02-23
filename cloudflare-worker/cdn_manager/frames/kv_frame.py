@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import StatusBadge, LogPanel
+from ..components import LogPanel
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -30,7 +30,8 @@ class KVBrowserFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="KV Browser",
+            self,
+            text="KV Browser",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
@@ -45,14 +46,19 @@ class KVBrowserFrame(ctk.CTkFrame):
         search_frame.grid_columnconfigure(0, weight=1)
 
         self._search_entry = ctk.CTkEntry(
-            search_frame, font=ctk.CTkFont(size=12), height=36,
+            search_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text="Filter keys...",
         )
         self._search_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
         self._search_entry.bind("<KeyRelease>", lambda _: self._filter_keys())
 
         ctk.CTkButton(
-            search_frame, text="Refresh", height=36, width=80,
+            search_frame,
+            text="Refresh",
+            height=36,
+            width=80,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -64,7 +70,9 @@ class KVBrowserFrame(ctk.CTkFrame):
         btn_row.grid(row=1, column=0, pady=(8, 0), sticky="ew")
 
         ctk.CTkButton(
-            btn_row, text="Add Key", height=28,
+            btn_row,
+            text="Add Key",
+            height=28,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -73,7 +81,9 @@ class KVBrowserFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 4))
 
         ctk.CTkButton(
-            btn_row, text="Delete Selected", height=28,
+            btn_row,
+            text="Delete Selected",
+            height=28,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
@@ -82,7 +92,9 @@ class KVBrowserFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 4))
 
         ctk.CTkButton(
-            btn_row, text="Copy Key", height=28,
+            btn_row,
+            text="Copy Key",
+            height=28,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -91,7 +103,9 @@ class KVBrowserFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 4))
 
         ctk.CTkButton(
-            btn_row, text="View Value", height=28,
+            btn_row,
+            text="View Value",
+            height=28,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -100,26 +114,35 @@ class KVBrowserFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 12))
 
         self._count_label = ctk.CTkLabel(
-            btn_row, text="",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            btn_row,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         )
         self._count_label.pack(side="left")
 
         # Key list
         self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color=theme.COLORS["bg_dark"],
+            self,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS,
-            border_width=1, border_color=theme.COLORS["border"],
+            border_width=1,
+            border_color=theme.COLORS["border"],
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
         self._scroll.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 4),
+            sticky="nsew",
         )
         self._scroll.grid_columnconfigure(1, weight=1)
 
         self._placeholder = ctk.CTkLabel(
-            self._scroll, text="Click 'Refresh' to load KV keys",
+            self._scroll,
+            text="Click 'Refresh' to load KV keys",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
@@ -128,7 +151,11 @@ class KVBrowserFrame(ctk.CTkFrame):
         # Log
         self._log = LogPanel(self)
         self._log.grid(
-            row=3, column=0, padx=theme.SECTION_PAD, pady=(4, 15), sticky="nsew",
+            row=3,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(4, 15),
+            sticky="nsew",
         )
 
     def on_show(self):
@@ -147,6 +174,7 @@ class KVBrowserFrame(ctk.CTkFrame):
 
     def _bg_refresh(self):
         from ..backend.connection import ConnectionManager
+
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         return conn.kv_list()
 
@@ -180,7 +208,8 @@ class KVBrowserFrame(ctk.CTkFrame):
 
         if not self._filtered_keys:
             ctk.CTkLabel(
-                self._scroll, text="No keys found",
+                self._scroll,
+                text="No keys found",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=3, pady=40)
@@ -189,7 +218,8 @@ class KVBrowserFrame(ctk.CTkFrame):
         # Header
         for col, text in enumerate(["", "Key", "Type"]):
             ctk.CTkLabel(
-                self._scroll, text=text,
+                self._scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=6, pady=(4, 6), sticky="w")
@@ -208,8 +238,13 @@ class KVBrowserFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=False)
             ctk.CTkCheckBox(
-                self._scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=14, checkbox_height=14,
+                self._scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=14,
+                checkbox_height=14,
             ).grid(row=row, column=0, padx=4, pady=1)
             self._key_check_vars[key] = var
 
@@ -223,13 +258,15 @@ class KVBrowserFrame(ctk.CTkFrame):
                     break
 
             ctk.CTkLabel(
-                self._scroll, text=key,
+                self._scroll,
+                text=key,
                 font=ctk.CTkFont("Consolas", 11),
                 text_color=color,
             ).grid(row=row, column=1, padx=6, pady=1, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=type_str,
+                self._scroll,
+                text=type_str,
                 font=ctk.CTkFont(size=9),
                 text_color=theme.COLORS["text_dim"],
             ).grid(row=row, column=2, padx=6, pady=1, sticky="w")
@@ -247,7 +284,9 @@ class KVBrowserFrame(ctk.CTkFrame):
 
         self._log.log(f"Adding key: {dialog.key}")
         self.app.run_async(
-            self._bg_add_key, dialog.key, dialog.value,
+            self._bg_add_key,
+            dialog.key,
+            dialog.value,
             on_done=lambda _: (
                 self._log.log(f"Added: {dialog.key}", "success"),
                 self._refresh(),
@@ -257,6 +296,7 @@ class KVBrowserFrame(ctk.CTkFrame):
 
     def _bg_add_key(self, key: str, value: str):
         from ..backend.connection import ConnectionManager
+
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         conn.kv_put(key, value)
 
@@ -275,7 +315,8 @@ class KVBrowserFrame(ctk.CTkFrame):
         dialog.grab_set()
 
         ctk.CTkLabel(
-            dialog, text=f"Delete {len(selected)} KV key(s)?",
+            dialog,
+            text=f"Delete {len(selected)} KV key(s)?",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=theme.COLORS["warning"],
         ).pack(padx=20, pady=(20, 8))
@@ -284,7 +325,8 @@ class KVBrowserFrame(ctk.CTkFrame):
         if len(selected) > 3:
             preview += f" ... (+{len(selected) - 3} more)"
         ctk.CTkLabel(
-            dialog, text=preview,
+            dialog,
+            text=preview,
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
             wraplength=310,
@@ -300,7 +342,9 @@ class KVBrowserFrame(ctk.CTkFrame):
             dialog.destroy()
 
         ctk.CTkButton(
-            btn_frame, text="Cancel", width=80,
+            btn_frame,
+            text="Cancel",
+            width=80,
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -309,7 +353,9 @@ class KVBrowserFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(
-            btn_frame, text="Delete", width=80,
+            btn_frame,
+            text="Delete",
+            width=80,
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
@@ -323,7 +369,8 @@ class KVBrowserFrame(ctk.CTkFrame):
 
         self._log.log(f"Deleting {len(selected)} keys...")
         self.app.run_async(
-            self._bg_delete_keys, selected,
+            self._bg_delete_keys,
+            selected,
             on_done=lambda count: (
                 self._log.log(f"Deleted {count} keys", "success"),
                 self._refresh(),
@@ -333,6 +380,7 @@ class KVBrowserFrame(ctk.CTkFrame):
 
     def _bg_delete_keys(self, keys: list[str]) -> int:
         from ..backend.connection import ConnectionManager
+
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         count = 0
         for key in keys:
@@ -358,13 +406,15 @@ class KVBrowserFrame(ctk.CTkFrame):
         key = selected[0]
         self._log.log(f"Fetching value for: {key}")
         self.app.run_async(
-            self._bg_get_value, key,
+            self._bg_get_value,
+            key,
             on_done=lambda v: self._show_value_popup(key, v),
             on_error=lambda e: self._log.log(f"Failed to read value: {e}", "error"),
         )
 
     def _bg_get_value(self, key: str) -> str:
         from ..backend.connection import ConnectionManager
+
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         value = conn.kv_get(key)
         return value if value is not None else "(key not found)"
@@ -381,13 +431,15 @@ class KVBrowserFrame(ctk.CTkFrame):
         popup.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            popup, text=key,
+            popup,
+            text=key,
             font=ctk.CTkFont("Consolas", 12, weight="bold"),
             text_color=theme.COLORS["accent"],
         ).grid(row=0, column=0, padx=15, pady=(15, 5), sticky="w")
 
         text_box = ctk.CTkTextbox(
-            popup, font=ctk.CTkFont("Consolas", 11),
+            popup,
+            font=ctk.CTkFont("Consolas", 11),
             fg_color=theme.COLORS["bg_deeper"],
             corner_radius=theme.CORNER_RADIUS_SMALL,
         )
@@ -395,7 +447,9 @@ class KVBrowserFrame(ctk.CTkFrame):
         text_box.insert("1.0", value)
 
         ctk.CTkButton(
-            popup, text="Copy Value", width=100,
+            popup,
+            text="Copy Value",
+            width=100,
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
@@ -426,23 +480,29 @@ class _AddKVDialog(ctk.CTkToplevel):
         self.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            self, text="Key:",
+            self,
+            text="Key:",
             font=ctk.CTkFont(size=11, weight="bold"),
         ).grid(row=0, column=0, padx=(15, 6), pady=(15, 4), sticky="w")
 
         self._key_entry = ctk.CTkEntry(
-            self, height=30, font=ctk.CTkFont(size=11),
+            self,
+            height=30,
+            font=ctk.CTkFont(size=11),
             placeholder_text="e.g. dlc/EP01.zip",
         )
         self._key_entry.grid(row=0, column=1, padx=(0, 15), pady=(15, 4), sticky="ew")
 
         ctk.CTkLabel(
-            self, text="Value:",
+            self,
+            text="Value:",
             font=ctk.CTkFont(size=11, weight="bold"),
         ).grid(row=1, column=0, padx=(15, 6), pady=4, sticky="w")
 
         self._val_entry = ctk.CTkEntry(
-            self, height=30, font=ctk.CTkFont(size=11),
+            self,
+            height=30,
+            font=ctk.CTkFont(size=11),
             placeholder_text="e.g. files/sims4/dlc/EP01.zip",
         )
         self._val_entry.grid(row=1, column=1, padx=(0, 15), pady=4, sticky="ew")
@@ -452,7 +512,10 @@ class _AddKVDialog(ctk.CTkToplevel):
         btn_frame.grid(row=2, column=0, columnspan=2, padx=15, pady=(8, 12), sticky="ew")
 
         ctk.CTkButton(
-            btn_frame, text="Add", width=80, height=30,
+            btn_frame,
+            text="Add",
+            width=80,
+            height=30,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -460,7 +523,10 @@ class _AddKVDialog(ctk.CTkToplevel):
         ).pack(side="right", padx=(6, 0))
 
         ctk.CTkButton(
-            btn_frame, text="Cancel", width=70, height=30,
+            btn_frame,
+            text="Cancel",
+            width=70,
+            height=30,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],

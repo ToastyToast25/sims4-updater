@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from pathlib import Path
 from threading import Event, Thread
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import StatusBadge, LogPanel
+from ..components import LogPanel, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -34,13 +35,15 @@ class PatchFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="Patch Creator",
+            self,
+            text="Patch Creator",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
         # Tabs
         self._tabview = ctk.CTkTabview(
-            self, fg_color=theme.COLORS["bg_card"],
+            self,
+            fg_color=theme.COLORS["bg_card"],
             segmented_button_fg_color=theme.COLORS["bg_card_alt"],
             segmented_button_selected_color=theme.COLORS["accent"],
             segmented_button_selected_hover_color=theme.COLORS["accent_hover"],
@@ -48,7 +51,11 @@ class PatchFrame(ctk.CTkFrame):
             segmented_button_unselected_hover_color=theme.COLORS["card_hover"],
         )
         self._tabview.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(0, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(0, 4),
+            sticky="nsew",
         )
 
         self._build_registry_tab()
@@ -70,7 +77,8 @@ class PatchFrame(ctk.CTkFrame):
         btn_frame.grid(row=0, column=0, pady=(8, 4), sticky="ew")
 
         self._register_btn = ctk.CTkButton(
-            btn_frame, text="Register Version",
+            btn_frame,
+            text="Register Version",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
@@ -80,7 +88,8 @@ class PatchFrame(ctk.CTkFrame):
         self._register_btn.pack(side="left", padx=(0, 6))
 
         self._remove_btn = ctk.CTkButton(
-            btn_frame, text="Remove Selected",
+            btn_frame,
+            text="Remove Selected",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
@@ -90,7 +99,8 @@ class PatchFrame(ctk.CTkFrame):
         self._remove_btn.pack(side="left", padx=(0, 6))
 
         self._reverify_btn = ctk.CTkButton(
-            btn_frame, text="Re-verify",
+            btn_frame,
+            text="Re-verify",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -101,9 +111,11 @@ class PatchFrame(ctk.CTkFrame):
 
         # Registry list
         self._reg_scroll = ctk.CTkScrollableFrame(
-            tab, fg_color=theme.COLORS["bg_dark"],
+            tab,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS,
-            border_width=1, border_color=theme.COLORS["border"],
+            border_width=1,
+            border_color=theme.COLORS["border"],
         )
         self._reg_scroll.grid(row=1, column=0, pady=(6, 6), sticky="nsew")
         for col, w in [(0, 30), (1, 130), (2, 0), (3, 60), (4, 110), (5, 80)]:
@@ -125,14 +137,18 @@ class PatchFrame(ctk.CTkFrame):
 
         # From version
         ctk.CTkLabel(
-            tab, text="From Version:",
+            tab,
+            text="From Version:",
             font=ctk.CTkFont(size=12, weight="bold"),
         ).grid(row=0, column=0, padx=(10, 6), pady=(12, 4), sticky="w")
 
         self._from_var = ctk.StringVar()
         self._from_menu = ctk.CTkOptionMenu(
-            tab, variable=self._from_var, values=["(none)"],
-            height=32, width=250,
+            tab,
+            variable=self._from_var,
+            values=["(none)"],
+            height=32,
+            width=250,
             fg_color=theme.COLORS["bg_card_alt"],
             button_color=theme.COLORS["accent"],
             button_hover_color=theme.COLORS["accent_hover"],
@@ -141,14 +157,18 @@ class PatchFrame(ctk.CTkFrame):
 
         # To version
         ctk.CTkLabel(
-            tab, text="To Version:",
+            tab,
+            text="To Version:",
             font=ctk.CTkFont(size=12, weight="bold"),
         ).grid(row=1, column=0, padx=(10, 6), pady=4, sticky="w")
 
         self._to_var = ctk.StringVar()
         self._to_menu = ctk.CTkOptionMenu(
-            tab, variable=self._to_var, values=["(none)"],
-            height=32, width=250,
+            tab,
+            variable=self._to_var,
+            values=["(none)"],
+            height=32,
+            width=250,
             fg_color=theme.COLORS["bg_card_alt"],
             button_color=theme.COLORS["accent"],
             button_hover_color=theme.COLORS["accent_hover"],
@@ -157,18 +177,26 @@ class PatchFrame(ctk.CTkFrame):
 
         # Output info
         self._patch_info_label = ctk.CTkLabel(
-            tab, text="",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            tab,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         )
         self._patch_info_label.grid(
-            row=2, column=0, columnspan=2, padx=10, pady=(4, 0), sticky="w",
+            row=2,
+            column=0,
+            columnspan=2,
+            padx=10,
+            pady=(4, 0),
+            sticky="w",
         )
 
         # Progress
         self._patch_progress_frame = ctk.CTkFrame(tab, fg_color="transparent")
 
         self._patch_progress_bar = ctk.CTkProgressBar(
-            self._patch_progress_frame, height=16,
+            self._patch_progress_frame,
+            height=16,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             progress_color=theme.COLORS["accent"],
         )
@@ -176,8 +204,10 @@ class PatchFrame(ctk.CTkFrame):
         self._patch_progress_bar.set(0)
 
         self._patch_progress_label = ctk.CTkLabel(
-            self._patch_progress_frame, text="",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            self._patch_progress_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         )
         self._patch_progress_label.pack(anchor="w")
 
@@ -186,7 +216,8 @@ class PatchFrame(ctk.CTkFrame):
         btn_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=(8, 10), sticky="ew")
 
         self._create_btn = ctk.CTkButton(
-            btn_frame, text="Create Patch",
+            btn_frame,
+            text="Create Patch",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
@@ -196,7 +227,8 @@ class PatchFrame(ctk.CTkFrame):
         self._create_btn.pack(side="left", padx=(0, 6))
 
         self._upload_patch_btn = ctk.CTkButton(
-            btn_frame, text="Upload to CDN",
+            btn_frame,
+            text="Upload to CDN",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
@@ -208,7 +240,8 @@ class PatchFrame(ctk.CTkFrame):
         self._upload_patch_btn.pack(side="left", padx=(0, 6))
 
         self._cancel_btn = ctk.CTkButton(
-            btn_frame, text="Cancel",
+            btn_frame,
+            text="Cancel",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
@@ -257,7 +290,8 @@ class PatchFrame(ctk.CTkFrame):
         # Header
         for col, text in enumerate(["", "Version", "Directory", "Files", "Date", "Status"]):
             ctk.CTkLabel(
-                self._reg_scroll, text=text,
+                self._reg_scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=4, pady=(4, 6), sticky="w")
@@ -268,12 +302,18 @@ class PatchFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=False)
             ctk.CTkCheckBox(
-                self._reg_scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=16, checkbox_height=16,
+                self._reg_scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16,
             ).grid(row=row, column=0, padx=4, pady=2)
 
             ctk.CTkLabel(
-                self._reg_scroll, text=version,
+                self._reg_scroll,
+                text=version,
                 font=ctk.CTkFont("Consolas", 11),
             ).grid(row=row, column=1, padx=4, pady=2, sticky="w")
 
@@ -281,18 +321,24 @@ class PatchFrame(ctk.CTkFrame):
             if len(dir_text) > 50:
                 dir_text = "..." + dir_text[-47:]
             ctk.CTkLabel(
-                self._reg_scroll, text=dir_text,
-                font=ctk.CTkFont(size=10), text_color=theme.COLORS["text_muted"],
+                self._reg_scroll,
+                text=dir_text,
+                font=ctk.CTkFont(size=10),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=2, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._reg_scroll, text=str(entry.get("file_count", "?")),
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._reg_scroll,
+                text=str(entry.get("file_count", "?")),
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=3, padx=4, pady=2, sticky="e")
 
             ctk.CTkLabel(
-                self._reg_scroll, text=entry.get("date_added", ""),
-                font=ctk.CTkFont(size=10), text_color=theme.COLORS["text_muted"],
+                self._reg_scroll,
+                text=entry.get("date_added", ""),
+                font=ctk.CTkFont(size=10),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=4, padx=4, pady=2, sticky="w")
 
             badge = StatusBadge(self._reg_scroll)
@@ -331,13 +377,16 @@ class PatchFrame(ctk.CTkFrame):
 
         self._log.log(f"Registering {dialog.version}...")
         self.app.run_async(
-            self._bg_register, dialog.directory, dialog.version,
+            self._bg_register,
+            dialog.directory,
+            dialog.version,
             on_done=self._on_register_done,
             on_error=self._on_register_error,
         )
 
     def _bg_register(self, directory: str, version: str):
         from ..backend.patch_ops import register_version
+
         return register_version(directory, version, self._registry)
 
     def _on_register_done(self, entry):
@@ -345,7 +394,8 @@ class PatchFrame(ctk.CTkFrame):
         self._refresh_registry_ui()
         self._refresh_version_menus()
         self._log.log(
-            f"Registered {entry['version']}: {entry['file_count']} files", "success",
+            f"Registered {entry['version']}: {entry['file_count']} files",
+            "success",
         )
         self.app.show_toast(f"Registered {entry['version']}", "success")
 
@@ -373,7 +423,8 @@ class PatchFrame(ctk.CTkFrame):
         self._reverify_btn.configure(state="disabled")
         self._log.log(f"Re-verifying {len(selected)} version(s)...")
         self.app.run_async(
-            self._bg_reverify, selected,
+            self._bg_reverify,
+            selected,
             on_done=self._on_reverify_done,
             on_error=lambda e: (
                 self._log.log(f"Re-verify failed: {e}", "error"),
@@ -415,20 +466,17 @@ class PatchFrame(ctk.CTkFrame):
             if status == "success":
                 pct = int(confidence * 100)
                 self._log.log(
-                    f"Verified {version}: {file_count} files, "
-                    f"fingerprint match ({pct}%)",
+                    f"Verified {version}: {file_count} files, fingerprint match ({pct}%)",
                     "success",
                 )
             elif status == "mismatch":
                 self._log.log(
-                    f"Fingerprint mismatch for {version}: "
-                    f"detected {detected} instead",
+                    f"Fingerprint mismatch for {version}: detected {detected} instead",
                     "warning",
                 )
             elif status == "no_data":
                 self._log.log(
-                    f"Verified {version}: {file_count} files "
-                    f"(no fingerprint data available)",
+                    f"Verified {version}: {file_count} files (no fingerprint data available)",
                     "success",
                 )
             else:
@@ -476,6 +524,7 @@ class PatchFrame(ctk.CTkFrame):
             return
 
         from ..backend.patch_ops import get_patcher_dir
+
         patcher_dir = get_patcher_dir(self.app.config_data.patcher_dir)
         if not patcher_dir:
             self.app.show_toast("Patcher directory not found", "error")
@@ -494,7 +543,12 @@ class PatchFrame(ctk.CTkFrame):
 
         # Show progress
         self._patch_progress_frame.grid(
-            row=3, column=0, columnspan=2, padx=10, pady=(4, 0), sticky="ew",
+            row=3,
+            column=0,
+            columnspan=2,
+            padx=10,
+            pady=(4, 0),
+            sticky="ew",
         )
         self._patch_progress_bar.set(0)
         self._patch_progress_label.configure(text="Starting...")
@@ -510,10 +564,16 @@ class PatchFrame(ctk.CTkFrame):
         ).start()
 
     def _bg_create_patch(
-        self, from_dir, to_dir, from_version, to_version, patcher_dir, output_dir,
+        self,
+        from_dir,
+        to_dir,
+        from_version,
+        to_version,
+        patcher_dir,
+        output_dir,
     ):
-        from ..backend.patch_ops import create_patch
         from ..backend.dlc_ops import fmt_size
+        from ..backend.patch_ops import create_patch
 
         start_time = time.time()
 
@@ -531,9 +591,12 @@ class PatchFrame(ctk.CTkFrame):
                 )
 
         result = create_patch(
-            from_dir, to_dir,
-            from_version, to_version,
-            patcher_dir, output_dir,
+            from_dir,
+            to_dir,
+            from_version,
+            to_version,
+            patcher_dir,
+            output_dir,
             cancel_event=self._cancel_event,
             log_cb=log,
             progress_cb=progress,
@@ -604,8 +667,8 @@ class PatchFrame(ctk.CTkFrame):
         ).start()
 
     def _bg_upload_patch(self, patch_path: Path, from_version: str, to_version: str):
-        from ..backend.patch_ops import upload_patch
         from ..backend.connection import ConnectionManager
+        from ..backend.patch_ops import upload_patch
 
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
 
@@ -613,7 +676,11 @@ class PatchFrame(ctk.CTkFrame):
             self.app._enqueue_gui(self._log.log, msg, level)
 
         entry = upload_patch(
-            conn, patch_path, from_version, to_version, log_cb=log,
+            conn,
+            patch_path,
+            from_version,
+            to_version,
+            log_cb=log,
         )
 
         if entry:
@@ -625,10 +692,10 @@ class PatchFrame(ctk.CTkFrame):
 
                 # Remove existing entry for same from->to
                 patches = [
-                    p for p in patches
+                    p
+                    for p in patches
                     if not (
-                        p.get("from_version") == from_version
-                        and p.get("to_version") == to_version
+                        p.get("from_version") == from_version and p.get("to_version") == to_version
                     )
                 ]
                 patches.append(entry)
@@ -636,8 +703,12 @@ class PatchFrame(ctk.CTkFrame):
 
                 import json
                 import tempfile
+
                 with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".json", delete=False, encoding="utf-8",
+                    mode="w",
+                    suffix=".json",
+                    delete=False,
+                    encoding="utf-8",
                 ) as tmp:
                     json.dump(manifest, tmp, indent=2)
                     tmp_path = Path(tmp.name)
@@ -664,6 +735,7 @@ class PatchFrame(ctk.CTkFrame):
 
 # -- Dialogs ------------------------------------------------------------------
 
+
 class _RegisterVersionDialog(ctk.CTkToplevel):
     """Dialog to register a game directory as a version with fingerprint auto-detect."""
 
@@ -682,7 +754,8 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
 
         # Directory
         ctk.CTkLabel(
-            self, text="Game Directory:",
+            self,
+            text="Game Directory:",
             font=ctk.CTkFont(size=12, weight="bold"),
         ).grid(row=0, column=0, padx=(20, 6), pady=(20, 4), sticky="w")
 
@@ -692,20 +765,26 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
         self.grid_columnconfigure(1, weight=1)
 
         self._dir_entry = ctk.CTkEntry(
-            dir_frame, height=32, font=ctk.CTkFont(size=11),
+            dir_frame,
+            height=32,
+            font=ctk.CTkFont(size=11),
             placeholder_text="C:\\...\\The Sims 4",
         )
         self._dir_entry.grid(row=0, column=0, padx=(0, 4), sticky="ew")
 
         ctk.CTkButton(
-            dir_frame, text="Browse", width=70, height=32,
+            dir_frame,
+            text="Browse",
+            width=70,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse,
         ).grid(row=0, column=1)
 
         # Version
         ctk.CTkLabel(
-            self, text="Version String:",
+            self,
+            text="Version String:",
             font=ctk.CTkFont(size=12, weight="bold"),
         ).grid(row=1, column=0, padx=(20, 6), pady=4, sticky="w")
 
@@ -714,14 +793,19 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
         ver_frame.grid_columnconfigure(0, weight=1)
 
         self._ver_entry = ctk.CTkEntry(
-            ver_frame, height=32, font=ctk.CTkFont("Consolas", 12),
+            ver_frame,
+            height=32,
+            font=ctk.CTkFont("Consolas", 12),
             placeholder_text="e.g. 1.121.372.1020",
         )
         self._ver_entry.grid(row=0, column=0, padx=(0, 4), sticky="ew")
         self._ver_entry.bind("<Return>", lambda _: self._ok())
 
         self._detect_btn = ctk.CTkButton(
-            ver_frame, text="Detect", width=70, height=32,
+            ver_frame,
+            text="Detect",
+            width=70,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -731,7 +815,8 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
 
         # Detection status label
         self._detect_label = ctk.CTkLabel(
-            self, text="",
+            self,
+            text="",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
         )
@@ -741,7 +826,7 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             self,
             text="Point to a clean game directory for this version. "
-                 "Click 'Detect' to auto-detect version from file hashes.",
+            "Click 'Detect' to auto-detect version from file hashes.",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
             wraplength=440,
@@ -752,7 +837,10 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
         btn_frame.grid(row=4, column=0, columnspan=2, padx=20, pady=(4, 15), sticky="ew")
 
         ctk.CTkButton(
-            btn_frame, text="Register", width=90, height=32,
+            btn_frame,
+            text="Register",
+            width=90,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -760,7 +848,10 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
         ).pack(side="right", padx=(6, 0))
 
         ctk.CTkButton(
-            btn_frame, text="Cancel", width=80, height=32,
+            btn_frame,
+            text="Cancel",
+            width=80,
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -769,6 +860,7 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
 
     def _browse(self):
         from tkinter import filedialog
+
         path = filedialog.askdirectory(title="Select Game Directory")
         if path:
             self._dir_entry.delete(0, "end")
@@ -779,12 +871,14 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
         directory = self._dir_entry.get().strip()
         if not directory:
             self._detect_label.configure(
-                text="Enter a directory first", text_color=theme.COLORS["warning"],
+                text="Enter a directory first",
+                text_color=theme.COLORS["warning"],
             )
             return
 
         self._detect_label.configure(
-            text="Detecting...", text_color=theme.COLORS["text_muted"],
+            text="Detecting...",
+            text_color=theme.COLORS["text_muted"],
         )
         self._detect_btn.configure(state="disabled")
         self.update_idletasks()
@@ -793,8 +887,10 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
 
         def _bg_detect():
             from ..backend.patch_ops import (
-                detect_version_fingerprint, parse_version_from_default_ini,
+                detect_version_fingerprint,
+                parse_version_from_default_ini,
             )
+
             try:
                 detected, confidence = detect_version_fingerprint(directory)
             except Exception:
@@ -802,10 +898,8 @@ class _RegisterVersionDialog(ctk.CTkToplevel):
 
             ini_version = None
             if not detected or confidence < 0.5:
-                try:
+                with contextlib.suppress(Exception):
                     ini_version = parse_version_from_default_ini(directory)
-                except Exception:
-                    pass
 
             # Update GUI on main thread
             def _apply():

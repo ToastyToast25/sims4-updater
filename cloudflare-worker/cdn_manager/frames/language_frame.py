@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import StatusBadge, LogPanel
+from ..components import LogPanel, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -33,7 +33,8 @@ class LanguageFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="Language Upload",
+            self,
+            text="Language Upload",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
@@ -47,7 +48,9 @@ class LanguageFrame(ctk.CTkFrame):
         path_frame.grid_columnconfigure(0, weight=1)
 
         self._game_dir_entry = ctk.CTkEntry(
-            path_frame, font=ctk.CTkFont(size=12), height=36,
+            path_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text="Game directory...",
         )
         self._game_dir_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
@@ -55,7 +58,10 @@ class LanguageFrame(ctk.CTkFrame):
             self._game_dir_entry.insert(0, self.app.config_data.game_dir)
 
         ctk.CTkButton(
-            path_frame, text="Browse", height=36, width=80,
+            path_frame,
+            text="Browse",
+            height=36,
+            width=80,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse,
         ).grid(row=0, column=1)
@@ -65,7 +71,9 @@ class LanguageFrame(ctk.CTkFrame):
         btn_row.grid(row=1, column=0, pady=(8, 0), sticky="ew")
 
         self._scan_btn = ctk.CTkButton(
-            btn_row, text="Scan", height=32,
+            btn_row,
+            text="Scan",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
@@ -74,7 +82,9 @@ class LanguageFrame(ctk.CTkFrame):
         self._scan_btn.pack(side="left", padx=(0, 4))
 
         self._upload_btn = ctk.CTkButton(
-            btn_row, text="Upload Selected", height=32,
+            btn_row,
+            text="Upload Selected",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
             hover_color="#3ae882",
@@ -85,7 +95,9 @@ class LanguageFrame(ctk.CTkFrame):
         self._upload_btn.pack(side="left", padx=(0, 4))
 
         self._cancel_btn = ctk.CTkButton(
-            btn_row, text="Cancel", height=32,
+            btn_row,
+            text="Cancel",
+            height=32,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#ff6b6b",
@@ -93,7 +105,10 @@ class LanguageFrame(ctk.CTkFrame):
         )
 
         ctk.CTkButton(
-            btn_row, text="All", height=28, width=50,
+            btn_row,
+            text="All",
+            height=28,
+            width=50,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -102,7 +117,10 @@ class LanguageFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(12, 2))
 
         ctk.CTkButton(
-            btn_row, text="Missing", height=28, width=65,
+            btn_row,
+            text="Missing",
+            height=28,
+            width=65,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -111,7 +129,10 @@ class LanguageFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 2))
 
         ctk.CTkButton(
-            btn_row, text="None", height=28, width=50,
+            btn_row,
+            text="None",
+            height=28,
+            width=50,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -121,38 +142,49 @@ class LanguageFrame(ctk.CTkFrame):
 
         self._force_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
-            btn_row, text="Force", variable=self._force_var,
-            font=ctk.CTkFont(size=11), height=28, width=60,
-            checkbox_width=16, checkbox_height=16,
+            btn_row,
+            text="Force",
+            variable=self._force_var,
+            font=ctk.CTkFont(size=11),
+            height=28,
+            width=60,
+            checkbox_width=16,
+            checkbox_height=16,
         ).pack(side="left", padx=(12, 0))
 
         # Progress
         self._progress_frame = ctk.CTkFrame(self, fg_color="transparent", height=40)
         self._progress_bar = ctk.CTkProgressBar(
-            self._progress_frame, height=16,
+            self._progress_frame,
+            height=16,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             progress_color=theme.COLORS["accent"],
         )
         self._progress_bar.pack(fill="x", pady=(0, 2))
         self._progress_bar.set(0)
         self._progress_label = ctk.CTkLabel(
-            self._progress_frame, text="",
-            font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+            self._progress_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
         )
         self._progress_label.pack(anchor="w")
 
         # Language list
         self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color=theme.COLORS["bg_dark"],
+            self,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS,
-            border_width=1, border_color=theme.COLORS["border"],
+            border_width=1,
+            border_color=theme.COLORS["border"],
         )
         self._scroll.grid(row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew")
         for col, w in [(0, 30), (1, 60), (2, 0), (3, 60), (4, 80), (5, 90)]:
             self._scroll.grid_columnconfigure(col, weight=1 if w == 0 else 0, minsize=w)
 
         ctk.CTkLabel(
-            self._scroll, text="Click 'Scan' to detect installed languages",
+            self._scroll,
+            text="Click 'Scan' to detect installed languages",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=0, column=0, columnspan=6, pady=40)
@@ -166,6 +198,7 @@ class LanguageFrame(ctk.CTkFrame):
 
     def _browse(self):
         from tkinter import filedialog
+
         path = filedialog.askdirectory(title="Select Sims 4 Game Directory")
         if path:
             self._game_dir_entry.delete(0, "end")
@@ -181,15 +214,16 @@ class LanguageFrame(ctk.CTkFrame):
         self._log.log("Scanning for installed languages...")
         self._scan_btn.configure(state="disabled")
         self.app.run_async(
-            self._bg_scan, game_dir,
+            self._bg_scan,
+            game_dir,
             on_done=self._on_scan_done,
             on_error=self._on_scan_error,
         )
 
     def _bg_scan(self, game_dir: str):
-        from ..backend.lang_ops import scan_installed_languages, LANGUAGES
-        from ..backend.dlc_ops import fmt_size
         from ..backend.connection import ConnectionManager
+        from ..backend.dlc_ops import fmt_size
+        from ..backend.lang_ops import LANGUAGES, scan_installed_languages
 
         game_path = Path(game_dir)
         installed = scan_installed_languages(game_path)
@@ -198,20 +232,23 @@ class LanguageFrame(ctk.CTkFrame):
         for locale_code in sorted(installed):
             paths = installed[locale_code]
             total_size = sum(p.stat().st_size for p in paths)
-            lang_info.append({
-                "locale": locale_code,
-                "name": LANGUAGES.get(locale_code, locale_code),
-                "file_count": len(paths),
-                "size": total_size,
-                "size_str": fmt_size(total_size),
-            })
+            lang_info.append(
+                {
+                    "locale": locale_code,
+                    "name": LANGUAGES.get(locale_code, locale_code),
+                    "file_count": len(paths),
+                    "size": total_size,
+                    "size_str": fmt_size(total_size),
+                }
+            )
 
         # Check CDN
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         cdn_keys = conn.kv_list()
         cdn_langs = {
             k.replace("language/", "").replace(".zip", "")
-            for k in cdn_keys if k.startswith("language/")
+            for k in cdn_keys
+            if k.startswith("language/")
         }
 
         statuses = {}
@@ -231,7 +268,8 @@ class LanguageFrame(ctk.CTkFrame):
 
         if not lang_info:
             ctk.CTkLabel(
-                self._scroll, text="No languages found",
+                self._scroll,
+                text="No languages found",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, columnspan=6, pady=40)
@@ -240,7 +278,8 @@ class LanguageFrame(ctk.CTkFrame):
 
         for col, text in enumerate(["", "Code", "Language", "Files", "Size", "Status"]):
             ctk.CTkLabel(
-                self._scroll, text=text,
+                self._scroll,
+                text=text,
                 font=ctk.CTkFont(size=11, weight="bold"),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=col, padx=4, pady=(4, 6), sticky="w")
@@ -252,28 +291,39 @@ class LanguageFrame(ctk.CTkFrame):
 
             var = ctk.BooleanVar(value=(status == "missing"))
             ctk.CTkCheckBox(
-                self._scroll, text="", variable=var,
-                width=20, height=20, checkbox_width=16, checkbox_height=16,
+                self._scroll,
+                text="",
+                variable=var,
+                width=20,
+                height=20,
+                checkbox_width=16,
+                checkbox_height=16,
             ).grid(row=row, column=0, padx=4, pady=2)
 
             ctk.CTkLabel(
-                self._scroll, text=locale,
+                self._scroll,
+                text=locale,
                 font=ctk.CTkFont("Consolas", 11),
             ).grid(row=row, column=1, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=info["name"],
+                self._scroll,
+                text=info["name"],
                 font=ctk.CTkFont(size=11),
             ).grid(row=row, column=2, padx=4, pady=2, sticky="w")
 
             ctk.CTkLabel(
-                self._scroll, text=str(info["file_count"]),
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._scroll,
+                text=str(info["file_count"]),
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=3, padx=4, pady=2, sticky="e")
 
             ctk.CTkLabel(
-                self._scroll, text=info["size_str"],
-                font=ctk.CTkFont(size=11), text_color=theme.COLORS["text_muted"],
+                self._scroll,
+                text=info["size_str"],
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text_muted"],
             ).grid(row=row, column=4, padx=4, pady=2, sticky="e")
 
             badge = StatusBadge(self._scroll)
@@ -331,10 +381,18 @@ class LanguageFrame(ctk.CTkFrame):
         self.app.begin_operation(f"Uploading {len(selected)} languages")
 
         self._progress_frame.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(10, 0), sticky="ew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(10, 0),
+            sticky="ew",
         )
         self._scroll.grid(
-            row=2, column=0, padx=theme.SECTION_PAD, pady=(50, 4), sticky="nsew",
+            row=2,
+            column=0,
+            padx=theme.SECTION_PAD,
+            pady=(50, 4),
+            sticky="nsew",
         )
         self._progress_bar.set(0)
         self._progress_label.configure(text=f"0/{len(selected)} languages")
@@ -349,16 +407,15 @@ class LanguageFrame(ctk.CTkFrame):
         ).start()
 
     def _bg_upload(self, game_dir: str, locales: list[str], force: bool):
-        from ..backend.lang_ops import process_language
-        from ..backend.dlc_ops import fmt_size
         from ..backend.connection import ConnectionManager
+        from ..backend.dlc_ops import fmt_size
+        from ..backend.lang_ops import process_language
 
         conn = ConnectionManager(self.app.config_data.to_cdn_config())
         game_path = Path(game_dir)
         output_dir = Path(__file__).resolve().parent.parent.parent / "lang_packed_temp"
 
         total = len(locales)
-        completed = 0
         uploaded = 0
         uploaded_bytes = 0
         failed = []
@@ -368,17 +425,20 @@ class LanguageFrame(ctk.CTkFrame):
         def log(msg, level="info"):
             self.app._enqueue_gui(self._log.log, msg, level)
 
-        for locale in locales:
+        completed = 0
+        for completed, locale in enumerate(locales, 1):
             if self._cancel_event.is_set():
                 break
 
             entry = process_language(
-                game_path, locale, conn, output_dir,
+                game_path,
+                locale,
+                conn,
+                output_dir,
                 force=force,
                 cancel_event=self._cancel_event,
                 log_cb=log,
             )
-            completed += 1
 
             if entry:
                 if entry.get("size", 0) > 0:
@@ -386,7 +446,9 @@ class LanguageFrame(ctk.CTkFrame):
                     uploaded_bytes += entry["size"]
                     uploaded_entries[locale] = entry
                 self.app._enqueue_gui(
-                    self._update_badge, locale, "uploaded",
+                    self._update_badge,
+                    locale,
+                    "uploaded",
                 )
             elif not self._cancel_event.is_set():
                 failed.append(locale)
@@ -394,12 +456,17 @@ class LanguageFrame(ctk.CTkFrame):
             progress = completed / total
             elapsed = time.time() - start_time
             self.app._enqueue_gui(
-                self._update_progress, progress, completed, total, elapsed,
+                self._update_progress,
+                progress,
+                completed,
+                total,
+                elapsed,
             )
 
         # Auto-update manifest with new language entries
         if uploaded_entries and not self._cancel_event.is_set():
             from ..backend.manifest_ops import merge_language_entries_and_publish
+
             merge_language_entries_and_publish(conn, uploaded_entries, log_cb=log)
 
         total_time = time.time() - start_time
@@ -411,8 +478,11 @@ class LanguageFrame(ctk.CTkFrame):
             self._cancel_btn.pack_forget()
             self._progress_frame.grid_forget()
             self._scroll.grid(
-                row=2, column=0,
-                padx=theme.SECTION_PAD, pady=(10, 4), sticky="nsew",
+                row=2,
+                column=0,
+                padx=theme.SECTION_PAD,
+                pady=(10, 4),
+                sticky="nsew",
             )
             self.app.end_operation()
             msg = f"Upload complete: {uploaded} uploaded"
@@ -438,7 +508,10 @@ class LanguageFrame(ctk.CTkFrame):
         if elapsed > 0 and completed > 0:
             remaining = elapsed / completed * (total - completed)
             self._progress_label.configure(
-                text=f"{completed}/{total} languages  |  {elapsed:.0f}s  |  ~{remaining:.0f}s remaining",
+                text=(
+                    f"{completed}/{total} languages  |  "
+                    f"{elapsed:.0f}s  |  ~{remaining:.0f}s remaining"
+                ),
             )
         else:
             self._progress_label.configure(text=f"{completed}/{total} languages")

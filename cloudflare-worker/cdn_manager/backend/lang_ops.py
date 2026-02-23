@@ -32,11 +32,24 @@ LANGUAGES: dict[str, str] = {
 }
 
 LOCALE_TO_STRINGS: dict[str, str] = {
-    "cs_CZ": "CZE_CZ", "da_DK": "DAN_DK", "de_DE": "GER_DE", "en_US": "ENG_US",
-    "es_ES": "SPA_ES", "fr_FR": "FRE_FR", "it_IT": "ITA_IT", "nl_NL": "DUT_NL",
-    "no_NO": "NOR_NO", "pl_PL": "POL_PL", "pt_BR": "POR_BR", "fi_FI": "FIN_FI",
-    "sv_SE": "SWE_SE", "ru_RU": "RUS_RU", "ja_JP": "JPN_JP", "zh_TW": "CHT_CN",
-    "zh_CN": "CHS_CN", "ko_KR": "KOR_KR",
+    "cs_CZ": "CZE_CZ",
+    "da_DK": "DAN_DK",
+    "de_DE": "GER_DE",
+    "en_US": "ENG_US",
+    "es_ES": "SPA_ES",
+    "fr_FR": "FRE_FR",
+    "it_IT": "ITA_IT",
+    "nl_NL": "DUT_NL",
+    "no_NO": "NOR_NO",
+    "pl_PL": "POL_PL",
+    "pt_BR": "POR_BR",
+    "fi_FI": "FIN_FI",
+    "sv_SE": "SWE_SE",
+    "ru_RU": "RUS_RU",
+    "ja_JP": "JPN_JP",
+    "zh_TW": "CHT_CN",
+    "zh_CN": "CHS_CN",
+    "ko_KR": "KOR_KR",
 }
 
 STRINGS_SEARCH_DIRS = ["Data/Client", "Delta/Base"]
@@ -78,9 +91,7 @@ def pack_language(game_dir: Path, locale_code: str, output_dir: Path) -> Path:
             files_to_pack.append((archive_name, candidate))
 
     if not files_to_pack:
-        raise FileNotFoundError(
-            f"No Strings file found for {locale_code} (expected {filename})"
-        )
+        raise FileNotFoundError(f"No Strings file found for {locale_code} (expected {filename})")
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for archive_name, abs_path in files_to_pack:
@@ -166,7 +177,7 @@ def process_language(
     # Register KV
     try:
         conn.kv_put(cdn_path, remote_path)
-        log(f"Registered in CDN")
+        log("Registered in CDN")
     except Exception as e:
         log(f"KV registration failed: {e}", "error")
         zip_path.unlink(missing_ok=True)

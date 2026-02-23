@@ -25,13 +25,15 @@ class SettingsFrame(ctk.CTkFrame):
 
     def _build_ui(self):
         ctk.CTkLabel(
-            self, text="Settings",
+            self,
+            text="Settings",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
         # Scrollable content
         scroll = ctk.CTkScrollableFrame(
-            self, fg_color="transparent",
+            self,
+            fg_color="transparent",
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
@@ -46,9 +48,17 @@ class SettingsFrame(ctk.CTkFrame):
         conn_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            conn_card, text="Seedbox Connection",
+            conn_card,
+            text="Seedbox Connection",
             font=ctk.CTkFont(*theme.FONT_HEADING),
-        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 10), sticky="w")
+        ).grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 10),
+            sticky="w",
+        )
 
         self._entries = {}
         fields = [
@@ -59,13 +69,16 @@ class SettingsFrame(ctk.CTkFrame):
         ]
         for i, (key, label, value, is_secret) in enumerate(fields):
             ctk.CTkLabel(
-                conn_card, text=f"{label}:",
+                conn_card,
+                text=f"{label}:",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=i + 1, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
 
             entry = ctk.CTkEntry(
-                conn_card, font=ctk.CTkFont(size=12), height=32,
+                conn_card,
+                font=ctk.CTkFont(size=12),
+                height=32,
                 show="*" if is_secret else "",
             )
             entry.grid(row=i + 1, column=1, padx=(0, theme.CARD_PAD_X), pady=4, sticky="ew")
@@ -79,24 +92,40 @@ class SettingsFrame(ctk.CTkFrame):
         cf_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            cf_card, text="Cloudflare Settings",
+            cf_card,
+            text="Cloudflare Settings",
             font=ctk.CTkFont(*theme.FONT_HEADING),
-        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 10), sticky="w")
+        ).grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 10),
+            sticky="w",
+        )
 
         cf_fields = [
             ("cloudflare_account_id", "Account ID", config.cloudflare_account_id, False),
             ("cloudflare_api_token", "API Token", config.cloudflare_api_token, True),
-            ("cloudflare_kv_namespace_id", "KV Namespace ID", config.cloudflare_kv_namespace_id, False),
+            (
+                "cloudflare_kv_namespace_id",
+                "KV Namespace ID",
+                config.cloudflare_kv_namespace_id,
+                False,
+            ),
         ]
         for i, (key, label, value, is_secret) in enumerate(cf_fields):
             ctk.CTkLabel(
-                cf_card, text=f"{label}:",
+                cf_card,
+                text=f"{label}:",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=i + 1, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
 
             entry = ctk.CTkEntry(
-                cf_card, font=ctk.CTkFont(size=12), height=32,
+                cf_card,
+                font=ctk.CTkFont(size=12),
+                height=32,
                 show="*" if is_secret else "",
             )
             entry.grid(row=i + 1, column=1, padx=(0, theme.CARD_PAD_X), pady=4, sticky="ew")
@@ -110,24 +139,36 @@ class SettingsFrame(ctk.CTkFrame):
         paths_card.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
-            paths_card, text="Paths",
+            paths_card,
+            text="Paths",
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).grid(row=0, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 10), sticky="w")
 
-        for i, (key, label, value, browse_title) in enumerate([
-            ("game_dir", "Game Directory", config.game_dir, "Select Sims 4 Game Directory"),
-            ("patcher_dir", "Patcher Directory", config.patcher_dir, "Select Patcher Directory"),
-        ]):
+        for i, (key, label, value, browse_title) in enumerate(
+            [
+                ("game_dir", "Game Directory", config.game_dir, "Select Sims 4 Game Directory"),
+                (
+                    "patcher_dir",
+                    "Patcher Directory",
+                    config.patcher_dir,
+                    "Select Patcher Directory",
+                ),
+            ]
+        ):
             ctk.CTkLabel(
-                paths_card, text=f"{label}:",
+                paths_card,
+                text=f"{label}:",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=i * 2 + 1, column=0, padx=theme.CARD_PAD_X, pady=(4, 2), sticky="w")
 
             path_frame = ctk.CTkFrame(paths_card, fg_color="transparent")
             path_frame.grid(
-                row=i * 2 + 2, column=0, padx=theme.CARD_PAD_X,
-                pady=(0, 8), sticky="ew",
+                row=i * 2 + 2,
+                column=0,
+                padx=theme.CARD_PAD_X,
+                pady=(0, 8),
+                sticky="ew",
             )
             path_frame.grid_columnconfigure(0, weight=1)
 
@@ -138,7 +179,10 @@ class SettingsFrame(ctk.CTkFrame):
             self._entries[key] = entry
 
             ctk.CTkButton(
-                path_frame, text="Browse", height=32, width=70,
+                path_frame,
+                text="Browse",
+                height=32,
+                width=70,
                 corner_radius=theme.CORNER_RADIUS_SMALL,
                 fg_color=theme.COLORS["bg_card_alt"],
                 hover_color=theme.COLORS["card_hover"],
@@ -150,7 +194,8 @@ class SettingsFrame(ctk.CTkFrame):
         btn_frame.grid(row=3, column=0, padx=theme.SECTION_PAD, pady=(0, 15), sticky="ew")
 
         self._save_btn = ctk.CTkButton(
-            btn_frame, text="Save Settings",
+            btn_frame,
+            text="Save Settings",
             font=ctk.CTkFont(size=14, weight="bold"),
             height=theme.BUTTON_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
@@ -161,7 +206,8 @@ class SettingsFrame(ctk.CTkFrame):
         self._save_btn.pack(side="left", padx=(0, 10))
 
         ctk.CTkButton(
-            btn_frame, text="Test Connection",
+            btn_frame,
+            text="Test Connection",
             height=theme.BUTTON_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -174,6 +220,7 @@ class SettingsFrame(ctk.CTkFrame):
 
     def _browse(self, title: str, entry: ctk.CTkEntry):
         from tkinter import filedialog
+
         path = filedialog.askdirectory(title=title)
         if path:
             entry.delete(0, "end")
@@ -201,9 +248,12 @@ class SettingsFrame(ctk.CTkFrame):
         animator = get_animator()
         animator.cancel_all(self._save_btn, tag="save_flash")
         animator.animate_color(
-            self._save_btn, "fg_color",
-            theme.COLORS["success"], theme.COLORS["accent"],
-            600, tag="save_flash",
+            self._save_btn,
+            "fg_color",
+            theme.COLORS["success"],
+            theme.COLORS["accent"],
+            600,
+            tag="save_flash",
         )
         self.app.show_toast("Settings saved", "success")
 
@@ -222,6 +272,7 @@ class SettingsFrame(ctk.CTkFrame):
         # Test SFTP
         try:
             import paramiko
+
             transport = paramiko.Transport((config.whatbox_host, config.whatbox_port))
             transport.connect(username=config.whatbox_user, password=config.whatbox_pass)
             transport.close()
@@ -233,13 +284,15 @@ class SettingsFrame(ctk.CTkFrame):
         try:
             import json
             import urllib.request
+
             url = (
                 f"https://api.cloudflare.com/client/v4/accounts/"
                 f"{config.cloudflare_account_id}/storage/kv/namespaces/"
                 f"{config.cloudflare_kv_namespace_id}/keys?limit=1"
             )
             req = urllib.request.Request(
-                url, headers={"Authorization": f"Bearer {config.cloudflare_api_token}"},
+                url,
+                headers={"Authorization": f"Bearer {config.cloudflare_api_token}"},
             )
             resp = urllib.request.urlopen(req, timeout=10)
             data = json.loads(resp.read())

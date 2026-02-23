@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import InfoCard, StatusBadge, LogPanel
+from ..components import InfoCard, LogPanel, StatusBadge
 
 if TYPE_CHECKING:
     from ..app import CDNManagerApp
@@ -29,7 +29,8 @@ class DashboardFrame(ctk.CTkFrame):
     def _build_ui(self):
         # Title
         ctk.CTkLabel(
-            self, text="Dashboard",
+            self,
+            text="Dashboard",
             font=ctk.CTkFont(*theme.FONT_TITLE),
         ).grid(row=0, column=0, padx=theme.SECTION_PAD, pady=(20, 15), sticky="w")
 
@@ -45,12 +46,21 @@ class DashboardFrame(ctk.CTkFrame):
         conn_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            conn_card, text="Connection",
+            conn_card,
+            text="Connection",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 8), sticky="w")
+        ).grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 8),
+            sticky="w",
+        )
 
         ctk.CTkLabel(
-            conn_card, text="Seedbox (SFTP):",
+            conn_card,
+            text="Seedbox (SFTP):",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 4), pady=2, sticky="w")
@@ -58,7 +68,8 @@ class DashboardFrame(ctk.CTkFrame):
         self._sftp_badge.grid(row=1, column=1, padx=(0, theme.CARD_PAD_X), pady=2, sticky="e")
 
         ctk.CTkLabel(
-            conn_card, text="Cloudflare KV:",
+            conn_card,
+            text="Cloudflare KV:",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=2, column=0, padx=(theme.CARD_PAD_X, 4), pady=2, sticky="w")
@@ -66,16 +77,24 @@ class DashboardFrame(ctk.CTkFrame):
         self._kv_badge.grid(row=2, column=1, padx=(0, theme.CARD_PAD_X), pady=2, sticky="e")
 
         ctk.CTkLabel(
-            conn_card, text="Disk Usage:",
+            conn_card,
+            text="Disk Usage:",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=3, column=0, padx=(theme.CARD_PAD_X, 4), pady=(2, theme.CARD_PAD_Y), sticky="w")
         self._disk_label = ctk.CTkLabel(
-            conn_card, text="—",
+            conn_card,
+            text="—",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text"],
         )
-        self._disk_label.grid(row=3, column=1, padx=(0, theme.CARD_PAD_X), pady=(2, theme.CARD_PAD_Y), sticky="e")
+        self._disk_label.grid(
+            row=3,
+            column=1,
+            padx=(0, theme.CARD_PAD_X),
+            pady=(2, theme.CARD_PAD_Y),
+            sticky="e",
+        )
 
         # CDN Stats card
         stats_card = InfoCard(cards, fg_color=theme.COLORS["bg_card"])
@@ -83,24 +102,36 @@ class DashboardFrame(ctk.CTkFrame):
         stats_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            stats_card, text="CDN Contents",
+            stats_card,
+            text="CDN Contents",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 8), sticky="w")
+        ).grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 8),
+            sticky="w",
+        )
 
         self._stats_labels = {}
-        for i, (key, label) in enumerate([
-            ("dlc", "DLC Packs"),
-            ("lang", "Languages"),
-            ("patch", "Patches"),
-            ("archive", "Archives"),
-        ]):
+        for i, (key, label) in enumerate(
+            [
+                ("dlc", "DLC Packs"),
+                ("lang", "Languages"),
+                ("patch", "Patches"),
+                ("archive", "Archives"),
+            ]
+        ):
             ctk.CTkLabel(
-                stats_card, text=f"{label}:",
+                stats_card,
+                text=f"{label}:",
                 font=ctk.CTkFont(*theme.FONT_SMALL),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=i + 1, column=0, padx=(theme.CARD_PAD_X, 4), pady=2, sticky="w")
             val = ctk.CTkLabel(
-                stats_card, text="—",
+                stats_card,
+                text="—",
                 font=ctk.CTkFont(*theme.FONT_SMALL),
                 text_color=theme.COLORS["text"],
             )
@@ -113,18 +144,31 @@ class DashboardFrame(ctk.CTkFrame):
         ver_card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            ver_card, text="Current Version",
+            ver_card,
+            text="Current Version",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 8), sticky="w")
+        ).grid(
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 8),
+            sticky="w",
+        )
 
         self._version_label = ctk.CTkLabel(
-            ver_card, text="—",
+            ver_card,
+            text="—",
             font=ctk.CTkFont(*theme.FONT_HEADING),
             text_color=theme.COLORS["accent"],
         )
         self._version_label.grid(
-            row=1, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, theme.CARD_PAD_Y), sticky="w",
+            row=1,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, theme.CARD_PAD_Y),
+            sticky="w",
         )
 
         # Quick actions card
@@ -132,15 +176,23 @@ class DashboardFrame(ctk.CTkFrame):
         actions_card.grid(row=1, column=1, padx=(8, 0), pady=(8, 0), sticky="ew")
 
         ctk.CTkLabel(
-            actions_card, text="Quick Actions",
+            actions_card,
+            text="Quick Actions",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
         ).grid(row=0, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 8), sticky="w")
 
         btn_frame = ctk.CTkFrame(actions_card, fg_color="transparent")
-        btn_frame.grid(row=1, column=0, padx=theme.CARD_PAD_X, pady=(0, theme.CARD_PAD_Y), sticky="ew")
+        btn_frame.grid(
+            row=1,
+            column=0,
+            padx=theme.CARD_PAD_X,
+            pady=(0, theme.CARD_PAD_Y),
+            sticky="ew",
+        )
 
         ctk.CTkButton(
-            btn_frame, text="Refresh",
+            btn_frame,
+            text="Refresh",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["accent"],
@@ -149,7 +201,8 @@ class DashboardFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
-            btn_frame, text="Upload Manifest",
+            btn_frame,
+            text="Upload Manifest",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -158,7 +211,8 @@ class DashboardFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 6))
 
         self._auto_refresh_btn = ctk.CTkButton(
-            btn_frame, text="Auto: ON",
+            btn_frame,
+            text="Auto: ON",
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
@@ -194,13 +248,16 @@ class DashboardFrame(ctk.CTkFrame):
         self._auto_refresh_enabled = not self._auto_refresh_enabled
         if self._auto_refresh_enabled:
             self._auto_refresh_btn.configure(
-                text="Auto: ON", fg_color=theme.COLORS["success"],
-                hover_color="#3ae882", text_color="#1a1a2e",
+                text="Auto: ON",
+                fg_color=theme.COLORS["success"],
+                hover_color="#3ae882",
+                text_color="#1a1a2e",
             )
             self._start_auto_refresh()
         else:
             self._auto_refresh_btn.configure(
-                text="Auto: OFF", fg_color=theme.COLORS["bg_card_alt"],
+                text="Auto: OFF",
+                fg_color=theme.COLORS["bg_card_alt"],
                 hover_color=theme.COLORS["card_hover"],
                 text_color=theme.COLORS["text_muted"],
             )
@@ -223,8 +280,11 @@ class DashboardFrame(ctk.CTkFrame):
         import urllib.request
 
         results = {
-            "sftp": False, "kv": False, "manifest": None,
-            "kv_keys": [], "disk_usage": "",
+            "sftp": False,
+            "kv": False,
+            "manifest": None,
+            "kv_keys": [],
+            "disk_usage": "",
         }
 
         # Test Cloudflare KV
@@ -249,7 +309,8 @@ class DashboardFrame(ctk.CTkFrame):
                 while cursor:
                     paged_url = f"{url}&cursor={cursor}"
                     req = urllib.request.Request(
-                        paged_url, headers={"Authorization": f"Bearer {token}"},
+                        paged_url,
+                        headers={"Authorization": f"Bearer {token}"},
                     )
                     resp = urllib.request.urlopen(req, timeout=15)
                     data = json.loads(resp.read())
@@ -261,6 +322,7 @@ class DashboardFrame(ctk.CTkFrame):
         # Test SFTP + disk usage
         try:
             import paramiko
+
             transport = paramiko.Transport((config.whatbox_host, config.whatbox_port))
             transport.connect(username=config.whatbox_user, password=config.whatbox_pass)
             transport.close()
@@ -329,7 +391,9 @@ class DashboardFrame(ctk.CTkFrame):
         dlc_count = sum(1 for k in keys if k.startswith("dlc/"))
         lang_count = sum(1 for k in keys if k.startswith("language/"))
         patch_count = sum(1 for k in keys if k.startswith("patches/"))
-        archive_count = sum(1 for k in keys if k.startswith("archives/") and k.endswith("manifest.json"))
+        archive_count = sum(
+            1 for k in keys if k.startswith("archives/") and k.endswith("manifest.json")
+        )
 
         self._stats_labels["dlc"].configure(text=str(dlc_count))
         self._stats_labels["lang"].configure(text=str(lang_count))
@@ -357,7 +421,8 @@ class DashboardFrame(ctk.CTkFrame):
 
         # Store connection state on app for status bar
         self.app._connection_state = {
-            "sftp": results["sftp"], "kv": results["kv"],
+            "sftp": results["sftp"],
+            "kv": results["kv"],
         }
         if hasattr(self.app, "_update_status_bar_connections"):
             self.app._update_status_bar_connections()
@@ -385,7 +450,6 @@ class DashboardFrame(ctk.CTkFrame):
         )
 
     def _bg_upload_manifest(self):
-        from pathlib import Path
         from ..backend.connection import ConnectionManager
         from ..config import CONFIG_DIR
 

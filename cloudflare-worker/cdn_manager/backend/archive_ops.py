@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from .connection import CDN_DOMAIN, SEEDBOX_BASE_DIR, ConnectionManager
-from .dlc_ops import fmt_size
 
 # Strict pattern for version strings — prevents command injection in SSH commands
 _VERSION_RE = re.compile(r"^[\d]+(?:\.[\d]+)*$")
@@ -38,6 +37,7 @@ def create_archive(
     manifest with rewritten URLs, registers KV entries, and updates
     the main manifest's versions dict.
     """
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
@@ -119,7 +119,10 @@ def create_archive(
         sftp = ssh.open_sftp()
         try:
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".json", delete=False, encoding="utf-8",
+                mode="w",
+                suffix=".json",
+                delete=False,
+                encoding="utf-8",
             ) as tmp:
                 json.dump(archived_manifest, tmp, indent=2)
                 tmp_path = Path(tmp.name)
@@ -163,7 +166,10 @@ def create_archive(
         }
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8",
+            mode="w",
+            suffix=".json",
+            delete=False,
+            encoding="utf-8",
         ) as tmp:
             json.dump(manifest, tmp, indent=2)
             tmp_path = Path(tmp.name)
@@ -192,14 +198,16 @@ def verify_archive(
     Returns (ok_count, broken_count, broken_list).
     broken_list items: (category_id, url, status_code).
     """
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
 
     archive_url = f"{CDN_DOMAIN}/archives/{version}/manifest.json"
-    log(f"Fetching archived manifest...")
+    log("Fetching archived manifest...")
 
     import urllib.request
+
     req = urllib.request.Request(archive_url, headers={"User-Agent": "CDNManager/1.0"})
     resp = urllib.request.urlopen(req, timeout=30)
     archived = json.loads(resp.read().decode("utf-8"))
@@ -248,6 +256,7 @@ def delete_archive(
     log_cb=None,
 ) -> bool:
     """Remove archive from seedbox, KV, and main manifest."""
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
@@ -291,7 +300,10 @@ def delete_archive(
         manifest["versions"] = versions
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8",
+            mode="w",
+            suffix=".json",
+            delete=False,
+            encoding="utf-8",
         ) as tmp:
             json.dump(manifest, tmp, indent=2)
             tmp_path = Path(tmp.name)
@@ -312,6 +324,7 @@ def promote_archive(
     log_cb=None,
 ) -> bool:
     """Rollback: copy archived files back to main CDN paths."""
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
@@ -324,6 +337,7 @@ def promote_archive(
 
     # Fetch archived manifest
     import urllib.request
+
     archive_url = f"{CDN_DOMAIN}/archives/{version}/manifest.json"
     req = urllib.request.Request(archive_url, headers={"User-Agent": "CDNManager/1.0"})
     resp = urllib.request.urlopen(req, timeout=30)
@@ -342,7 +356,8 @@ def promote_archive(
         if dlc_downloads:
             log(f"Copying {len(dlc_downloads)} DLC files to main directory...")
             _, stderr, rc = _ssh_exec(
-                ssh, f"cp ~/{archive_base}/dlc/*.zip ~/{SEEDBOX_BASE_DIR}/dlc/",
+                ssh,
+                f"cp ~/{archive_base}/dlc/*.zip ~/{SEEDBOX_BASE_DIR}/dlc/",
             )
             if rc != 0:
                 log(f"cp warning: {stderr.strip()}", "warning")
@@ -350,7 +365,8 @@ def promote_archive(
         if lang_downloads:
             log(f"Copying {len(lang_downloads)} language files to main directory...")
             _, stderr, rc = _ssh_exec(
-                ssh, f"cp ~/{archive_base}/language/*.zip ~/{SEEDBOX_BASE_DIR}/language/",
+                ssh,
+                f"cp ~/{archive_base}/language/*.zip ~/{SEEDBOX_BASE_DIR}/language/",
             )
             if rc != 0:
                 log(f"cp warning: {stderr.strip()}", "warning")
@@ -388,7 +404,10 @@ def promote_archive(
         }
 
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, encoding="utf-8",
+        mode="w",
+        suffix=".json",
+        delete=False,
+        encoding="utf-8",
     ) as tmp:
         json.dump(manifest, tmp, indent=2)
         tmp_path = Path(tmp.name)

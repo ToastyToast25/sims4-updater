@@ -179,10 +179,6 @@ sims4-updater/                         # Project root
       mods/
         __init__.py
         manager.py                     # Mod management
-      ea_api/
-        __init__.py                    # (stub/reserved for EA OAuth integration)
-    patch_maker/
-      __init__.py                      # PatchMaker CLI package (separate tool)
   data/
     dlc_catalog.json                   # Bundled DLC definitions (all known Sims 4 DLCs)
     version_hashes.json                # Bundled version fingerprint database
@@ -340,7 +336,7 @@ Key classes from the base patcher used by Sims 4 Updater:
 | Class / Symbol | Responsibility |
 |---|---|
 | `Patcher` | Base class handling ZIP metadata reading, file extraction, xdelta3 application, crack installation |
-| `PatchMaker` | Utility for creating patch archives (used by the separate `patch_maker` CLI tool) |
+| `PatchMaker` | Utility for creating patch archives (lives in the external `../patcher/` repo) |
 | `CallbackType` | Enum of progress event types: `HEADER`, `INFO`, `PROGRESS`, `WARNING`, `FAILURE`, `FINISHED` |
 | `myzipfile` | Custom ZIP reader/writer supporting LZMA-compressed metadata headers |
 | `NoPatchesDLCsFoundError` | Raised when no patch/DLC ZIPs are found in the scan directories |

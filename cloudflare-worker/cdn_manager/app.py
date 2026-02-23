@@ -11,18 +11,17 @@ Threading model:
 from __future__ import annotations
 
 import concurrent.futures
-import contextlib
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from threading import Event, Lock, Thread
-from typing import Any, Callable
 
 import customtkinter as ctk
 
 from . import theme
-from .animations import Animator, ease_out_cubic
+from .animations import Animator
 from .components import ToastNotification
 from .config import ManagerConfig
 
@@ -30,6 +29,7 @@ from .config import ManagerConfig
 @dataclass
 class UploadJob:
     """A queued upload job."""
+
     name: str
     func: Callable
     args: tuple = ()
@@ -188,7 +188,9 @@ class CDNManagerApp(ctk.CTk):
 
     def _build_sidebar(self):
         self._sidebar = ctk.CTkFrame(
-            self, width=theme.SIDEBAR_WIDTH, corner_radius=0,
+            self,
+            width=theme.SIDEBAR_WIDTH,
+            corner_radius=0,
         )
         self._sidebar.grid(row=0, column=0, rowspan=2, sticky="nsw")
         self._sidebar.grid_propagate(False)
@@ -199,13 +201,16 @@ class CDNManagerApp(ctk.CTk):
 
         # Title
         ctk.CTkLabel(
-            self._sidebar, text="CDN Manager",
+            self._sidebar,
+            text="CDN Manager",
             font=ctk.CTkFont(size=16, weight="bold"),
         ).grid(row=0, column=0, columnspan=2, padx=20, pady=(20, 15))
 
         # Separator
         ctk.CTkFrame(
-            self._sidebar, height=1, fg_color=theme.COLORS["separator"],
+            self._sidebar,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=1, column=0, columnspan=2, padx=15, sticky="ew")
 
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
@@ -229,8 +234,11 @@ class CDNManagerApp(ctk.CTk):
 
             # Indicator bar (3px accent strip on left side)
             indicator = ctk.CTkFrame(
-                self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
-                corner_radius=0, fg_color="transparent",
+                self._sidebar,
+                width=3,
+                height=theme.SIDEBAR_BTN_HEIGHT,
+                corner_radius=0,
+                fg_color="transparent",
             )
             indicator.grid(row=row, column=0, padx=(5, 0), pady=3)
             indicator.grid_propagate(False)
@@ -258,15 +266,22 @@ class CDNManagerApp(ctk.CTk):
 
         # Separator above footer
         ctk.CTkFrame(
-            self._sidebar, height=1, fg_color=theme.COLORS["separator"],
+            self._sidebar,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=spacer_row + 1, column=0, columnspan=2, padx=15, sticky="ew")
 
         # Footer
         from . import VERSION
+
         footer = ctk.CTkFrame(self._sidebar, fg_color="transparent")
         footer.grid(
-            row=spacer_row + 2, column=0, columnspan=2,
-            padx=18, pady=(8, 14), sticky="ew",
+            row=spacer_row + 2,
+            column=0,
+            columnspan=2,
+            padx=18,
+            pady=(8, 14),
+            sticky="ew",
         )
 
         # Bell icon for notification history
@@ -274,9 +289,11 @@ class CDNManagerApp(ctk.CTk):
         bell_row.pack(anchor="w", fill="x", pady=(0, 6))
 
         self._bell_btn = ctk.CTkButton(
-            bell_row, text="\u266a Notifications",
+            bell_row,
+            text="\u266a Notifications",
             font=ctk.CTkFont(size=11),
-            height=26, width=120,
+            height=26,
+            width=120,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -287,16 +304,21 @@ class CDNManagerApp(ctk.CTk):
         self._bell_btn.pack(side="left")
 
         self._bell_dot = ctk.CTkLabel(
-            bell_row, text="\u25cf", font=ctk.CTkFont(size=8),
-            text_color=theme.COLORS["error"], width=12,
+            bell_row,
+            text="\u25cf",
+            font=ctk.CTkFont(size=8),
+            text_color=theme.COLORS["error"],
+            width=12,
         )
         # Dot hidden initially — shown when unread notifications exist
 
         # Export logs button
         ctk.CTkButton(
-            footer, text="Export All Logs",
+            footer,
+            text="Export All Logs",
             font=ctk.CTkFont(size=10),
-            height=24, width=110,
+            height=24,
+            width=110,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -305,12 +327,14 @@ class CDNManagerApp(ctk.CTk):
         ).pack(anchor="w", pady=(0, 6))
 
         ctk.CTkLabel(
-            footer, text=f"v{VERSION}",
+            footer,
+            text=f"v{VERSION}",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
         ).pack(anchor="w", pady=(0, 2))
         ctk.CTkLabel(
-            footer, text="Sims 4 CDN Tools",
+            footer,
+            text="Sims 4 CDN Tools",
             font=ctk.CTkFont(size=9),
             text_color=theme.COLORS["text_dim"],
         ).pack(anchor="w")
@@ -319,7 +343,9 @@ class CDNManagerApp(ctk.CTk):
 
     def _build_content_area(self):
         self._content = ctk.CTkFrame(
-            self, fg_color=theme.COLORS["bg_dark"], corner_radius=0,
+            self,
+            fg_color=theme.COLORS["bg_dark"],
+            corner_radius=0,
         )
         self._content.grid(row=0, column=1, sticky="nsew")
         self._content.grid_columnconfigure(0, weight=1)
@@ -329,9 +355,12 @@ class CDNManagerApp(ctk.CTk):
 
     def _build_status_bar(self):
         self._status_bar = ctk.CTkFrame(
-            self, height=28, corner_radius=0,
+            self,
+            height=28,
+            corner_radius=0,
             fg_color=theme.COLORS["bg_deeper"],
-            border_width=1, border_color=theme.COLORS["border"],
+            border_width=1,
+            border_color=theme.COLORS["border"],
         )
         self._status_bar.grid(row=1, column=1, sticky="sew")
         self._status_bar.grid_propagate(False)
@@ -342,28 +371,39 @@ class CDNManagerApp(ctk.CTk):
         conn_frame.grid(row=0, column=0, padx=(10, 0), sticky="w")
 
         ctk.CTkLabel(
-            conn_frame, text="SFTP", font=ctk.CTkFont(size=9),
+            conn_frame,
+            text="SFTP",
+            font=ctk.CTkFont(size=9),
             text_color=theme.COLORS["text_dim"],
         ).pack(side="left", padx=(0, 2))
         self._sftp_dot = ctk.CTkLabel(
-            conn_frame, text="\u25cf", font=ctk.CTkFont(size=10),
-            text_color=theme.COLORS["text_dim"], width=12,
+            conn_frame,
+            text="\u25cf",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["text_dim"],
+            width=12,
         )
         self._sftp_dot.pack(side="left", padx=(0, 8))
 
         ctk.CTkLabel(
-            conn_frame, text="KV", font=ctk.CTkFont(size=9),
+            conn_frame,
+            text="KV",
+            font=ctk.CTkFont(size=9),
             text_color=theme.COLORS["text_dim"],
         ).pack(side="left", padx=(0, 2))
         self._kv_dot = ctk.CTkLabel(
-            conn_frame, text="\u25cf", font=ctk.CTkFont(size=10),
-            text_color=theme.COLORS["text_dim"], width=12,
+            conn_frame,
+            text="\u25cf",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["text_dim"],
+            width=12,
         )
         self._kv_dot.pack(side="left")
 
         # Center: operation text
         self._status_label = ctk.CTkLabel(
-            self._status_bar, text="Ready",
+            self._status_bar,
+            text="Ready",
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_muted"],
         )
@@ -371,7 +411,8 @@ class CDNManagerApp(ctk.CTk):
 
         # Right: clock
         self._clock_label = ctk.CTkLabel(
-            self._status_bar, text="",
+            self._status_bar,
+            text="",
             font=ctk.CTkFont("Consolas", 10),
             text_color=theme.COLORS["text_dim"],
         )
@@ -398,13 +439,13 @@ class CDNManagerApp(ctk.CTk):
     # -- Frames -------------------------------------------------------------
 
     def _create_frames(self):
+        from .frames.archive_frame import ArchiveFrame
         from .frames.dashboard_frame import DashboardFrame
         from .frames.dlc_frame import DLCFrame
-        from .frames.language_frame import LanguageFrame
-        from .frames.patch_frame import PatchFrame
-        from .frames.manifest_frame import ManifestFrame
-        from .frames.archive_frame import ArchiveFrame
         from .frames.kv_frame import KVBrowserFrame
+        from .frames.language_frame import LanguageFrame
+        from .frames.manifest_frame import ManifestFrame
+        from .frames.patch_frame import PatchFrame
         from .frames.settings_frame import SettingsFrame
 
         self._frames: dict[str, ctk.CTkFrame] = {}
@@ -425,8 +466,12 @@ class CDNManagerApp(ctk.CTk):
 
         # Wire each frame's log panel to the global log collector
         source_names = {
-            "dashboard": "Dashboard", "dlc": "DLC", "language": "Language",
-            "patch": "Patch", "manifest": "Manifest", "archive": "Archive",
+            "dashboard": "Dashboard",
+            "dlc": "DLC",
+            "language": "Language",
+            "patch": "Patch",
+            "manifest": "Manifest",
+            "archive": "Archive",
             "kv": "KV",
         }
         for key, name in source_names.items():
@@ -520,6 +565,7 @@ class CDNManagerApp(ctk.CTk):
 
     def run_async(self, func, *args, on_done=None, on_error=None):
         """Run a function in the background thread pool."""
+
         def wrapper():
             try:
                 result = func(*args)
@@ -546,6 +592,7 @@ class CDNManagerApp(ctk.CTk):
                 func(*args)
             except Exception:
                 import traceback
+
                 traceback.print_exc()
         self.after(100, self._poll_callbacks)
 
@@ -601,12 +648,14 @@ class CDNManagerApp(ctk.CTk):
         popup.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            popup, text="Recent Notifications",
+            popup,
+            text="Recent Notifications",
             font=ctk.CTkFont(size=14, weight="bold"),
         ).grid(row=0, column=0, padx=15, pady=(15, 10), sticky="w")
 
         scroll = ctk.CTkScrollableFrame(
-            popup, fg_color=theme.COLORS["bg_dark"],
+            popup,
+            fg_color=theme.COLORS["bg_dark"],
             corner_radius=theme.CORNER_RADIUS_SMALL,
         )
         scroll.grid(row=1, column=0, padx=15, pady=(0, 15), sticky="nsew")
@@ -614,7 +663,8 @@ class CDNManagerApp(ctk.CTk):
 
         if not self._notification_history:
             ctk.CTkLabel(
-                scroll, text="No notifications yet",
+                scroll,
+                text="No notifications yet",
                 font=ctk.CTkFont(*theme.FONT_BODY),
                 text_color=theme.COLORS["text_muted"],
             ).grid(row=0, column=0, pady=30)
@@ -635,13 +685,20 @@ class CDNManagerApp(ctk.CTk):
             color = colors.get(style, theme.COLORS["text"])
 
             ctk.CTkLabel(
-                scroll, text=icon, font=ctk.CTkFont(size=12, weight="bold"),
-                text_color=color, width=20,
+                scroll,
+                text=icon,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=color,
+                width=20,
             ).grid(row=row, column=0, padx=(8, 4), pady=3, sticky="nw")
 
             ctk.CTkLabel(
-                scroll, text=msg, font=ctk.CTkFont(size=11),
-                text_color=theme.COLORS["text"], wraplength=300, anchor="w",
+                scroll,
+                text=msg,
+                font=ctk.CTkFont(size=11),
+                text_color=theme.COLORS["text"],
+                wraplength=300,
+                anchor="w",
                 justify="left",
             ).grid(row=row, column=1, padx=(0, 4), pady=3, sticky="w")
 
@@ -656,8 +713,11 @@ class CDNManagerApp(ctk.CTk):
                 time_str = datetime.fromtimestamp(ts).strftime("%m/%d %H:%M")
 
             ctk.CTkLabel(
-                scroll, text=time_str, font=ctk.CTkFont(size=9),
-                text_color=theme.COLORS["text_dim"], width=60,
+                scroll,
+                text=time_str,
+                font=ctk.CTkFont(size=9),
+                text_color=theme.COLORS["text_dim"],
+                width=60,
             ).grid(row=row, column=2, padx=(0, 8), pady=3, sticky="ne")
 
     # -- Global Log ---------------------------------------------------------
@@ -668,6 +728,7 @@ class CDNManagerApp(ctk.CTk):
 
     def _export_global_log(self):
         from tkinter import filedialog
+
         path = filedialog.asksaveasfilename(
             defaultextension=".log",
             filetypes=[("Log files", "*.log"), ("Text files", "*.txt")],
@@ -683,6 +744,7 @@ class CDNManagerApp(ctk.CTk):
             lines.append(f"[{ts_str}] [{level.upper():7s}] {prefix}{msg}")
 
         from pathlib import Path
+
         Path(path).write_text("\n".join(lines), encoding="utf-8")
         self.show_toast(f"Exported {len(lines)} log entries", "success")
 
@@ -705,13 +767,17 @@ class CDNManagerApp(ctk.CTk):
         dialog.grab_set()
 
         # Center on parent
-        dialog.after(10, lambda: dialog.geometry(
-            f"+{self.winfo_x() + self.winfo_width() // 2 - 190}"
-            f"+{self.winfo_y() + self.winfo_height() // 2 - 80}"
-        ))
+        dialog.after(
+            10,
+            lambda: dialog.geometry(
+                f"+{self.winfo_x() + self.winfo_width() // 2 - 190}"
+                f"+{self.winfo_y() + self.winfo_height() // 2 - 80}"
+            ),
+        )
 
         ctk.CTkLabel(
-            dialog, text="\u26a0  Uploads In Progress",
+            dialog,
+            text="\u26a0  Uploads In Progress",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=theme.COLORS["warning"],
         ).pack(padx=20, pady=(20, 8))
@@ -730,7 +796,9 @@ class CDNManagerApp(ctk.CTk):
         btn_frame.pack(padx=20, pady=(0, 15))
 
         ctk.CTkButton(
-            btn_frame, text="Cancel", width=100,
+            btn_frame,
+            text="Cancel",
+            width=100,
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
@@ -739,7 +807,9 @@ class CDNManagerApp(ctk.CTk):
         ).pack(side="left", padx=(0, 10))
 
         ctk.CTkButton(
-            btn_frame, text="Force Close", width=120,
+            btn_frame,
+            text="Force Close",
+            width=120,
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],

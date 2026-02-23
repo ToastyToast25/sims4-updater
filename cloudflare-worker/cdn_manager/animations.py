@@ -11,8 +11,8 @@ import contextlib
 import time
 from collections.abc import Callable
 
-
 # -- Easing Functions -------------------------------------------------------
+
 
 def ease_linear(t: float) -> float:
     return t
@@ -39,6 +39,7 @@ def ease_out_quad(t: float) -> float:
 
 
 # -- Color Utilities --------------------------------------------------------
+
 
 def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     h = hex_color.lstrip("#")[:6]
@@ -67,8 +68,14 @@ FRAME_MS = 16  # ~60fps
 
 class _Animation:
     __slots__ = (
-        "widget", "duration_ms", "on_tick", "on_done", "easing",
-        "start_time", "after_id", "tag",
+        "widget",
+        "duration_ms",
+        "on_tick",
+        "on_done",
+        "easing",
+        "start_time",
+        "after_id",
+        "tag",
     )
 
     def __init__(self, widget, duration_ms, on_tick, on_done, easing, tag):

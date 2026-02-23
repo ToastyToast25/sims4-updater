@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
@@ -31,8 +31,13 @@ CDN_CONFIG_FILE = CONFIG_DIR / "cdn_config.json"
 
 # Keys that live in cdn_config.json — never saved to cdn_manager_config.json
 _CREDENTIAL_KEYS = {
-    "whatbox_host", "whatbox_port", "whatbox_user", "whatbox_pass",
-    "cloudflare_account_id", "cloudflare_api_token", "cloudflare_kv_namespace_id",
+    "whatbox_host",
+    "whatbox_port",
+    "whatbox_user",
+    "whatbox_pass",
+    "cloudflare_account_id",
+    "cloudflare_api_token",
+    "cloudflare_kv_namespace_id",
 }
 
 
@@ -81,13 +86,16 @@ class ManagerConfig:
                 config.whatbox_user = data.get("whatbox_user", config.whatbox_user)
                 config.whatbox_pass = data.get("whatbox_pass", config.whatbox_pass)
                 config.cloudflare_account_id = data.get(
-                    "cloudflare_account_id", config.cloudflare_account_id,
+                    "cloudflare_account_id",
+                    config.cloudflare_account_id,
                 )
                 config.cloudflare_api_token = data.get(
-                    "cloudflare_api_token", config.cloudflare_api_token,
+                    "cloudflare_api_token",
+                    config.cloudflare_api_token,
                 )
                 config.cloudflare_kv_namespace_id = data.get(
-                    "cloudflare_kv_namespace_id", config.cloudflare_kv_namespace_id,
+                    "cloudflare_kv_namespace_id",
+                    config.cloudflare_kv_namespace_id,
                 )
             except (json.JSONDecodeError, OSError):
                 pass

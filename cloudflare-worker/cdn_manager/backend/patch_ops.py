@@ -6,7 +6,6 @@ import json
 import sys
 from pathlib import Path
 from threading import Event
-from typing import Any
 
 from .connection import CDN_DOMAIN, SEEDBOX_BASE_DIR, ConnectionManager
 from .dlc_ops import fmt_size, md5_file
@@ -22,10 +21,8 @@ def load_version_hashes() -> dict:
     project_root = Path(__file__).resolve().parents[3]
     hashes_path = project_root / "data" / "version_hashes.json"
 
-    if not hashes_path.is_file():
-        # Try frozen mode: look next to executable
-        if getattr(sys, "frozen", False):
-            hashes_path = Path(sys.executable).parent / "data" / "version_hashes.json"
+    if not hashes_path.is_file() and getattr(sys, "frozen", False):
+        hashes_path = Path(sys.executable).parent / "data" / "version_hashes.json"
 
     if not hashes_path.is_file():
         return {}
@@ -228,6 +225,7 @@ def create_patch(
 
     Returns path to the created patch ZIP, or None on failure/cancel.
     """
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
@@ -306,6 +304,7 @@ def upload_patch(
     progress_cb=None,
 ) -> dict | None:
     """Upload a patch to CDN and return a manifest entry."""
+
     def log(msg, level="info"):
         if log_cb:
             log_cb(msg, level)
