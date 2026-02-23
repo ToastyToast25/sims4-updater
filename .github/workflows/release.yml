@@ -125,12 +125,12 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Attest Sims4Updater provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: Sims4Updater.exe
 
       - name: Attest CDNManager provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: CDNManager.exe
 
