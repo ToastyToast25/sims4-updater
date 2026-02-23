@@ -69,13 +69,16 @@ def detect_version(game_dir):
 
     print()
     print(f"Sentinel files hashed: {len(result.local_hashes)}")
+    print()
+    print("Tip: Use 'check' for version detection + update availability.")
 
 
 def show_dlc_states(game_dir):
     """Show DLC states for a game directory."""
     from pathlib import Path
-    from sims4_updater.dlc.manager import DLCManager
+
     from sims4_updater.dlc.formats import detect_format
+    from sims4_updater.dlc.manager import DLCManager
     from sims4_updater.language.changer import get_current_language
 
     game_dir = Path(game_dir)
@@ -116,16 +119,16 @@ def show_dlc_states(game_dir):
 
             status_parts = []
             if state.enabled is True:
-                status_parts.append("ENABLED")
+                status_parts.append("Enabled")
             elif state.enabled is False:
-                status_parts.append("DISABLED")
+                status_parts.append("Disabled")
             else:
                 status_parts.append("N/A")
 
             if state.installed:
-                status_parts.append("installed")
+                status_parts.append("Installed")
             else:
-                status_parts.append("MISSING")
+                status_parts.append("Missing")
 
             status = ", ".join(status_parts)
             print(f"  [{dlc.id}] {name} ({status})")
@@ -151,16 +154,16 @@ def auto_toggle_dlcs(game_dir):
         print("No changes needed. All DLCs are correctly configured.")
     else:
         for dlc_id, new_state in sorted(changes.items()):
-            action = "ENABLED" if new_state else "DISABLED"
+            action = "Enabled" if new_state else "Disabled"
             print(f"  {dlc_id}: {action}")
         print(f"\n{len(changes)} DLC(s) changed.")
 
 
 def check_for_updates(args):
     """Check for available updates."""
+    from sims4_updater.core.exceptions import ManifestError, NoUpdatePathError
     from sims4_updater.core.version_detect import VersionDetector
     from sims4_updater.patch.client import PatchClient, format_size
-    from sims4_updater.core.exceptions import ManifestError, NoUpdatePathError
 
     detector = VersionDetector()
 
@@ -201,7 +204,7 @@ def check_for_updates(args):
         sys.exit(1)
 
     # Check for updates
-    print(f"Checking manifest...")
+    print("Checking manifest...")
     try:
         client = PatchClient(manifest_url=manifest_url)
         info = client.check_update(result.version)
@@ -218,7 +221,7 @@ def check_for_updates(args):
     if not info.update_available:
         print("You are up to date!")
     else:
-        print(f"Update available!")
+        print("Update available!")
         print(f"  Steps: {info.step_count}")
         print(f"  Download size: {format_size(info.total_download_size)}")
         print()
@@ -232,8 +235,8 @@ def check_for_updates(args):
 
 def inspect_manifest(args):
     """Inspect a manifest file or URL."""
-    from sims4_updater.patch.client import PatchClient, format_size
     from sims4_updater.core.exceptions import ManifestError
+    from sims4_updater.patch.client import PatchClient, format_size
 
     source = args.source
 
@@ -268,12 +271,13 @@ def inspect_manifest(args):
 
 def show_status(args):
     """Show overall status: game dir, version, DLC summary."""
-    from sims4_updater.core.version_detect import VersionDetector
-    from sims4_updater.dlc.manager import DLCManager
-    from sims4_updater.dlc.formats import detect_format
-    from sims4_updater.language.changer import get_current_language
-    from sims4_updater.config import Settings
     from pathlib import Path
+
+    from sims4_updater.config import Settings
+    from sims4_updater.core.version_detect import VersionDetector
+    from sims4_updater.dlc.formats import detect_format
+    from sims4_updater.dlc.manager import DLCManager
+    from sims4_updater.language.changer import get_current_language
 
     settings = Settings.load()
     detector = VersionDetector()
@@ -340,10 +344,11 @@ def show_status(args):
 def learn_hashes(args):
     """Learn version hashes from a known game installation."""
     from pathlib import Path
-    from sims4_updater.core.version_detect import VersionDetector
-    from sims4_updater.core.learned_hashes import LearnedHashDB
-    from sims4_updater.core.files import hash_file
+
     from sims4_updater import constants
+    from sims4_updater.core.files import hash_file
+    from sims4_updater.core.learned_hashes import LearnedHashDB
+    from sims4_updater.core.version_detect import VersionDetector
 
     game_dir = Path(args.game_dir)
     version = args.version
@@ -391,7 +396,7 @@ def learn_hashes(args):
 
 def show_language(args):
     """Show or set language."""
-    from sims4_updater.language.changer import get_current_language, set_language, LANGUAGES
+    from sims4_updater.language.changer import LANGUAGES, get_current_language, set_language
 
     if args.code:
         result = set_language(args.code, game_dir=args.game_dir)
@@ -400,11 +405,11 @@ def show_language(args):
             if result.anadius_updated:
                 print(f"  Updated {len(result.anadius_updated)} anadius config(s)")
             if result.registry_ok:
-                print(f"  Registry updated")
+                print("  Registry updated")
             if result.rld_updated:
                 print(f"  Updated {len(result.rld_updated)} RldOrigin config(s)")
         else:
-            print(f"Failed to update any config. Try running as administrator.")
+            print("Failed to update any config. Try running as administrator.")
     else:
         current = get_current_language(game_dir=args.game_dir)
         print(f"Current language: {LANGUAGES.get(current, current)} ({current})")
@@ -417,8 +422,8 @@ def show_language(args):
 
 def pack_dlc(args):
     """Create standard zip archives for individual DLCs."""
-    import json
     from pathlib import Path
+
     from sims4_updater.dlc.catalog import DLCCatalog
     from sims4_updater.dlc.packer import DLCPacker
 
@@ -493,12 +498,16 @@ def main():
 
     # check
     check_parser = subparsers.add_parser("check", help="Check for updates")
-    check_parser.add_argument("game_dir", nargs="?", help="Path to The Sims 4 installation directory")
+    check_parser.add_argument(
+        "game_dir", nargs="?", help="Path to Sims 4 install directory",
+    )
     check_parser.add_argument("--manifest-url", help="Manifest URL to check against")
 
     # status
     status_parser = subparsers.add_parser("status", help="Show game status overview")
-    status_parser.add_argument("game_dir", nargs="?", help="Path to The Sims 4 installation directory")
+    status_parser.add_argument(
+        "game_dir", nargs="?", help="Path to Sims 4 install directory",
+    )
 
     # manifest
     manifest_parser = subparsers.add_parser("manifest", help="Inspect a manifest file or URL")

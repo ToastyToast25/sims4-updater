@@ -10,6 +10,7 @@ Threading model:
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import tkinter as tk
 import traceback
 from collections import deque
@@ -66,7 +67,7 @@ class App(ctk.CTk):
         self._animator = Animator()
         self._current_frame_name: str | None = None
         self._transitioning = False
-        self._active_toast: ToastNotification | None = None
+        self._notification_history: list[tuple[str, str, float]] = []  # (msg, style, time)
 
         # Threading
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
@@ -138,58 +139,79 @@ class App(ctk.CTk):
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
         self._nav_indicators: dict[str, ctk.CTkFrame] = {}
         self._nav_labels: dict[str, str] = {}  # base labels for badge updates
-        nav_items = [
+
+        main_items = [
             ("home", "Home"),
             ("dlc", "DLCs"),
             ("downloader", "DLC Downloader"),
-            ("packer", "DLC Packer"),
             ("unlocker", "Unlocker"),
-            ("greenluma", "GreenLuma"),
             ("language", "Language"),
-            ("mods", "Mods"),
-            ("diagnostics", "Diagnostics"),
             ("settings", "Settings"),
         ]
+        tools_items = [
+            ("packer", "Packer"),
+            ("greenluma", "GreenLuma"),
+            ("mods", "Mods"),
+            ("diagnostics", "Diagnostics"),
+        ]
+        self._tools_keys = {key for key, _ in tools_items}
 
-        for i, (key, label) in enumerate(nav_items):
-            row_idx = i + 2
+        current_row = 2  # rows 0-1 are logo + separator
 
-            # Left accent bar (3px, hidden by default)
-            indicator = ctk.CTkFrame(
-                self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
-                corner_radius=0, fg_color="transparent",
-            )
-            indicator.grid(row=row_idx, column=0, padx=(5, 0), pady=3)
-            indicator.grid_propagate(False)
-            self._nav_indicators[key] = indicator
+        # ── Main nav items ──
+        for key, label in main_items:
+            self._build_nav_item(key, label, current_row)
+            current_row += 1
 
-            btn = ctk.CTkButton(
-                self._sidebar,
-                text=f"  {label}",
-                font=ctk.CTkFont(size=13),
-                height=theme.SIDEBAR_BTN_HEIGHT,
-                corner_radius=theme.CORNER_RADIUS_SMALL,
-                fg_color="transparent",
-                text_color=theme.COLORS["text_muted"],
-                hover_color=theme.COLORS["sidebar_hover"],
-                anchor="w",
-                command=lambda k=key: self._show_frame(k),
-            )
-            btn.grid(row=row_idx, column=1, padx=(4, 10), pady=3, sticky="ew")
-            self._nav_buttons[key] = btn
-            self._nav_labels[key] = label
+        # ── Tools section header (collapsible) ──
+        self._tools_collapsed = getattr(self.settings, "tools_collapsed", True)
+        tools_header = ctk.CTkFrame(
+            self._sidebar, fg_color="transparent", cursor="hand2",
+        )
+        tools_header.grid(
+            row=current_row, column=0, columnspan=2,
+            padx=(10, 10), pady=(8, 2), sticky="ew",
+        )
+        tools_header.grid_columnconfigure(1, weight=1)
 
-            # Animated hover
-            btn.bind("<Enter>", lambda e, k=key: self._on_nav_enter(k))
-            btn.bind("<Leave>", lambda e, k=key: self._on_nav_leave(k))
+        arrow = "\u25b6" if self._tools_collapsed else "\u25bc"
+        self._tools_chevron = ctk.CTkLabel(
+            tools_header, text=arrow,
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["text_dim"],
+            width=14,
+        )
+        self._tools_chevron.grid(row=0, column=0, padx=(4, 2))
+
+        tools_label = ctk.CTkLabel(
+            tools_header, text="Tools",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=theme.COLORS["text_dim"],
+            anchor="w",
+        )
+        tools_label.grid(row=0, column=1, sticky="w")
+
+        for widget in (tools_header, self._tools_chevron, tools_label):
+            widget.bind("<Button-1>", lambda e: self._toggle_tools_section())
+
+        current_row += 1
+
+        # ── Tools nav items ──
+        self._tools_nav_widgets: list[tuple[ctk.CTkFrame, ctk.CTkButton]] = []
+        for key, label in tools_items:
+            indicator, btn = self._build_nav_item(key, label, current_row)
+            self._tools_nav_widgets.append((indicator, btn))
+            if self._tools_collapsed:
+                indicator.grid_remove()
+                btn.grid_remove()
+            current_row += 1
 
         # Progress nav item — hidden by default, shown during updates
-        progress_row = len(nav_items) + 2
         self._progress_indicator = ctk.CTkFrame(
             self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
             corner_radius=0, fg_color="transparent",
         )
-        self._progress_indicator.grid(row=progress_row, column=0, padx=(5, 0), pady=3)
+        self._progress_indicator.grid(row=current_row, column=0, padx=(5, 0), pady=3)
         self._progress_indicator.grid_propagate(False)
         self._nav_indicators["progress"] = self._progress_indicator
 
@@ -206,21 +228,39 @@ class App(ctk.CTk):
             command=lambda: self._show_frame("progress"),
         )
         self._progress_nav_btn.grid(
-            row=progress_row, column=1, padx=(4, 10), pady=3, sticky="ew",
+            row=current_row, column=1, padx=(4, 10), pady=3, sticky="ew",
         )
         self._nav_buttons["progress"] = self._progress_nav_btn
         self._nav_labels["progress"] = "Updating..."
         # Hide until an update starts
         self._progress_indicator.grid_remove()
         self._progress_nav_btn.grid_remove()
+        current_row += 1
 
-        spacer_row = len(nav_items) + 3
-        self._sidebar.grid_rowconfigure(spacer_row, weight=1)
+        self._sidebar.grid_rowconfigure(current_row, weight=1)
 
         # Separator above footer
         ctk.CTkFrame(
             self._sidebar, height=1, fg_color=theme.COLORS["separator"],
-        ).grid(row=spacer_row + 1, column=0, columnspan=2, padx=15, sticky="ew")
+        ).grid(row=current_row + 1, column=0, columnspan=2, padx=15, sticky="ew")
+
+        # Bell icon — notification history
+        bell_row = current_row + 2
+        self._bell_btn = ctk.CTkButton(
+            self._sidebar,
+            text="\U0001f514",
+            font=ctk.CTkFont(size=14),
+            width=30, height=26,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color="transparent",
+            hover_color=theme.COLORS["sidebar_hover"],
+            text_color=theme.COLORS["text_muted"],
+            command=self._toggle_notification_popup,
+        )
+        self._bell_btn.grid(
+            row=bell_row, column=0, columnspan=2, padx=18, pady=(6, 0), sticky="w",
+        )
+        self._notification_popup = None
 
         # Footer: version, admin status, copyright, creator, GitHub link
         from .. import VERSION
@@ -228,7 +268,7 @@ class App(ctk.CTk):
 
         footer = ctk.CTkFrame(self._sidebar, fg_color="transparent")
         footer.grid(
-            row=spacer_row + 2, column=0, columnspan=2, padx=18, pady=(8, 14), sticky="ew",
+            row=bell_row + 1, column=0, columnspan=2, padx=18, pady=(4, 14), sticky="ew",
         )
 
         elevated = is_admin()
@@ -311,6 +351,55 @@ class App(ctk.CTk):
         for frame in self._frames.values():
             frame.grid(row=0, column=0, sticky="nsew")
 
+    def _build_nav_item(
+        self, key: str, label: str, row_idx: int,
+    ) -> tuple[ctk.CTkFrame, ctk.CTkButton]:
+        """Create a sidebar nav indicator + button at the given row."""
+        indicator = ctk.CTkFrame(
+            self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
+            corner_radius=0, fg_color="transparent",
+        )
+        indicator.grid(row=row_idx, column=0, padx=(5, 0), pady=3)
+        indicator.grid_propagate(False)
+        self._nav_indicators[key] = indicator
+
+        btn = ctk.CTkButton(
+            self._sidebar,
+            text=f"  {label}",
+            font=ctk.CTkFont(size=13),
+            height=theme.SIDEBAR_BTN_HEIGHT,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color="transparent",
+            text_color=theme.COLORS["text_muted"],
+            hover_color=theme.COLORS["sidebar_hover"],
+            anchor="w",
+            command=lambda k=key: self._show_frame(k),
+        )
+        btn.grid(row=row_idx, column=1, padx=(4, 10), pady=3, sticky="ew")
+        self._nav_buttons[key] = btn
+        self._nav_labels[key] = label
+
+        btn.bind("<Enter>", lambda e, k=key: self._on_nav_enter(k))
+        btn.bind("<Leave>", lambda e, k=key: self._on_nav_leave(k))
+
+        return indicator, btn
+
+    def _toggle_tools_section(self):
+        """Expand or collapse the Tools section in the sidebar."""
+        self._tools_collapsed = not self._tools_collapsed
+        arrow = "\u25b6" if self._tools_collapsed else "\u25bc"
+        self._tools_chevron.configure(text=arrow)
+        for indicator, btn in self._tools_nav_widgets:
+            if self._tools_collapsed:
+                indicator.grid_remove()
+                btn.grid_remove()
+            else:
+                indicator.grid()
+                btn.grid()
+        # Persist setting
+        self.settings.tools_collapsed = self._tools_collapsed
+        self.settings.save()
+
     def _on_nav_enter(self, key: str):
         """Sidebar button hover-in — skip for active tab."""
         if key == self._current_frame_name:
@@ -330,6 +419,10 @@ class App(ctk.CTk):
         # Skip if already showing this frame
         if name == self._current_frame_name:
             return
+
+        # Auto-expand tools section if navigating to a tools tab
+        if name in self._tools_keys and self._tools_collapsed:
+            self._toggle_tools_section()
 
         # Update nav button colors and indicator bars
         for key, btn in self._nav_buttons.items():
@@ -386,10 +479,8 @@ class App(ctk.CTk):
                 return  # Already finalized
             if self._current_frame_name != name:
                 return  # Stale: a newer transition has started
-            try:
+            with contextlib.suppress(Exception):
                 frame.place_forget()
-            except Exception:
-                pass
             frame.grid(row=0, column=0, sticky="nsew")
             frame.tkraise()
             self._transitioning = False
@@ -474,15 +565,132 @@ class App(ctk.CTk):
 
     def show_toast(self, message: str, style: str = "success"):
         """Show a slide-in toast notification over the content area."""
-        # Dismiss previous toast immediately to prevent stacking
-        if self._active_toast is not None:
-            try:
-                self._active_toast._destroy()
-            except Exception:
-                pass
+        import time as _time
+
+        # Record in history (cap at 50)
+        self._notification_history.append((message, style, _time.time()))
+        if len(self._notification_history) > 50:
+            self._notification_history = self._notification_history[-50:]
+
         toast = ToastNotification(self._content, message, style)
-        self._active_toast = toast
         toast.show()
+
+    # ── Notification History Popup ───────────────────────────────
+
+    def _toggle_notification_popup(self):
+        """Toggle the notification history popup anchored to the bell icon."""
+        if self._notification_popup is not None:
+            self._close_notification_popup()
+            return
+        self._show_notification_popup()
+
+    def _show_notification_popup(self):
+        """Show a popup listing recent notification history."""
+        import time as _time
+
+        from .components import _TOAST_STYLES
+
+        popup = ctk.CTkToplevel(self)
+        popup.overrideredirect(True)
+        popup.configure(fg_color=theme.COLORS["bg_surface"])
+        popup.attributes("-topmost", True)
+
+        # Position above the bell button
+        try:
+            bx = self._bell_btn.winfo_rootx()
+            by = self._bell_btn.winfo_rooty()
+        except Exception:
+            bx, by = 100, 400
+        popup_w, popup_h = 300, min(320, 60 + len(self._notification_history) * 38)
+        popup_h = max(popup_h, 80)
+        popup.geometry(f"{popup_w}x{popup_h}+{bx}+{by - popup_h - 4}")
+
+        self._notification_popup = popup
+
+        # Title row
+        header = ctk.CTkFrame(popup, fg_color="transparent")
+        header.pack(fill="x", padx=10, pady=(8, 4))
+        ctk.CTkLabel(
+            header, text="Notifications",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=theme.COLORS["text"],
+        ).pack(side="left")
+
+        if self._notification_history:
+            clear_btn = ctk.CTkLabel(
+                header, text="Clear all",
+                font=ctk.CTkFont(size=10, underline=True),
+                text_color=theme.COLORS["accent"],
+                cursor="hand2",
+            )
+            clear_btn.pack(side="right")
+            clear_btn.bind("<Button-1>", lambda e: self._clear_notifications())
+
+        # Scrollable list
+        scroll = ctk.CTkScrollableFrame(
+            popup, fg_color="transparent",
+            scrollbar_button_color=theme.COLORS["separator"],
+            height=popup_h - 50,
+        )
+        scroll.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+
+        if not self._notification_history:
+            ctk.CTkLabel(
+                scroll, text="No notifications yet",
+                font=ctk.CTkFont(*theme.FONT_SMALL),
+                text_color=theme.COLORS["text_muted"],
+            ).pack(pady=10)
+        else:
+            now = _time.time()
+            # Show most recent first
+            for msg, style, ts in reversed(self._notification_history):
+                s = _TOAST_STYLES.get(style, _TOAST_STYLES["info"])
+                row = ctk.CTkFrame(scroll, fg_color=s["bg"], corner_radius=6, height=32)
+                row.pack(fill="x", pady=2)
+                row.pack_propagate(False)
+
+                ctk.CTkLabel(
+                    row, text=s["icon"],
+                    font=ctk.CTkFont(size=10, weight="bold"),
+                    text_color=s["text"], width=16,
+                ).pack(side="left", padx=(8, 2))
+
+                ctk.CTkLabel(
+                    row, text=msg,
+                    font=ctk.CTkFont(size=10),
+                    text_color=s["text"],
+                    anchor="w",
+                ).pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+                elapsed = int(now - ts)
+                if elapsed < 60:
+                    time_str = "just now"
+                elif elapsed < 3600:
+                    time_str = f"{elapsed // 60}m ago"
+                else:
+                    time_str = f"{elapsed // 3600}h ago"
+
+                ctk.CTkLabel(
+                    row, text=time_str,
+                    font=ctk.CTkFont(size=9),
+                    text_color=theme.COLORS["text_dim"],
+                    width=50,
+                ).pack(side="right", padx=(0, 8))
+
+        # Close on focus loss
+        popup.bind("<FocusOut>", lambda e: self._close_notification_popup())
+
+    def _close_notification_popup(self):
+        """Close the notification history popup."""
+        if self._notification_popup is not None:
+            with contextlib.suppress(Exception):
+                self._notification_popup.destroy()
+            self._notification_popup = None
+
+    def _clear_notifications(self):
+        """Clear notification history and close popup."""
+        self._notification_history.clear()
+        self._close_notification_popup()
 
     # ── Lifecycle ───────────────────────────────────────────────
 
@@ -499,6 +707,9 @@ class App(ctk.CTk):
         if self.settings.check_updates_on_start:
             self.after(2000, self._auto_check_game_updates)
 
+        # Auto-contribute GreenLuma keys silently in background
+        self.after(5000, self._auto_contribute_keys)
+
     def _auto_check_game_updates(self):
         """Automatically check for game updates on startup if configured."""
         if not self.settings.manifest_url:
@@ -512,6 +723,67 @@ class App(ctk.CTk):
         home = self._frames.get("home")
         if home and hasattr(home, "check_app_update"):
             home.check_app_update()
+
+    def _auto_contribute_keys(self):
+        """Silently scan and contribute GreenLuma depot keys on startup."""
+        if not self.settings.contribute_url:
+            return
+
+        def _bg():
+            from pathlib import Path as _Path
+
+            from ..greenluma.contribute import (
+                scan_gl_contributions,
+                submit_gl_contribution,
+            )
+            from ..greenluma.orchestrator import GreenLumaOrchestrator
+            from ..greenluma.steam import detect_steam_path, get_steam_info
+
+            # Detect Steam
+            steam_path_str = self.settings.steam_path
+            steam_path = (
+                _Path(steam_path_str) if steam_path_str
+                else detect_steam_path()
+            )
+            if not steam_path or not steam_path.is_dir():
+                return None
+
+            steam_info = get_steam_info(steam_path)
+            if not steam_info.config_vdf_path.is_file():
+                return None
+
+            # Check readiness for all DLCs (works without GL)
+            catalog = self.updater._dlc_manager.catalog
+            orch = GreenLumaOrchestrator(steam_info)
+            readiness = orch.check_readiness(catalog)
+
+            # Scan for keys + manifests we can contribute
+            scan = scan_gl_contributions(steam_info, readiness)
+            if scan.count == 0:
+                return None
+
+            # Submit silently
+            resp = submit_gl_contribution(
+                scan.contributions,
+                url=self.settings.contribute_url,
+            )
+            return {
+                "count": scan.count,
+                "status": resp.get("status", "unknown"),
+            }
+
+        def _done(result):
+            if not result:
+                return
+            count = result["count"]
+            status = result["status"]
+            if status == "accepted":
+                self.show_toast(
+                    f"Contributed {count} depot key(s) — thank you!",
+                    "success",
+                )
+
+        self.run_async(_bg, on_done=_done, on_error=lambda e: None)
 
     def _on_close(self):
         """Handle window close."""

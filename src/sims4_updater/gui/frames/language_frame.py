@@ -245,7 +245,19 @@ class LanguageFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         )
-        self._pack_count_label.grid(row=0, column=1, sticky="e")
+        self._pack_count_label.grid(row=0, column=1, sticky="e", padx=(0, 6))
+
+        ctk.CTkButton(
+            pack_header,
+            text="Open Folder",
+            font=ctk.CTkFont(size=11),
+            height=24,
+            width=80,
+            corner_radius=4,
+            fg_color=theme.COLORS["bg_card_alt"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._open_language_folder,
+        ).grid(row=0, column=2, sticky="e")
 
         self._pack_scroll = ctk.CTkScrollableFrame(
             pack_section,
@@ -1189,6 +1201,32 @@ class LanguageFrame(ctk.CTkFrame):
             self._refresh_status()
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
+
+    # ── Open Folder ────────────────────────────────────────────
+
+    def _open_language_folder(self):
+        """Open the Data/Client folder where language packs live."""
+        import os
+        from pathlib import Path
+
+        game_dir = self.app.settings.game_path
+        if not game_dir:
+            self.app.show_toast(
+                "Set game directory in Settings first.", "warning",
+            )
+            return
+
+        lang_dir = Path(game_dir) / "Data" / "Client"
+        if not lang_dir.is_dir():
+            lang_dir = Path(game_dir)
+
+        if not lang_dir.is_dir():
+            self.app.show_toast(
+                "Language folder not found on disk.", "warning",
+            )
+            return
+
+        os.startfile(lang_dir)
 
     # ── Busy state ───────────────────────────────────────────────
 

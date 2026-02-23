@@ -8,21 +8,19 @@ from GitHub on first use (~32MB).
 
 from __future__ import annotations
 
+import json
 import logging
-import os
 import queue
 import re
 import shutil
 import tempfile
 import threading
 import time
+import urllib.request
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
-
-import urllib.request
-import json
 
 from ..core.subprocess_ import Popen2
 
@@ -103,7 +101,8 @@ class SteamLanguageDownloader:
         Returns True on success.
         """
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         log("Fetching latest DepotDownloader release from GitHub...")
 
@@ -208,7 +207,8 @@ class SteamLanguageDownloader:
             SteamDownloadResult with success status and installed locales.
         """
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         if not self.is_tool_installed():
             return SteamDownloadResult(
@@ -383,7 +383,8 @@ class SteamLanguageDownloader:
         Returns (exit_code, combined_output).
         """
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         proc = Popen2(args)
         output_lines: list[str] = []

@@ -1,7 +1,6 @@
 """
-DLC & Language Packer frame — pack DLC folders and language Strings files
-into distributable ZIP archives, generate manifest JSON, and import archives
-into the game directory.
+Packer frame — pack DLC folders and language Strings files into distributable
+ZIP archives, generate manifest JSON, and import archives into the game directory.
 """
 
 from __future__ import annotations
@@ -13,13 +12,31 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
-from .. import theme
 from ...config import get_app_dir
-from ...dlc.packer import DLCPacker, PackResult
-from ...language.packer import LanguagePacker, LangPackResult
+from ...dlc.packer import DLCPacker
+from ...language.packer import LanguagePacker
+from .. import theme
 
 if TYPE_CHECKING:
     from ..app import App
+
+_TYPE_ORDER = ["expansion", "game_pack", "stuff_pack", "kit", "free_pack", "other"]
+_TYPE_LABELS = {
+    "expansion": "Expansion Packs",
+    "game_pack": "Game Packs",
+    "stuff_pack": "Stuff Packs",
+    "kit": "Kits",
+    "free_pack": "Free Packs",
+    "other": "Other",
+}
+_TYPE_COLORS = {
+    "expansion": "#e94560",
+    "game_pack": "#ffa502",
+    "stuff_pack": "#2ed573",
+    "kit": "#a0a0b0",
+    "free_pack": "#70a1ff",
+    "other": "#6a6a8a",
+}
 
 
 def _format_size(size_bytes: int) -> str:
@@ -42,11 +59,9 @@ class PackerFrame(ctk.CTkFrame):
 
         self._dlc_vars: dict[str, ctk.BooleanVar] = {}
         self._dlc_sizes: dict[str, int] = {}  # dlc_id -> folder size in bytes
-        self._dlc_rows: list[ctk.CTkFrame] = []
+        self._all_widgets: list[ctk.CTkFrame] = []  # all dynamically created widgets
 
         self._lang_vars: dict[str, ctk.BooleanVar] = {}
-        self._lang_rows: list[ctk.CTkFrame] = []
-        self._lang_header: ctk.CTkFrame | None = None
 
         self._busy = False
 
@@ -62,21 +77,21 @@ class PackerFrame(ctk.CTkFrame):
 
         ctk.CTkLabel(
             header,
-            text="DLC & Language Packer",
+            text="Packer",
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).grid(row=0, column=0, sticky="w")
 
         ctk.CTkLabel(
             header,
-            text="Pack DLC and language files for distribution or import archives",
+            text="Pack DLC and language files into archives for distribution",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=1, column=0, sticky="w", pady=(0, 8))
 
-        # ── Top bar: Select All / Deselect All + Pack buttons ──
+        # ── Top bar: Select/Deselect + Import + Pack buttons ──
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.grid(row=1, column=0, padx=30, pady=(0, 5), sticky="ew")
-        bar.grid_columnconfigure(2, weight=1)
+        bar.grid_columnconfigure(3, weight=1)
 
         self._select_all_btn = ctk.CTkButton(
             bar,
@@ -102,11 +117,24 @@ class PackerFrame(ctk.CTkFrame):
             hover_color=theme.COLORS["card_hover"],
             command=self._deselect_all,
         )
-        self._deselect_all_btn.grid(row=0, column=1, padx=(0, 8))
+        self._deselect_all_btn.grid(row=0, column=1, padx=(0, 4))
+
+        self._import_btn = ctk.CTkButton(
+            bar,
+            text="Import Archive...",
+            font=ctk.CTkFont(size=11),
+            height=theme.BUTTON_HEIGHT_SMALL,
+            width=120,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._on_import,
+        )
+        self._import_btn.grid(row=0, column=2, padx=(0, 8))
 
         # Spacer
         ctk.CTkFrame(bar, fg_color="transparent", height=1).grid(
-            row=0, column=2, sticky="ew"
+            row=0, column=3, sticky="ew"
         )
 
         self._pack_selected_btn = ctk.CTkButton(
@@ -119,7 +147,7 @@ class PackerFrame(ctk.CTkFrame):
             hover_color=theme.COLORS["accent_hover"],
             command=self._on_pack_selected,
         )
-        self._pack_selected_btn.grid(row=0, column=3, padx=(0, 4))
+        self._pack_selected_btn.grid(row=0, column=4, padx=(0, 4))
 
         self._pack_all_btn = ctk.CTkButton(
             bar,
@@ -132,9 +160,9 @@ class PackerFrame(ctk.CTkFrame):
             text_color="#1a1a2e",
             command=self._on_pack_all,
         )
-        self._pack_all_btn.grid(row=0, column=4)
+        self._pack_all_btn.grid(row=0, column=5)
 
-        # ── Scrollable list (DLCs + Languages) ──
+        # ── Scrollable list (DLCs grouped by type + Languages) ──
         self._scroll_frame = ctk.CTkScrollableFrame(
             self,
             corner_radius=8,
@@ -152,45 +180,9 @@ class PackerFrame(ctk.CTkFrame):
             text_color=theme.COLORS["text_muted"],
         )
 
-        # ── Import section ──
-        import_frame = ctk.CTkFrame(
-            self,
-            fg_color=theme.COLORS["bg_card"],
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            border_width=1,
-            border_color=theme.COLORS["border"],
-        )
-        import_frame.grid(row=3, column=0, padx=30, pady=(10, 0), sticky="ew")
-        import_frame.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            import_frame,
-            text="Import Archive",
-            font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=0, column=0, padx=(15, 8), pady=10, sticky="w")
-
-        ctk.CTkLabel(
-            import_frame,
-            text="Extract a ZIP or RAR into the game directory",
-            font=ctk.CTkFont(*theme.FONT_SMALL),
-            text_color=theme.COLORS["text_muted"],
-        ).grid(row=0, column=1, pady=10, sticky="w")
-
-        self._import_btn = ctk.CTkButton(
-            import_frame,
-            text="Browse & Import...",
-            font=ctk.CTkFont(size=12),
-            height=theme.BUTTON_HEIGHT_SMALL,
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            fg_color=theme.COLORS["accent"],
-            hover_color=theme.COLORS["accent_hover"],
-            command=self._on_import,
-        )
-        self._import_btn.grid(row=0, column=2, padx=(8, 15), pady=10, sticky="e")
-
         # ── Progress + Status bar ──
         bottom = ctk.CTkFrame(self, fg_color="transparent")
-        bottom.grid(row=4, column=0, padx=30, pady=(8, 12), sticky="ew")
+        bottom.grid(row=3, column=0, padx=30, pady=(8, 12), sticky="ew")
         bottom.grid_columnconfigure(0, weight=1)
 
         self._progress_bar = ctk.CTkProgressBar(
@@ -213,19 +205,32 @@ class PackerFrame(ctk.CTkFrame):
         output_row = ctk.CTkFrame(bottom, fg_color="transparent")
         output_row.grid(row=1, column=0, sticky="e")
 
-        ctk.CTkLabel(
+        self._output_path_label = ctk.CTkLabel(
             output_row,
-            text=f"Output: {self._output_dir}",
+            text=self._short_output_path(),
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_dim"],
-        ).pack(side="left", padx=(0, 6))
+        )
+        self._output_path_label.pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            output_row,
+            text="Change",
+            font=ctk.CTkFont(size=10),
+            height=22,
+            width=60,
+            corner_radius=4,
+            fg_color=theme.COLORS["bg_card"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._change_output_folder,
+        ).pack(side="left", padx=(0, 4))
 
         self._open_folder_btn = ctk.CTkButton(
             output_row,
-            text="Open Folder",
+            text="Open",
             font=ctk.CTkFont(size=10),
             height=22,
-            width=80,
+            width=50,
             corner_radius=4,
             fg_color=theme.COLORS["bg_card"],
             hover_color=theme.COLORS["card_hover"],
@@ -239,7 +244,7 @@ class PackerFrame(ctk.CTkFrame):
         self._load_all()
 
     def _load_all(self):
-        self._status_label.configure(text="Scanning installed DLCs and language packs...")
+        self._status_label.configure(text="Scanning installed DLCs and languages...")
         self.app.run_async(
             self._scan_bg,
             on_done=self._on_scan_done,
@@ -256,21 +261,13 @@ class PackerFrame(ctk.CTkFrame):
         return {"dlcs": dlcs, "langs": langs}
 
     def _on_scan_done(self, results):
-        # Clear existing rows
-        for row in self._dlc_rows:
-            row.destroy()
-        self._dlc_rows.clear()
+        # Clear all dynamic widgets
+        for w in self._all_widgets:
+            w.destroy()
+        self._all_widgets.clear()
         self._dlc_vars.clear()
         self._dlc_sizes.clear()
-
-        for row in self._lang_rows:
-            row.destroy()
-        self._lang_rows.clear()
         self._lang_vars.clear()
-
-        if self._lang_header:
-            self._lang_header.destroy()
-            self._lang_header = None
 
         if results is None:
             self._empty_label.grid(row=0, column=0, padx=10, pady=20)
@@ -282,35 +279,51 @@ class PackerFrame(ctk.CTkFrame):
         dlcs = results["dlcs"]
         langs = results["langs"]
 
-        # ── DLC section header ──
+        # Group DLCs by pack_type
+        grouped: dict[str, list[tuple]] = {}
+        for dlc, file_count, folder_size in dlcs:
+            ptype = dlc.pack_type or "other"
+            grouped.setdefault(ptype, []).append((dlc, file_count, folder_size))
+
         grid_row = 0
-        if dlcs:
-            dlc_hdr = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
-            dlc_hdr.grid(row=grid_row, column=0, padx=8, pady=(8, 4), sticky="ew")
+        row_idx = 0  # continuous row index for alternating colors
+
+        # ── DLC sections by type ──
+        for ptype in _TYPE_ORDER:
+            items = grouped.get(ptype)
+            if not items:
+                continue
+
+            label_text = _TYPE_LABELS.get(ptype, ptype).upper()
+            color = _TYPE_COLORS.get(ptype, theme.COLORS["text_muted"])
+
+            hdr = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
+            hdr.grid(
+                row=grid_row, column=0, padx=8,
+                pady=(10 if grid_row > 0 else 8, 4), sticky="ew",
+            )
             ctk.CTkLabel(
-                dlc_hdr,
-                text=f"DLC PACKS ({len(dlcs)})",
+                hdr,
+                text=f"{label_text} ({len(items)})",
                 font=ctk.CTkFont(size=11, weight="bold"),
-                text_color=theme.COLORS["accent"],
+                text_color=color,
             ).pack(side="left")
-            self._dlc_rows.append(dlc_hdr)
+            self._all_widgets.append(hdr)
             grid_row += 1
 
-        for i, (dlc, file_count, folder_size) in enumerate(dlcs):
-            self._dlc_sizes[dlc.id] = folder_size
-            self._build_dlc_row(grid_row, dlc, file_count, folder_size)
-            grid_row += 1
+            for dlc, file_count, folder_size in items:
+                self._dlc_sizes[dlc.id] = folder_size
+                self._build_dlc_row(grid_row, row_idx, dlc, file_count, folder_size)
+                grid_row += 1
+                row_idx += 1
 
         # ── Language Packs section ──
         if langs:
-            # Separator
             sep = ctk.CTkFrame(
-                self._scroll_frame,
-                height=1,
-                fg_color=theme.COLORS["separator"],
+                self._scroll_frame, height=1, fg_color=theme.COLORS["separator"],
             )
             sep.grid(row=grid_row, column=0, padx=5, pady=(12, 0), sticky="ew")
-            self._lang_rows.append(sep)
+            self._all_widgets.append(sep)
             grid_row += 1
 
             lang_hdr = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
@@ -319,14 +332,17 @@ class PackerFrame(ctk.CTkFrame):
                 lang_hdr,
                 text=f"LANGUAGE PACKS ({len(langs)})",
                 font=ctk.CTkFont(size=11, weight="bold"),
-                text_color=theme.COLORS["success"],
+                text_color="#70a1ff",
             ).pack(side="left")
-            self._lang_header = lang_hdr
+            self._all_widgets.append(lang_hdr)
             grid_row += 1
 
-            for i, (locale_code, lang_name, pkg_filename, file_size) in enumerate(langs):
-                self._build_lang_row(grid_row, locale_code, lang_name, pkg_filename, file_size)
+            for locale_code, lang_name, pkg_filename, file_size in langs:
+                self._build_lang_row(
+                    grid_row, row_idx, locale_code, lang_name, pkg_filename, file_size,
+                )
                 grid_row += 1
+                row_idx += 1
 
         total_dlcs = len(dlcs)
         total_langs = len(langs)
@@ -342,8 +358,8 @@ class PackerFrame(ctk.CTkFrame):
 
     # ── Row Building ──────────────────────────────────────────────
 
-    def _build_dlc_row(self, grid_row, dlc, file_count, folder_size):
-        bg = theme.COLORS["bg_card"] if grid_row % 2 == 0 else theme.COLORS["bg_card_alt"]
+    def _build_dlc_row(self, grid_row, row_idx, dlc, file_count, folder_size):
+        bg = theme.COLORS["bg_card"] if row_idx % 2 == 0 else theme.COLORS["bg_card_alt"]
         row = ctk.CTkFrame(
             self._scroll_frame,
             fg_color=bg,
@@ -352,7 +368,7 @@ class PackerFrame(ctk.CTkFrame):
             border_color=theme.COLORS["border"],
         )
         row.grid(row=grid_row, column=0, padx=4, pady=2, sticky="ew")
-        row.grid_columnconfigure(1, weight=1)
+        row.grid_columnconfigure(2, weight=1)
 
         var = ctk.BooleanVar(value=True)
         cb = ctk.CTkCheckBox(
@@ -363,7 +379,26 @@ class PackerFrame(ctk.CTkFrame):
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=4,
         )
-        cb.grid(row=0, column=0, padx=(10, 0), pady=6, sticky="w", columnspan=2)
+        cb.grid(row=0, column=0, padx=(10, 6), pady=6, sticky="w")
+
+        # Pack type pill
+        ptype = dlc.pack_type or "other"
+        pill_color = _TYPE_COLORS.get(ptype, theme.COLORS["text_dim"])
+        short_label = {
+            "expansion": "EP",
+            "game_pack": "GP",
+            "stuff_pack": "SP",
+            "kit": "Kit",
+            "free_pack": "Free",
+        }.get(ptype, "?")
+        pill = ctk.CTkLabel(
+            row,
+            text=short_label,
+            font=ctk.CTkFont(size=9, weight="bold"),
+            text_color=pill_color,
+            width=30,
+        )
+        pill.grid(row=0, column=1, padx=(0, 4), pady=6)
 
         size_text = f"{file_count} files, {_format_size(folder_size)}"
         ctk.CTkLabel(
@@ -371,13 +406,15 @@ class PackerFrame(ctk.CTkFrame):
             text=size_text,
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=0, column=2, padx=(0, 12), pady=6, sticky="e")
+        ).grid(row=0, column=3, padx=(0, 12), pady=6, sticky="e")
 
         self._dlc_vars[dlc.id] = var
-        self._dlc_rows.append(row)
+        self._all_widgets.append(row)
 
-    def _build_lang_row(self, grid_row, locale_code, lang_name, pkg_filename, file_size):
-        bg = theme.COLORS["bg_card"] if grid_row % 2 == 0 else theme.COLORS["bg_card_alt"]
+    def _build_lang_row(
+        self, grid_row, row_idx, locale_code, lang_name, pkg_filename, file_size,
+    ):
+        bg = theme.COLORS["bg_card"] if row_idx % 2 == 0 else theme.COLORS["bg_card_alt"]
         row = ctk.CTkFrame(
             self._scroll_frame,
             fg_color=bg,
@@ -408,7 +445,7 @@ class PackerFrame(ctk.CTkFrame):
         ).grid(row=0, column=2, padx=(0, 12), pady=6, sticky="e")
 
         self._lang_vars[locale_code] = var
-        self._lang_rows.append(row)
+        self._all_widgets.append(row)
 
     # ── Selection ─────────────────────────────────────────────────
 
@@ -427,7 +464,7 @@ class PackerFrame(ctk.CTkFrame):
     # ── Pack Actions ──────────────────────────────────────────────
 
     def _on_pack_selected(self):
-        selected_dlcs = [dlc_id for dlc_id, var in self._dlc_vars.items() if var.get()]
+        selected_dlcs = [did for did, var in self._dlc_vars.items() if var.get()]
         selected_langs = [code for code, var in self._lang_vars.items() if var.get()]
         if not selected_dlcs and not selected_langs:
             self.app.show_toast("Nothing selected", "warning")
@@ -539,7 +576,9 @@ class PackerFrame(ctk.CTkFrame):
 
         def dlc_progress_cb(idx, count, dlc_id, msg):
             pct = idx / total if total > 0 else 0
-            self.app._enqueue_gui(self._update_pack_progress, idx, total, dlc_id or msg, pct)
+            self.app._enqueue_gui(
+                self._update_pack_progress, idx, total, dlc_id or msg, pct,
+            )
 
         dlc_results = self._packer.pack_multiple(
             game_path, dlcs, self._output_dir, dlc_progress_cb,
@@ -551,7 +590,9 @@ class PackerFrame(ctk.CTkFrame):
         def lang_progress_cb(idx, count, code, msg):
             pct = (offset + idx) / total if total > 0 else 0
             label = code or msg
-            self.app._enqueue_gui(self._update_pack_progress, offset + idx, total, label, pct)
+            self.app._enqueue_gui(
+                self._update_pack_progress, offset + idx, total, label, pct,
+            )
 
         lang_results = self._lang_packer.pack_multiple(
             game_path, lang_codes, self._output_dir, lang_progress_cb,
@@ -587,8 +628,8 @@ class PackerFrame(ctk.CTkFrame):
             return
 
         total_size = (
-            sum(r.size for r in dlc_results) +
-            sum(r.size for r in lang_results)
+            sum(r.size for r in dlc_results)
+            + sum(r.size for r in lang_results)
         )
 
         parts = []
@@ -598,8 +639,7 @@ class PackerFrame(ctk.CTkFrame):
             parts.append(f"{len(lang_results)} language pack(s)")
 
         self._status_label.configure(
-            text=f"Packed {', '.join(parts)}, {_format_size(total_size)} total. "
-                 f"Output: {self._output_dir}",
+            text=f"Packed {', '.join(parts)}, {_format_size(total_size)} total",
         )
         self.app.show_toast(
             f"Packed {', '.join(parts)} successfully", "success",
@@ -667,13 +707,17 @@ class PackerFrame(ctk.CTkFrame):
         self._progress_bar.set(1.0)
 
         if not found_dlc_ids:
-            self._status_label.configure(text="Import complete (no DLC folders detected)")
+            self._status_label.configure(
+                text="Import complete (no DLC folders detected)",
+            )
             self.app.show_toast("Archive extracted", "success")
             return
 
         dlc_list = ", ".join(found_dlc_ids)
         self._status_label.configure(text=f"Imported: {dlc_list}")
-        self.app.show_toast(f"Imported {len(found_dlc_ids)} DLC(s): {dlc_list}", "success")
+        self.app.show_toast(
+            f"Imported {len(found_dlc_ids)} DLC(s): {dlc_list}", "success",
+        )
 
         # Ask if user wants to register the DLCs
         register = tk.messagebox.askyesno(
@@ -686,7 +730,9 @@ class PackerFrame(ctk.CTkFrame):
             self.app.run_async(
                 self._register_bg, found_dlc_ids,
                 on_done=lambda _: self.app.show_toast("DLCs registered", "success"),
-                on_error=lambda e: self.app.show_toast(f"Registration error: {e}", "error"),
+                on_error=lambda e: self.app.show_toast(
+                    f"Registration error: {e}", "error",
+                ),
             )
 
     def _register_bg(self, dlc_ids: list[str]):
@@ -697,9 +743,9 @@ class PackerFrame(ctk.CTkFrame):
         states = mgr.get_dlc_states(game_dir)
         enabled_set = set()
         for state in states:
-            if state.enabled is True:
-                enabled_set.add(state.dlc.id)
-            elif state.dlc.id in dlc_ids and state.installed:
+            if state.enabled is True or (
+                state.dlc.id in dlc_ids and state.installed
+            ):
                 enabled_set.add(state.dlc.id)
         mgr.apply_changes(game_dir, enabled_set)
 
@@ -715,8 +761,27 @@ class PackerFrame(ctk.CTkFrame):
 
     # ── Helpers ───────────────────────────────────────────────────
 
+    def _short_output_path(self) -> str:
+        """Truncated output path for display."""
+        s = str(self._output_dir)
+        if len(s) > 45:
+            return "..." + s[-42:]
+        return s
+
+    def _change_output_folder(self):
+        """Let user choose a different output folder."""
+        new_dir = filedialog.askdirectory(
+            title="Select Output Folder",
+            initialdir=str(self._output_dir),
+        )
+        if not new_dir:
+            return
+        self._output_dir = Path(new_dir)
+        self._output_path_label.configure(text=self._short_output_path())
+        self.app.show_toast("Output folder changed", "info")
+
     def _open_output_folder(self):
-        """Open the packed DLCs output folder in the system file explorer."""
+        """Open the output folder in the system file explorer."""
         import os
         self._output_dir.mkdir(parents=True, exist_ok=True)
         os.startfile(self._output_dir)

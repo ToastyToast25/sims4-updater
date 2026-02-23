@@ -5,8 +5,8 @@ Ported from dlc-toggler.au3 — supports 5 crack config formats across
 Game/ and Game-cracked/ directories.
 """
 
-import re
 import os
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 

@@ -1,7 +1,7 @@
 # Update and Patching System — Technical Reference
 
 **Project:** Sims 4 Updater
-**Version Documented:** 2.1.0
+**Version Documented:** 2.3.0
 **Date:** 2026-02-20
 **Scope:** Core update pipeline, version detection, manifest parsing, update planning, download management, patch application, DLC state preservation, and hash learning
 
@@ -2039,12 +2039,17 @@ On other platforms (or if `LOCALAPPDATA` is unset): `~/.config/sims4_updater/`
 
 Files stored in this directory:
 
-| File                       | Description                                          |
-|----------------------------|------------------------------------------------------|
-| `settings.json`            | User settings (see Section 11.1)                     |
-| `learned_hashes.json`      | Local hash database (see Section 8)                  |
-| `downloads/`               | Downloaded patch archives (see Section 5)            |
-| `sims4updater_files.cache` | MD5 hash cache for patcher (avoids rehashing)        |
+| File                         | Description                                          |
+|------------------------------|------------------------------------------------------|
+| `settings.json`              | User settings (see Section 11.1)                     |
+| `learned_hashes.json`        | Local hash database (see Section 8)                  |
+| `downloads/`                 | Downloaded patch archives (see Section 5)            |
+| `sims4updater_files.cache`   | MD5 hash cache for patcher (avoids rehashing)        |
+| `sims4_updater_backups/`     | Timestamped pre-patch file backups (see note below)  |
+
+#### Backup System Integration
+
+When `backup_enabled` is set in Settings, the updater creates a timestamped backup of all files that will be modified before applying patches. Backups are stored in `%LOCALAPPDATA%\ToastyToast25\sims4_updater\sims4_updater_backups\` and can be restored from the Settings tab.
 
 ### 11.3 Directory Migration
 

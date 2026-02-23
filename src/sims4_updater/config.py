@@ -64,6 +64,9 @@ class Settings:
     greenluma_manifest_dir: str = ""  # Path to directory containing .manifest files
     skip_game_update: bool = False  # DLC-only mode: skip base game updates
     window_geometry: str = ""  # Window size+position as "WxH+X+Y"
+    tools_collapsed: bool = True  # Sidebar "Tools" section starts collapsed
+    backup_enabled: bool = False  # Create backup of game files before patching
+    backup_max_count: int = 3  # Keep last N backups, auto-prune older ones
 
     def __post_init__(self):
         # Fill in critical URL defaults when empty (e.g. migrated from older settings)

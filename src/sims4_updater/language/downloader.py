@@ -9,15 +9,14 @@ Each language pack goes through a 2-phase pipeline:
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
+from ..core.exceptions import DownloadError
 from ..patch.downloader import Downloader
 from ..patch.manifest import LanguageDownloadEntry
-from ..core.exceptions import DownloadError
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,8 @@ class LanguagePackDownloader:
         Returns True on success.
         """
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         try:
             # Phase 1: Download
@@ -114,7 +114,8 @@ class LanguagePackDownloader:
             Dict of locale_code -> success bool for each attempted download.
         """
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         results = {}
         missing = [

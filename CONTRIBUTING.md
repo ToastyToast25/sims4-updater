@@ -161,7 +161,8 @@ Layer 3: GUI
 
 Layer 2: Updater Core
     updater.py                  Sims4Updater(BasePatcher) — main engine
-    core/                       Version detection, self-update, exceptions, file utils
+    core/                       Version detection, self-update, exceptions, file utils,
+                                process management (process.py), backup management (backup.py)
     patch/                      Manifest parsing, update planning, HTTP downloader
     dlc/                        DLC catalog, format adapters, downloader, packer, Steam prices
     language/                   Language changer, downloader, packer, Steam integration
@@ -648,6 +649,7 @@ The `Architecture_and_Developer_Guide.md` is the best starting point for underst
 | `%LOCALAPPDATA%\ToastyToast25\sims4_updater\learned_hashes.json` | Self-learned version fingerprints from the `learn` command |
 | `%LOCALAPPDATA%\ToastyToast25\sims4_updater\downloads\` | Patch download cache |
 | `%LOCALAPPDATA%\ToastyToast25\sims4_updater\packed_dlcs\` | DLC Packer output directory |
+| `%LOCALAPPDATA%\ToastyToast25\sims4_updater\sims4_updater_backups\` | Timestamped pre-patch file backups (written by `core/backup.py` when `backup_enabled` is set) |
 | `%APPDATA%\ToastyToast25\EA DLC Unlocker\` | EA DLC Unlocker entitlements file |
 
 ---
@@ -690,3 +692,14 @@ UpdaterError
 ```
 
 Catch the narrowest exception you can handle. Let others propagate to the `on_error` callback in the GUI layer, where they become toast notifications.
+
+## New Core Modules (v2.3.0)
+
+Two modules were added to `src/sims4_updater/core/` in version 2.3.0:
+
+| Module | Purpose |
+| --- | --- |
+| `core/process.py` | Subprocess management utilities — launching external tools (xdelta3, unrar, DepotDownloader) with controlled stdout/stderr capture and timeout handling |
+| `core/backup.py` | Pre-patch backup management — creates timestamped snapshots of files scheduled for modification, stores them under `sims4_updater_backups/`, and exposes a restore API consumed by the Settings tab |
+
+When contributing features that invoke external processes, prefer the helpers in `core/process.py` over calling `subprocess` directly. When modifying files in place during patching, check whether `backup_enabled` is set in `Settings` and call the appropriate `core/backup.py` function before overwriting.

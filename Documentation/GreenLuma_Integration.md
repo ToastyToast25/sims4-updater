@@ -1,7 +1,7 @@
 # GreenLuma Integration — Technical Reference
 
 **Project:** Sims 4 Updater
-**Document Version:** 2.2.0
+**Document Version:** 2.3.0
 **Date:** 2026-02-22
 **Scope:** GreenLuma 2025 Steam DLC integration — detection, installation, AppList management, config.vdf depot keys, LUA manifest parsing, depotcache manifest files, orchestration, GUI, CDN key distribution, and user contribution system
 

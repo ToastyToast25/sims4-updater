@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from .. import constants
 from .exceptions import VersionDetectionError
 from .files import hash_file
 from .learned_hashes import LearnedHashDB
-from .. import constants
 
 
 class Confidence(Enum):

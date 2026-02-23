@@ -1,6 +1,6 @@
 # Sims 4 Updater — Architecture and Developer Guide
 
-**Version:** 2.1.0
+**Version:** 2.3.0
 **Author:** ToastyToast25
 **Last Updated:** February 2026
 
@@ -27,18 +27,20 @@
    - 5.6 [Core: File Utilities](#56-core-file-utilities)
    - 5.7 [Core: Self-Update](#57-core-self-update)
    - 5.8 [Core: DLC Unlocker](#58-core-dlc-unlocker)
-   - 5.9 [Patch: Manifest](#59-patch-manifest)
-   - 5.10 [Patch: Client](#510-patch-client)
-   - 5.11 [Patch: Planner](#511-patch-planner)
-   - 5.12 [Patch: Downloader](#512-patch-downloader)
-   - 5.13 [DLC: Catalog](#513-dlc-catalog)
-   - 5.14 [DLC: Manager](#514-dlc-manager)
-   - 5.15 [DLC: Formats (Crack Config Adapters)](#515-dlc-formats-crack-config-adapters)
-   - 5.16 [DLC: Downloader](#516-dlc-downloader)
-   - 5.17 [DLC: Packer](#517-dlc-packer)
-   - 5.18 [DLC: Steam Price Service](#518-dlc-steam-price-service)
-   - 5.19 [Language Changer](#519-language-changer)
-   - 5.20 [GreenLuma Package](#520-greenluma-package)
+   - 5.9 [Core: Backup Manager](#59-core-backup-manager)
+   - 5.10 [Core: Game Process Detection](#510-core-game-process-detection)
+   - 5.11 [Patch: Manifest](#511-patch-manifest)
+   - 5.12 [Patch: Client](#512-patch-client)
+   - 5.13 [Patch: Planner](#513-patch-planner)
+   - 5.14 [Patch: Downloader](#514-patch-downloader)
+   - 5.15 [DLC: Catalog](#515-dlc-catalog)
+   - 5.16 [DLC: Manager](#516-dlc-manager)
+   - 5.17 [DLC: Formats (Crack Config Adapters)](#517-dlc-formats-crack-config-adapters)
+   - 5.18 [DLC: Downloader](#518-dlc-downloader)
+   - 5.19 [DLC: Packer](#519-dlc-packer)
+   - 5.20 [DLC: Steam Price Service](#520-dlc-steam-price-service)
+   - 5.21 [Language Changer](#521-language-changer)
+   - 5.22 [GreenLuma Package](#522-greenluma-package)
 6. [Layer 3: GUI](#6-layer-3-gui)
    - 6.1 [App Class and Window Structure](#61-app-class-and-window-structure)
    - 6.2 [Threading Model](#62-threading-model)
@@ -106,7 +108,7 @@ A Cloudflare Worker-based CDN at `cdn.hyperabyss.com` provides global distributi
 sims4-updater/                         # Project root
   src/
     sims4_updater/
-      __init__.py                      # VERSION = "2.1.0"
+      __init__.py                      # VERSION = "2.3.0"
       __main__.py                      # CLI argparse entry point + launch()
       constants.py                     # App-wide constants; get_data_dir(), get_tools_dir()
       config.py                        # Settings dataclass, get_app_dir(), migration
@@ -120,6 +122,8 @@ sims4-updater/                         # Project root
         myzipfile.py                   # Custom ZIP with LZMA metadata (from patcher)
         self_update.py                 # GitHub release check + exe swap pipeline
         unlocker.py                    # EA DLC Unlocker install/uninstall
+        backup.py                      # BackupManager, BackupInfo — pre-patch file backup lifecycle
+        process.py                     # Game process detection: is_game_running(), get_game_pid(), kill_game_process()
         subprocess_.py                 # Subprocess wrapper utilities
         utils.py                       # Misc utilities
         cache.py                       # General-purpose caching helpers
@@ -644,7 +648,77 @@ Installs the PandaDLL (`version.dll`) into the EA Desktop client directory to en
 
 **Uninstallation** reverses these steps: removes `version.dll`, deletes the entitlements config directory, and deletes the scheduled task.
 
-### 5.9 Patch: Manifest
+### 5.9 Core: Backup Manager
+
+**File:** `src/sims4_updater/core/backup.py`
+
+`BackupManager` creates timestamped snapshots of game files immediately before a patch is applied. If a patch fails mid-way, the user can restore to the last known-good state without re-downloading or re-installing.
+
+```python
+@dataclass
+class BackupInfo:
+    backup_id: str          # Timestamp-derived ID: "backup_20260222_143015"
+    created_at: datetime    # UTC creation time
+    game_version: str       # Detected version string at backup time (may be empty)
+    size_bytes: int         # Total uncompressed size of all backed-up files
+    file_count: int         # Number of files included in the backup
+    backup_dir: Path        # Absolute path to the backup folder
+
+class BackupManager:
+    def __init__(self, backup_root: Path, max_count: int = 3): ...
+
+    def estimate_size(self, game_dir: Path, file_list: list[Path]) -> int: ...
+    def create(self, game_dir: Path, file_list: list[Path], version: str = "") -> BackupInfo: ...
+    def list_backups(self) -> list[BackupInfo]: ...
+    def restore(self, backup_id: str, game_dir: Path, log=None) -> None: ...
+    def delete(self, backup_id: str) -> None: ...
+    def prune(self) -> list[str]: ...
+```
+
+**Backup directory structure:**
+
+```
+%LOCALAPPDATA%\ToastyToast25\sims4_updater\backups\
+    backup_20260222_143015\
+        backup_info.json        # BackupInfo metadata
+        Game\Bin\TS4_x64.exe   # Files mirrored from game_dir
+        Game\Bin\Default.ini
+        ...
+```
+
+**Key behaviours:**
+
+- `estimate_size()` sums the `stat().st_size` of each file in `file_list` without reading file contents, so it completes in milliseconds regardless of total size.
+- `create()` copies files with `shutil.copy2()` (preserving modification timestamps) into a new timestamped subdirectory. A `backup_info.json` sidecar is written last; an incomplete backup (missing the sidecar) is ignored by `list_backups()`.
+- `prune()` is called automatically at the end of `create()`. It sorts existing backups by creation time (oldest first) and deletes any that exceed `max_count`. Returns the list of deleted backup IDs.
+- `restore()` copies files back from the backup directory to `game_dir`, preserving relative paths. Missing source files in the backup are skipped with a warning to `log`.
+- `delete()` removes the entire backup subdirectory. Raises `FileNotFoundError` if the backup ID does not exist.
+
+**Integration point:** `ProgressFrame` calls `BackupManager.create()` between the `check_files_quick()` step and the `updater.patch()` call. See Section 6.14 for the updated pipeline.
+
+### 5.10 Core: Game Process Detection
+
+**File:** `src/sims4_updater/core/process.py`
+
+Detects and controls the Sims 4 game process using the Windows `tasklist` command. This module has no dependency on `pywin32` and works in both elevated and non-elevated contexts.
+
+```python
+def is_game_running() -> bool: ...
+def get_game_pid() -> int | None: ...
+def kill_game_process(timeout: float = 5.0) -> bool: ...
+```
+
+**Implementation detail:** All three functions parse the output of `tasklist /FI "IMAGENAME eq TS4_x64.exe" /NH /FO CSV`. The CSV output format is used to avoid locale-dependent column widths in the default table layout. The executable name `TS4_x64.exe` is the only process checked; the 32-bit `TS4.exe` variant is not relevant for modern installations.
+
+`is_game_running()` returns `True` if at least one matching line is found in `tasklist` output.
+
+`get_game_pid()` extracts the PID from the first matching `tasklist` line. Returns `None` if the process is not running.
+
+`kill_game_process(timeout)` issues `taskkill /F /PID <pid>` for each matching process, then polls `is_game_running()` every 250 ms until the process exits or `timeout` elapses. Returns `True` if the process was gone within the timeout, `False` otherwise.
+
+**Usage in HomeFrame:** `_poll_game_process()` calls `is_game_running()` on a repeating `self.after(3000, ...)` schedule while the game is believed to be running. See Section 6.8 for the full game launcher state machine.
+
+### 5.11 Patch: Manifest
 
 **File:** `src/sims4_updater/patch/manifest.py`
 
@@ -729,7 +803,7 @@ Manifest
 
 `patch_pending` is a computed property: `bool(game_latest and game_latest != latest)`. It signals to the UI that a newer EA release exists but no patch for it is available yet.
 
-### 5.10 Patch: Client
+### 5.12 Patch: Client
 
 **File:** `src/sims4_updater/patch/client.py`
 
@@ -760,7 +834,7 @@ class PatchClient:
 
 `format_size()` is a module-level utility function that formats byte counts as human-readable strings (`"12.5 MB"`, `"1.02 GB"`, etc.).
 
-### 5.11 Patch: Planner
+### 5.13 Patch: Planner
 
 **File:** `src/sims4_updater/patch/planner.py`
 
@@ -789,7 +863,7 @@ class UpdatePlan:
 
 `NoUpdatePathError` is raised if no path exists in the graph from `current_version` to `target_version`. This happens when the user's version is not covered by the available patches.
 
-### 5.12 Patch: Downloader
+### 5.14 Patch: Downloader
 
 **File:** `src/sims4_updater/patch/downloader.py`
 
@@ -820,7 +894,7 @@ CONNECT_TIMEOUT = 30    # seconds
 READ_TIMEOUT = 60       # seconds
 ```
 
-### 5.13 DLC: Catalog
+### 5.15 DLC: Catalog
 
 **File:** `src/sims4_updater/dlc/catalog.py`
 
@@ -867,7 +941,7 @@ The `status_label` property returns a human-readable string: `"Owned"`, `"Patche
 | KIT__ | kit | Mini content kits |
 | FP__ | free_pack | Free for all players |
 
-### 5.14 DLC: Manager
+### 5.16 DLC: Manager
 
 **File:** `src/sims4_updater/dlc/manager.py`
 
@@ -888,7 +962,7 @@ class DLCManager:
 
 `export_states` / `import_states` are used during patching to preserve user customizations across the update cycle.
 
-### 5.15 DLC: Formats (Crack Config Adapters)
+### 5.17 DLC: Formats (Crack Config Adapters)
 
 **File:** `src/sims4_updater/dlc/formats.py`
 
@@ -932,7 +1006,7 @@ ALL_ADAPTERS = [
 
 All state mutations operate on the **full config file content as a string** using regular expressions. The modified string is written back atomically. This approach avoids INI parser libraries and is resilient to non-standard formatting.
 
-### 5.16 DLC: Downloader
+### 5.18 DLC: Downloader
 
 **File:** `src/sims4_updater/dlc/downloader.py`
 
@@ -960,7 +1034,7 @@ Registration failure is non-fatal — the DLC files are on disk and can be manua
 
 `download_multiple()` runs DLCs sequentially but continues to the next DLC on individual failure (does not abort the entire queue).
 
-### 5.17 DLC: Packer
+### 5.19 DLC: Packer
 
 **File:** `src/sims4_updater/dlc/packer.py`
 
@@ -1003,7 +1077,7 @@ Non-ASCII and special characters are stripped from the name; spaces become under
 
 After extraction, `_detect_dlc_dirs()` scans for newly present DLC ID folders and returns the list of found DLC IDs.
 
-### 5.18 DLC: Steam Price Service
+### 5.20 DLC: Steam Price Service
 
 **File:** `src/sims4_updater/dlc/steam.py`
 
@@ -1031,7 +1105,7 @@ class SteamPrice:
     store_url: str         # computed: Steam store URL
 ```
 
-### 5.19 Language Changer
+### 5.21 Language Changer
 
 **File:** `src/sims4_updater/language/changer.py`
 
@@ -1055,7 +1129,7 @@ LANGUAGES = {
 1. Writes `Locale` to the registry in both 32-bit and 64-bit views.
 2. If `game_dir` is provided, updates `Language = <code>` in all `RldOrigin.ini` variants found in `Game/Bin/`, `Game-cracked/Bin/`, `Game/Bin_LE/`, and `Game-cracked/Bin_LE/`.
 
-### 5.20 GreenLuma Package
+### 5.22 GreenLuma Package
 
 **Directory:** `src/sims4_updater/greenluma/`
 
@@ -1276,7 +1350,7 @@ App(ctk.CTk)                     [900 x 600, min 750 x 500]
 App.__init__()
   1. Window geometry + icon (PNG via wm_iconphoto, subsampled 1024 to 32)
   2. ctk.set_appearance_mode("dark")
-  3. Create Animator, toast state
+  3. Create Animator, notification history list
   4. Create ThreadPoolExecutor(max_workers=1)
   5. Create callback deque
   6. Load Settings
@@ -1290,6 +1364,20 @@ App.__init__()
   14. protocol("WM_DELETE_WINDOW", _on_close)
   15. after(200, _on_startup)   <-- trigger HomeFrame.refresh() on next tick
 ```
+
+**Notification history:**
+
+`App` maintains a `_notification_history: list[dict]` that records every toast shown during the session. The previous singleton `_active_toast` reference has been replaced by this list plus the class-level `ToastNotification._active_toasts` stack (see Section 6.6).
+
+Each history entry is a dict with `message`, `style`, and `timestamp` (UTC `datetime`). The list is capped at 50 entries; when the cap is reached, the oldest entry is dropped before appending the new one.
+
+A bell icon button in the sidebar footer opens a `CTkToplevel` popup that displays the recent notification history. Each entry is rendered with:
+
+- A style-coloured icon prefix (matching the toast icon characters)
+- The message text
+- A relative timestamp label (`"just now"`, `"2 min ago"`, `"14 min ago"`, etc.) computed at popup-open time
+
+The popup is non-modal and is destroyed automatically when the user clicks anywhere outside it or navigates to a different frame. If no notifications have been recorded yet, the popup shows a muted `"No notifications yet"` placeholder.
 
 ### 6.2 Threading Model
 
@@ -1505,11 +1593,53 @@ badge.set_status("Checking...", "info")  # Animates background color change
 
 **ToastNotification**
 
-A slide-in notification that appears from the top-right corner of the content area, displays for `TOAST_DURATION` ms, then slides out and destroys itself. Only one toast is shown at a time; showing a new one dismisses the previous one.
+A slide-in notification that appears from the bottom-right corner of the content area. Unlike the previous single-toast implementation, the system now supports stacking up to three simultaneous toasts and computes a per-style duration based on message length.
+
+**Stacking model:**
+
+`ToastNotification` maintains a class-level `_active_toasts: list[ToastNotification]` shared across all instances. When `show_toast()` is called, a new toast is appended to this list. If the list already contains three visible toasts, the oldest is dismissed immediately to make room. Each toast's vertical position is determined by its index in the list; when one is dismissed, `_reflow_toasts()` is called to smoothly slide the remaining toasts into their new positions.
 
 ```python
-# Called via App.show_toast() which manages the active_toast reference
+# Class-level shared state
+class ToastNotification(ctk.CTkFrame):
+    _active_toasts: list["ToastNotification"] = []
+
+    @classmethod
+    def _reflow_toasts(cls) -> None:
+        """Reposition all remaining toasts after one is dismissed."""
+        for i, toast in enumerate(cls._active_toasts):
+            toast.animate_to_position(i)
+```
+
+**Duration calculation:**
+
+Rather than a fixed `TOAST_DURATION`, each toast computes its visible duration based on style and message length:
+
+| Style   | Base duration |
+|---------|---------------|
+| success | 2500 ms       |
+| info    | 3000 ms       |
+| warning | 4000 ms       |
+| error   | 6000 ms       |
+
+For messages longer than 40 characters, an additional 50 ms is added per character beyond that threshold, capped at a maximum of 8000 ms total. This ensures longer messages are readable before the toast auto-dismisses.
+
+```python
+def _compute_duration(self, style: str, message: str) -> int:
+    base = {"success": 2500, "info": 3000, "warning": 4000, "error": 6000}.get(style, 3000)
+    extra = max(0, len(message) - 40) * 50
+    return min(base + extra, 8000)
+```
+
+**Error toast close button:**
+
+Error-style toasts include an explicit `×` close button in the top-right corner of the toast widget. This allows the user to dismiss a long-lived error message immediately without waiting for the auto-dismiss timer.
+
+**Usage** (unchanged from the caller's perspective):
+
+```python
 self.app.show_toast("DLC downloaded successfully!", style="success")
+self.app.show_toast("Manifest fetch failed: connection timeout", style="error")
 ```
 
 Each toast style has an icon character: check mark (success), warning triangle (warning), x mark (error), info circle (info).
@@ -1579,6 +1709,50 @@ After check (fully up to date):
 ```
 
 **Self-update banner** is displayed at the top of the scrollable area when `check_for_app_update()` finds a newer version. It transforms into a download progress view with: title label, speed label, progress bar, size/percentage labels. After download, a confirmation dialog appears before applying the update.
+
+**Game launcher state machine:**
+
+`HomeFrame` includes a lightweight game launcher that can start the game and track whether it is currently running. Two boolean instance flags drive the UI:
+
+| Flag | Meaning |
+| --- | --- |
+| `_game_launching` | `True` from the moment the launch button is pressed until the game process is confirmed running (or a timeout elapses) |
+| `_game_running` | `True` while at least one `TS4_x64.exe` process is detected by `core.process.is_game_running()` |
+
+State transitions:
+
+```
+Idle
+  |-- User clicks "Play" --> _game_launching = True
+  |       Launch subprocess (steam://run/1222670 or direct exe path)
+  |       _poll_game_process() starts polling every 3 s
+  |
+  |-- Process detected --> _game_launching = False, _game_running = True
+  |       Button changes to "Running..." (disabled)
+  |       _start_play_timer() begins elapsed-time tracking
+  |
+  |-- Process gone --> _game_running = False
+  |       _stop_play_timer() finalises elapsed time
+  |       Button returns to "Play"
+  |
+  `-- Launch timeout (30 s with no process detected)
+          _game_launching = False
+          show_toast("Game did not start", style="warning")
+```
+
+**Process polling** (`_poll_game_process`):
+
+Registered via `self.after(3000, self._poll_game_process)`. While `_game_launching` or `_game_running` is `True`, the method reschedules itself. Once both flags are `False`, polling stops. Polling only calls `is_game_running()` — a fast `tasklist` subprocess — and never blocks the GUI thread for a meaningful duration.
+
+**External game detection on `on_show()`:**
+
+Each time `HomeFrame` becomes the active tab, `on_show()` calls `is_game_running()` once synchronously (via `run_async` with no visible spinner). If the game is already running from outside the updater, `_game_running` is set to `True` and play-time tracking begins from that moment. This ensures the "Running..." state is always accurate even if the user started the game independently.
+
+**Play time tracking:**
+
+- `_start_play_timer()` records `_play_start: datetime = datetime.now(UTC)` and schedules `_update_play_time()` every 1000 ms via `self.after()`.
+- `_update_play_time()` computes `elapsed = datetime.now(UTC) - _play_start` and updates a label in the status card formatted as `"Playing: 1h 23m"` or `"Playing: 45m"`.
+- `_stop_play_timer()` cancels the pending `after()` callback (stored as `_play_timer_id`) and clears the elapsed-time label.
 
 **Entrance animation:** On first `on_show()`, the title and subtitle fade in with a staggered delay using `animate_color` from `bg_dark` to the target text colors.
 
@@ -1710,6 +1884,40 @@ Structure (top to bottom):
 
 **Pulse animation:** During active updates, the progress bar breathes between `accent` and `accent_hover` colors using `ease_in_out_cubic` at 850ms half-cycle. The pulse stops and the bar turns green on success, or red on error.
 
+**Backup integration in the update pipeline:**
+
+When `settings.backup_enabled` is `True`, `ProgressFrame` inserts a backup step between the pre-flight file check and patch application:
+
+```
+... [existing pipeline] ...
+
+Step: check_files_quick()
+        Verifies game files are not locked or missing
+
+Step: BackupManager.create()          <-- NEW (backup_enabled only)
+        Displayed as a distinct stage in the progress log:
+          header: "Creating backup"
+          info:   "Backing up N files (X MB)..."
+          info:   "Backup complete: backup_YYYYMMDD_HHMMSS"
+        BackupManager is constructed with:
+          backup_root = get_app_dir() / "backups"
+          max_count   = settings.backup_max_count
+        The file list passed to create() is the set of files
+        that BasePatcher.check_files_quick() reported as targets.
+        If create() raises an exception, the update is aborted
+        and the user is shown an error toast; no partial backup
+        is left on disk.
+
+Step: updater.patch(selected_dlcs)
+        xdelta3 binary patching proceeds as normal
+
+... [existing pipeline] ...
+```
+
+The estimated backup size is displayed in the progress log before the copy begins, using `BackupManager.estimate_size()`. Progress during the copy is reported as a secondary progress bar update (bytes copied / bytes total), keeping the main progress bar reserved for the overall download/patch progress.
+
+If `backup_enabled` is `False` (the default), this step is skipped entirely and the pipeline is identical to pre-2.3.0 behaviour.
+
 **Callback routing:** `handle_callback(callback_type, *args)` maps `CallbackType` events to UI updates. `INFO` callbacks update both the current-file label and the log. `PROGRESS` callbacks update the bar and size labels.
 
 ---
@@ -1757,6 +1965,8 @@ class Settings:
     greenluma_manifest_dir: str = ""      # Path to directory containing .manifest files
     download_concurrency: int = 3         # Number of parallel segment downloads
     download_speed_limit: int = 0         # MB/s cap; 0 = unlimited
+    backup_enabled: bool = False          # Create a file backup before applying each patch
+    backup_max_count: int = 3             # Maximum number of backups to retain; oldest pruned automatically
 ```
 
 `Settings.load()` reads `settings.json`, ignores any unknown keys (forward-compatibility), and returns a default `Settings()` instance on any parse error.
@@ -2514,4 +2724,4 @@ The `AVButtinInError` exception class exists for cases where antivirus software 
 
 ---
 
-*This document covers the Sims 4 Updater v2.1.0 codebase as it existed in February 2026. For questions or contributions, see the GitHub repository at https://github.com/ToastyToast25/sims4-updater.*
+*This document covers the Sims 4 Updater v2.3.0 codebase as it existed in February 2026. For questions or contributions, see the GitHub repository at https://github.com/ToastyToast25/sims4-updater.*

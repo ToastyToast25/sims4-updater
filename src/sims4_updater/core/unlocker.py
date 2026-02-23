@@ -10,14 +10,15 @@ config, and creates a scheduled task for staged updates.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import os
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from ..constants import get_tools_dir
 
@@ -136,13 +137,11 @@ def _create_task(dst_dll: Path, staged_dir: Path) -> bool:
 
 def _delete_task():
     """Delete the copy_dlc_unlocker scheduled task."""
-    try:
+    with contextlib.suppress(Exception):
         subprocess.run(
             ["schtasks", "/Delete", "/TN", _TASK_NAME, "/F"],
             capture_output=True, timeout=10,
         )
-    except Exception:
-        pass
 
 
 # ── Kill Processes ───────────────────────────────────────────────
@@ -210,7 +209,7 @@ def _copy_with_retry(src: Path, dst: Path, log: Callable[[str], None],
                 raise PermissionError(
                     f"Cannot copy to {dst} — file is locked by another process. "
                     f"Close EA Desktop and try again."
-                )
+                ) from None
 
 
 # ── Public API ───────────────────────────────────────────────────
@@ -218,7 +217,7 @@ def _copy_with_retry(src: Path, dst: Path, log: Callable[[str], None],
 def get_status(log: Callable[[str], None] | None = None) -> UnlockerStatus:
     """Detect client and gather current unlocker status."""
     if log is None:
-        log = lambda _: None
+        def log(_): pass
 
     client_name, client_path = _detect_client()
     log(f"Detected {client_name} at: {client_path}")
@@ -258,7 +257,7 @@ def _fetch_cdn_entitlements(dst: Path, log: Callable[[str], None]) -> bool:
         if not url:
             return False
 
-        log(f"Fetching latest entitlements from CDN...")
+        log("Fetching latest entitlements from CDN...")
         ent_resp = _req.get(url, timeout=30)
         ent_resp.raise_for_status()
         if len(ent_resp.content) < 100:

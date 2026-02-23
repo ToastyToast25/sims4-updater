@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import shutil
@@ -339,10 +340,8 @@ def uninstall_greenluma(steam_path: Path) -> tuple[int, int]:
     # Remove install manifest
     manifest_path = _get_manifest_path()
     if manifest_path.is_file():
-        try:
+        with contextlib.suppress(OSError):
             manifest_path.unlink()
-        except OSError:
-            pass
 
     log.info("Uninstall complete: %d removed, %d failed", removed, failed)
     return removed, failed

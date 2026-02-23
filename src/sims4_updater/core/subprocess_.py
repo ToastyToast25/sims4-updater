@@ -1,7 +1,7 @@
-import sys
 import os
-import subprocess
 import signal
+import subprocess
+import sys
 import threading
 import time
 
@@ -76,10 +76,7 @@ class Popen2(subprocess.Popen):
         return exitcode
 
     def lines(self, stderr=False):
-        if stderr:
-            source = self.stderr
-        else:
-            source = self.stdout
+        source = self.stderr if stderr else self.stdout
 
         buf = b""
         while self.poll() is None:

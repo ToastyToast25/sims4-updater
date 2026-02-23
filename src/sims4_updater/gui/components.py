@@ -9,12 +9,13 @@ Components:
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
 from . import theme
-from .animations import Animator, lerp_color, ease_out_cubic
+from .animations import Animator, ease_out_cubic
 
 if TYPE_CHECKING:
     pass
@@ -153,30 +154,40 @@ _TOAST_STYLES = {
         "border": theme.COLORS["success"],
         "text": theme.COLORS["success"],
         "icon": "\u2713",
+        "base_duration": 2500,
     },
     "warning": {
         "bg": theme.COLORS["toast_warning"],
         "border": theme.COLORS["warning"],
         "text": theme.COLORS["warning"],
         "icon": "\u26a0",
+        "base_duration": 4000,
     },
     "error": {
         "bg": theme.COLORS["toast_error"],
         "border": theme.COLORS["error"],
         "text": theme.COLORS["error"],
         "icon": "\u2717",
+        "base_duration": 6000,
     },
     "info": {
         "bg": theme.COLORS["toast_info"],
         "border": theme.COLORS["accent"],
         "text": theme.COLORS["text"],
         "icon": "\u2139",
+        "base_duration": 3000,
     },
 }
 
+_MAX_VISIBLE_TOASTS = 3
+_TOAST_GAP = 8
+_TOAST_HEIGHT_ESTIMATE = 44  # fallback if winfo_reqheight unavailable
+
 
 class ToastNotification(ctk.CTkFrame):
-    """Slide-in notification from top-right corner."""
+    """Slide-in notification from top-right corner with stacking support."""
+
+    _active_toasts: list[ToastNotification] = []
 
     def __init__(self, parent, message: str, style: str = "success"):
         s = _TOAST_STYLES.get(style, _TOAST_STYLES["info"])
@@ -190,6 +201,12 @@ class ToastNotification(ctk.CTkFrame):
 
         self._parent = parent
         self._dismiss_id = None
+        self._style_key = style
+        self._message = message
+
+        # Compute auto-dismiss duration: base + 50ms per char over 40
+        extra = max(0, len(message) - 40) * 50
+        self._duration = min(s["base_duration"] + extra, 8000)
 
         icon = ctk.CTkLabel(
             self,
@@ -206,44 +223,85 @@ class ToastNotification(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=s["text"],
         )
-        msg.pack(side="left", padx=(6, 14), pady=10)
+        msg.pack(side="left", padx=(6, 8), pady=10)
 
-        # Click anywhere on the toast to dismiss
-        self.bind("<Button-1>", lambda e: self._dismiss())
-        icon.bind("<Button-1>", lambda e: self._dismiss())
-        msg.bind("<Button-1>", lambda e: self._dismiss())
-        self.configure(cursor="hand2")
+        # Error toasts get an explicit close button
+        if style == "error":
+            close_btn = ctk.CTkLabel(
+                self,
+                text="\u2715",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=s["text"],
+                width=20,
+                cursor="hand2",
+            )
+            close_btn.pack(side="right", padx=(0, 8), pady=10)
+            close_btn.bind("<Button-1>", lambda e: self._dismiss())
+        else:
+            # Click anywhere on non-error toasts to dismiss
+            self.bind("<Button-1>", lambda e: self._dismiss())
+            icon.bind("<Button-1>", lambda e: self._dismiss())
+            msg.bind("<Button-1>", lambda e: self._dismiss())
+            self.configure(cursor="hand2")
 
     def show(self):
-        """Animate toast sliding in from the right edge."""
+        """Animate toast sliding in from the right edge with stacking."""
+        # Enforce max visible — dismiss oldest if over limit
+        while len(ToastNotification._active_toasts) >= _MAX_VISIBLE_TOASTS:
+            oldest = ToastNotification._active_toasts[0]
+            oldest._destroy()
+
+        ToastNotification._active_toasts.append(self)
+        y = self._compute_y_offset()
+
         # Position off-screen to the right
-        self.place(relx=1.0, rely=0.0, x=300, y=10, anchor="ne")
+        self.place(relx=1.0, rely=0.0, x=300, y=y, anchor="ne")
         self.lift()
 
         # Slide in
         _animator.animate(
             self, theme.TOAST_SLIDE_MS,
-            on_tick=lambda t: self.place(
+            on_tick=lambda t, _y=y: self.place(
                 relx=1.0, rely=0.0,
                 x=int(300 * (1 - t)) - 10,
-                y=10, anchor="ne",
+                y=_y, anchor="ne",
             ),
             on_done=self._start_dismiss_timer,
             easing=ease_out_cubic,
         )
 
+    def _compute_y_offset(self) -> int:
+        """Compute vertical position based on toasts above this one."""
+        y = 10
+        for toast in ToastNotification._active_toasts:
+            if toast is self:
+                break
+            try:
+                h = toast.winfo_reqheight()
+                if h < 10:
+                    h = _TOAST_HEIGHT_ESTIMATE
+            except Exception:
+                h = _TOAST_HEIGHT_ESTIMATE
+            y += h + _TOAST_GAP
+        return y
+
     def _start_dismiss_timer(self):
-        self._dismiss_id = self.after(theme.TOAST_DURATION, self._dismiss)
+        self._dismiss_id = self.after(self._duration, self._dismiss)
 
     def _dismiss(self):
         """Slide out and destroy."""
+        if self._dismiss_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._dismiss_id)
+            self._dismiss_id = None
+
         _animator.cancel_all(self)
         _animator.animate(
             self, theme.TOAST_SLIDE_MS,
             on_tick=lambda t: self.place(
                 relx=1.0, rely=0.0,
                 x=-10 + int(310 * t),
-                y=10, anchor="ne",
+                y=self._compute_y_offset(), anchor="ne",
             ),
             on_done=self._destroy,
             easing=ease_out_cubic,
@@ -251,7 +309,25 @@ class ToastNotification(ctk.CTkFrame):
 
     def _destroy(self):
         try:
+            if self in ToastNotification._active_toasts:
+                ToastNotification._active_toasts.remove(self)
             self.place_forget()
             self.destroy()
         except Exception:
             pass
+        # Reposition remaining toasts
+        _reflow_toasts()
+
+
+def _reflow_toasts():
+    """Reposition all visible toasts after one is removed."""
+    for toast in ToastNotification._active_toasts:
+        y = toast._compute_y_offset()
+        with contextlib.suppress(Exception):
+            _animator.animate(
+                toast, 150,
+                on_tick=lambda t, _toast=toast, _y=y: _toast.place(
+                    relx=1.0, rely=0.0, x=-10, y=_y, anchor="ne",
+                ),
+                easing=ease_out_cubic,
+            )

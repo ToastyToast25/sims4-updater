@@ -8,14 +8,15 @@ cleanly uninstalled.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import shutil
 import zipfile
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from ..config import get_app_dir
 from ..constants import get_mods_dir
@@ -110,7 +111,8 @@ class ModManager:
     ) -> bool:
         """Extract a bundled mod ZIP into the game's Mods folder."""
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         info = self._find_mod(mod_name)
         if not info or not info.zip_path:
@@ -166,7 +168,8 @@ class ModManager:
     ) -> bool:
         """Remove tracked files for a mod from the game Mods folder."""
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         info = self._find_mod(mod_name)
         if not info or not info.installed_files:
@@ -209,7 +212,8 @@ class ModManager:
     ) -> bool:
         """Delete the bundled ZIP file for a mod."""
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         info = self._find_mod(mod_name)
         if not info or not info.zip_path:
@@ -237,7 +241,8 @@ class ModManager:
     ) -> bool:
         """Enable a mod by removing .disabled suffix from its files."""
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         info = self._find_mod(mod_name)
         if not info or not info.installed_files:
@@ -265,7 +270,8 @@ class ModManager:
     ) -> bool:
         """Disable a mod by adding .disabled suffix to its files."""
         if log is None:
-            log = lambda msg: None
+            def log(_msg):
+                pass
 
         info = self._find_mod(mod_name)
         if not info or not info.installed_files:
@@ -430,10 +436,8 @@ class ModManager:
                 if suffix:
                     fp = fp.with_name(fp.name + suffix)
                 if fp.is_file():
-                    try:
+                    with contextlib.suppress(OSError):
                         total += fp.stat().st_size
-                    except OSError:
-                        pass
                     break
         return total
 

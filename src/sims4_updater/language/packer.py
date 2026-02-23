@@ -13,9 +13,9 @@ import json
 import logging
 import os
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from .changer import LANGUAGES, LOCALE_TO_STRINGS, STRINGS_CHECK_DIRS
 

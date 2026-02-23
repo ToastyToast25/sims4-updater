@@ -3,8 +3,7 @@ DLC catalog — maps DLC IDs to names, codes, and pack types.
 """
 
 import json
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from .. import constants
@@ -27,14 +26,14 @@ class DLCStatus:
         if self.owned and self.complete:
             return "Owned"
         if self.installed and not self.complete:
-            return "Incomplete"
+            return "Incomplete Install"
         if self.installed and self.registered and self.enabled:
-            return "Patched"
+            return "Ready"
         if self.installed and self.registered and not self.enabled:
-            return "Patched (disabled)"
+            return "Disabled"
         if not self.installed and self.registered:
-            return "Missing files"
-        return "Not installed"
+            return "Not Downloaded"
+        return "Not Installed"
 
 
 @dataclass

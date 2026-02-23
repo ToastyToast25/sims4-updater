@@ -90,6 +90,22 @@ Checks the GitHub Releases API on startup and offers one-click self-update. Down
 
 CustomTkinter dark-mode UI with slide animations, hex-interpolated color transitions, ease-out-cubic easing, and toast notifications. Sidebar navigation with 11 named tabs.
 
+### Notification System
+
+Stacking toast notifications (max 3 visible) with duration scaled by message type and length. Error toasts persist longer (6s) with explicit close buttons. Notification history accessible via a bell icon in the sidebar — click to see recent notifications with relative timestamps.
+
+### Backup & Restore (Beta)
+
+Optional pre-patch backup system. When enabled in Settings, the updater backs up all game files that will be modified before applying patches. Supports configurable backup count (auto-prunes oldest), per-backup restore, and disk space estimation. Restore any previous version from the Settings tab.
+
+### Game Launcher Improvements
+
+Dynamic launch buttons with state feedback — "Launching..." (orange) while starting, "Game Running" (red) when detected. Prevents double-launches, detects externally-running game processes, and offers to stop them. Process detection polls every 3 seconds with automatic state transitions.
+
+### Play Time Tracking
+
+Real-time play time display on the homepage when the game is running. Shows elapsed time updated every second. Automatically detects games launched externally (outside the updater).
+
 ### Full CLI Support
 
 Every major operation is available headlessly for scripting and automation.
@@ -142,7 +158,7 @@ Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 1
 
 | Tab | Description |
 | --- | --- |
-| **Home** | Game directory, installed version, latest version, DLC summary, and the main Update Now button. Shows a "patch coming soon" banner when EA has released a new version ahead of the available patches. |
+| **Home** | Game directory, installed version, latest version, DLC summary, launch buttons with dynamic state feedback, play time tracking, and the main Update Now button. Shows a "patch coming soon" banner when EA has released a new version ahead of the available patches. |
 | **DLCs** | Scrollable catalog of all 109 DLCs grouped by type. Per-DLC enable/disable toggles, GreenLuma readiness indicators (key / manifest / AppList), Steam pricing, and one-click CDN download. |
 | **DLC Downloader** | Download individual DLC archives from the CDN with live progress bars, parallel threads, resume, and MD5 verification. |
 | **DLC Packer** | Pack installed DLC folders into distributable ZIP archives. Import ZIP archives from others. |
@@ -151,7 +167,7 @@ Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 1
 | **Language** | Select from 18 languages. Optionally download language files from Steam depots. |
 | **Mods** | Manage game modifications. |
 | **Diagnostics** | System health checks and DLC file validator. |
-| **Settings** | Game path, manifest URL, GreenLuma paths, Steam username, download concurrency, speed limit, theme, and language. |
+| **Settings** | Game path, manifest URL, GreenLuma paths, Steam username, download concurrency, speed limit, theme, language, and backup/restore settings. |
 | **Progress** | Live download/patch progress bars, scrollable log output, and cancel button during updates. |
 
 ### CLI Mode
@@ -479,7 +495,7 @@ GitHub Actions workflow (`.github/workflows/build.yml`):
 sims4-updater/
 ├── src/
 │   ├── sims4_updater/
-│   │   ├── __init__.py              # VERSION string ("2.2.0")
+│   │   ├── __init__.py              # VERSION string ("2.3.0")
 │   │   ├── __main__.py              # CLI argparse entry point + GUI launcher
 │   │   ├── constants.py             # SENTINEL_FILES, registry paths, get_data_dir(), get_tools_dir()
 │   │   ├── config.py                # Settings dataclass, get_app_dir() -> %LOCALAPPDATA%\ToastyToast25\
@@ -490,7 +506,9 @@ sims4-updater/
 │   │   │   ├── learned_hashes.py    # LearnedHashDB — local writable version fingerprint store
 │   │   │   ├── self_update.py       # GitHub Releases self-update pipeline
 │   │   │   ├── unlocker.py          # EA DLC Unlocker install/uninstall/status
+│   │   │   ├── backup.py            # BackupManager — pre-patch file backup and restore
 │   │   │   ├── rate_limiter.py      # Download rate limiting (token bucket)
+│   │   │   ├── process.py           # Game process detection and management (is_game_running, kill)
 │   │   │   ├── files.py             # hash_file() (MD5), write_check(), get_short_path()
 │   │   │   ├── myzipfile.py         # ZIP with LZMA metadata support
 │   │   │   ├── cache.py             # JSON cache with atomic writes
@@ -590,6 +608,7 @@ All paths are also searched under `Game-cracked/Bin/`.
 | `%LOCALAPPDATA%\ToastyToast25\sims4_updater\learned_hashes.json` | Self-learned version fingerprints (takes priority over bundled DB) |
 | `%LOCALAPPDATA%\ToastyToast25\sims4_updater\downloads\` | Patch download cache (resumable) |
 | `%LOCALAPPDATA%\ToastyToast25\sims4_updater\packed_dlcs\` | DLC Packer output directory |
+| `%LOCALAPPDATA%\ToastyToast25\sims4_updater\sims4_updater_backups\` | Pre-patch game file backups |
 | `%APPDATA%\ToastyToast25\EA DLC Unlocker\` | EA DLC Unlocker entitlements.ini |
 
 Settings auto-migrate from the old `anadius` directory on first run.

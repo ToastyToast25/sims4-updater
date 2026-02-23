@@ -10,9 +10,9 @@ import json
 import logging
 import subprocess
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from ..constants import get_tools_dir
 from ..core.exceptions import DownloadError

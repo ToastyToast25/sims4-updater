@@ -1,7 +1,7 @@
 # Sims 4 Updater — User Guide
 
 **Application:** Sims 4 Updater (TS4 Updater)
-**Version:** 2.1.0
+**Version:** 2.3.0
 **Author:** ToastyToast25
 **Platform:** Windows 10/11 (64-bit)
 
@@ -27,6 +27,8 @@
    - 5.5 [Updater Self-Update Banner](#55-updater-self-update-banner)
    - 5.6 [Patch-Pending State](#56-patch-pending-state)
    - 5.7 [New DLC Announcements](#57-new-dlc-announcements)
+   - 5.8 [Game Launcher Buttons](#58-game-launcher-buttons)
+   - 5.9 [Play Time Tracking](#59-play-time-tracking)
 6. [DLCs Tab](#6-dlcs-tab)
    - 6.1 [DLC List Layout](#61-dlc-list-layout)
    - 6.2 [Status Pills Explained](#62-status-pills-explained)
@@ -70,8 +72,9 @@
 10. [Settings Tab](#10-settings-tab)
     - 10.1 [Card 1: Game and Updates](#101-card-1-game-and-updates)
     - 10.2 [Card 2: GreenLuma](#102-card-2-greenluma)
-    - 10.3 [Saving Settings](#103-saving-settings)
-    - 10.4 [Settings Field Reference](#104-settings-field-reference)
+    - 10.3 [Card 3: Backup and Restore (Beta)](#103-card-3-backup-and-restore-beta)
+    - 10.4 [Saving Settings](#104-saving-settings)
+    - 10.5 [Settings Field Reference](#105-settings-field-reference)
 11. [Command-Line Interface (CLI)](#11-command-line-interface-cli)
     - 11.1 [When to Use the CLI](#111-when-to-use-the-cli)
     - 11.2 [Available Commands](#112-available-commands)
@@ -206,7 +209,26 @@ Throughout the application, small colored pill-shaped badges communicate state a
 
 ### 4.3 Toast Notifications
 
-Brief pop-up messages appear in the lower portion of the window after actions complete. These toasts auto-dismiss after a few seconds and use the same color coding as badges (green for success, orange for warning, red for error). You do not need to dismiss them manually.
+Brief pop-up messages appear in the lower-right corner of the window after actions complete. They use the same color coding as status badges (green for success, blue for info, orange for warning, red for error).
+
+**Stacking and limits**
+Up to three toasts are visible simultaneously. If a fourth toast arrives while three are already displayed, the oldest one is dismissed immediately to make room.
+
+**Duration by type**
+Each toast type has a distinct auto-dismiss duration. Long messages receive additional display time proportional to their character count.
+
+| Type | Base Duration |
+|---|---|
+| Success | 2.5 seconds |
+| Info | 3 seconds |
+| Warning | 4 seconds |
+| Error | 6 seconds |
+
+**Dismissing toasts**
+Error toasts display a small close button (×) in their top-right corner, allowing you to dismiss them before the auto-dismiss timer expires. All other toast types dismiss only automatically.
+
+**Notification history**
+A bell icon in the sidebar header opens a notification history popup. The popup lists all toasts generated during the current session with relative timestamps (for example, "2m ago"). A **Clear all** button at the top of the popup removes all entries from the history. The popup closes when you click anywhere outside it.
 
 ---
 
@@ -323,6 +345,38 @@ New DLC announced: Name of Pack — patch pending
 ```
 
 The same pending DLC names also appear in the DLCs tab under a "Pending" section at the bottom of the list, labeled with `[PENDING]`. These rows are informational only and have no checkbox or download option.
+
+### 5.8 Game Launcher Buttons
+
+The Home tab provides buttons for launching and stopping the game directly from the updater. The button set is dynamic — its label, color, and enabled state change to reflect the game's current runtime status.
+
+| State | Label | Color | Behavior |
+|---|---|---|---|
+| Game not running | **Launch Game** | Accent (default) | Launches `TS4_x64.exe` from the configured game directory |
+| Launch in progress | **Launching...** | Orange, disabled | Shown briefly while the process starts; button cannot be clicked again |
+| Game running | **Game Running** | Red | Clicking this button terminates the game process |
+
+**External launch detection**
+If you start The Sims 4 from outside the updater (for example, through Steam, the EA app, or a desktop shortcut), the button transitions automatically from "Launch Game" to "Game Running" without any interaction. The updater polls the running process list in the background and updates the button state within a few seconds of the game starting externally.
+
+Clicking **Game Running** (red) sends a termination signal to the game process and returns the button to its default "Launch Game" state once the process exits.
+
+> **Note:** The launch buttons are disabled when no game directory is configured, or when the game executable cannot be located at `Game\Bin\TS4_x64.exe` within the configured directory.
+
+### 5.9 Play Time Tracking
+
+While the game is running — whether launched from the updater or detected as an external launch — the Home tab displays a live elapsed time counter below the launcher buttons:
+
+```
+Session: 1h 23m 47s
+```
+
+The counter updates every second. It starts from the moment the updater detects the game process as active, regardless of how the game was started. When the game process exits, the counter stops and the final session duration remains displayed until the next launch.
+
+**Auto-detection of external launches**
+Play time tracking does not require you to use the in-app launch button. If you start the game through any other means, the updater detects the running process within a few seconds and begins the session timer automatically.
+
+The session timer resets to zero at the start of each new game session. Play time data is not persisted across application restarts — the counter is a per-session in-memory value only.
 
 ---
 
@@ -981,13 +1035,47 @@ Path to the directory containing `.manifest` files that are copied to the Steam 
 **Auto-backup before changes**
 A checkbox that controls whether the application creates timestamped backups of `config.vdf` and the GreenLuma AppList directory before any **Apply LUA** or **Fix AppList** operation modifies them. Enabled by default. Disabling this option is not recommended unless you are managing backups externally.
 
-### 10.3 Saving Settings
+### 10.3 Card 3: Backup and Restore (Beta)
 
-Press **Save Settings** to write all current field values from both cards to `settings.json`. The button briefly flashes green upon success. A success toast also confirms the save. If a write error occurs (for example, the file is locked by another process), an error message appears below the Save button with the specific reason.
+The third card provides patch-file backup management. This feature is marked **Beta** — it is functional but may have rough edges in edge-case scenarios. Feedback on failures is encouraged.
+
+**Enable backups before patching**
+A toggle switch that enables or disables automatic backups. When enabled, the patcher creates a snapshot of all game files that will be modified before applying any patch step. Backups are stored in a dedicated subdirectory inside the application data folder. This toggle is off by default.
+
+> **Disk space note:** Patch backups can be large (hundreds of megabytes per update). Ensure sufficient free space on the drive containing your AppData directory before enabling this option. The card displays current backup disk usage as a running total.
+
+**Maximum backup count**
+A numeric field that limits how many backups are retained. When a new backup would exceed this limit, the oldest backup is automatically deleted before the new one is created. The default is 3. Set this to a higher value if you want to be able to roll back across multiple update steps, or lower it to conserve disk space.
+
+**Backup list**
+A scrollable list of all retained backups, displayed in reverse chronological order (newest first). Each row shows:
+
+- The backup timestamp (date and time the backup was created).
+- The game version the backup was taken from (e.g., `1.121.372.1020`).
+- The disk size of that backup.
+- A **Restore** button — clicking this restores the game files from that backup, reverting the game to the state it was in when the backup was taken. A confirmation dialog appears before any files are overwritten.
+- A **Delete** button — clicking this permanently removes that backup from disk after a confirmation prompt.
+
+**Disk space display**
+Below the backup list, the card shows the total disk space consumed by all retained backups combined (e.g., "Backups: 1.4 GB on disk").
+
+**Delete All button**
+Removes every backup in the list at once. A confirmation dialog lists the total space that will be freed before proceeding.
+
+**Open Folder button**
+Opens the backup storage directory in Windows File Explorer. The path is:
+
+```
+C:\Users\{YourUsername}\AppData\Local\ToastyToast25\sims4_updater\backups\
+```
+
+### 10.4 Saving Settings
+
+Press **Save Settings** to write all current field values from all cards to `settings.json`. The button briefly flashes green upon success. A success toast also confirms the save. If a write error occurs (for example, the file is locked by another process), an error message appears below the Save button with the specific reason.
 
 Settings are not auto-saved as you edit fields. Navigating away from the Settings tab without pressing Save discards any changes you made in that session.
 
-### 10.4 Settings Field Reference
+### 10.5 Settings Field Reference
 
 The complete set of fields stored in `settings.json` is listed below. Fields not visible in the GUI are set programmatically or via CLI flags.
 
@@ -1444,5 +1532,5 @@ By using this software, you acknowledge and agree to the following:
 
 ---
 
-*Sims 4 Updater v2.0.8 — User Guide*
+*Sims 4 Updater v2.3.0 — User Guide*
 *Document updated: February 2026*

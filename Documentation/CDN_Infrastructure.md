@@ -2,7 +2,8 @@
 
 **Project**: The Sims 4 Updater
 **CDN Domain**: cdn.hyperabyss.com
-**Last Updated**: 2026-02-21
+**Last Updated**: 2026-02-22
+**Applies to:** Sims 4 Updater v2.3.0
 
 ---
 

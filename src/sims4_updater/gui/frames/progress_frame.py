@@ -10,6 +10,7 @@ Shows:
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -19,8 +20,8 @@ from ..animations import ease_in_out_cubic
 from ..components import get_animator
 
 if TYPE_CHECKING:
-    from ..app import App
     from ...patch.planner import UpdatePlan
+    from ..app import App
 
 
 class ProgressFrame(ctk.CTkFrame):
@@ -318,6 +319,38 @@ class ProgressFrame(ctk.CTkFrame):
 
             all_dlcs, missing_dlcs = updater.check_files_quick(game_dir)
             selected = [d for d in all_dlcs if d not in missing_dlcs]
+
+            # Backup game files before patching (if enabled)
+            if self.app.settings.backup_enabled:
+                try:
+                    from pathlib import Path as _Path
+
+                    from ...config import get_app_dir
+                    from ...core.backup import BackupManager
+
+                    bm = BackupManager(
+                        get_app_dir(), self.app.settings.backup_max_count,
+                    )
+                    files = updater.get_patchable_files(game_dir)
+                    size = bm.estimate_backup_size(_Path(game_dir), files)
+                    size_mb = size / 1024 / 1024
+                    self._enqueue_gui(
+                        self._log_text,
+                        f"Creating backup ({size_mb:.1f} MB)...\n", "info",
+                    )
+                    version_label = plan.target_version or "unknown"
+                    bm.create_backup(_Path(game_dir), files, version_label)
+                    bm.prune_old_backups()
+                    self._enqueue_gui(
+                        self._log_text, "Backup created.\n", "success",
+                    )
+                except Exception as e:
+                    self._enqueue_gui(
+                        self._log_text,
+                        f"Backup failed: {e} — continuing without backup.\n",
+                        "warning",
+                    )
+
             updater.patch(selected)
 
             # Learn new version hashes
@@ -459,8 +492,6 @@ class ProgressFrame(ctk.CTkFrame):
         animator = get_animator()
         animator.cancel_all(self._progress_bar, tag="pulse")
         if self._pulse_after_id is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.after_cancel(self._pulse_after_id)
-            except Exception:
-                pass
             self._pulse_after_id = None

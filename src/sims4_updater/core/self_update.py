@@ -261,7 +261,8 @@ if !NEW_SIZE! LSS 1000000 (
 
 rem Check PE header (first 2 bytes should be MZ)
 set "HEADER="
-for /f "usebackq" %%H in (`powershell -NoProfile -Command "[System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes('{new}')[0..1])"`) do set "HEADER=%%H"
+set "PS_CMD=[Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes('{new}')[0..1])"
+for /f "usebackq" %%H in (`powershell -NoProfile -Command "!PS_CMD!"`) do set "HEADER=%%H"
 if /I not "!HEADER!"=="MZ" (
     call :log "ERROR: File is not a valid Windows executable (missing MZ header)."
     goto fail_no_restore
@@ -279,7 +280,7 @@ if exist "{cur}" (
         if !RETRIES! GEQ 30 (
             call :log "ERROR: Cannot rename exe after 30 attempts."
             call :log "The file may be locked by antivirus or another program."
-            call :log "Try: (1) Disable real-time antivirus  (2) Run as administrator  (3) Close other programs"
+            call :log "Try: (1) Disable antivirus  (2) Run as admin  (3) Close other programs"
             goto fail_no_restore
         )
         call :log "  Rename attempt !RETRIES!/30 failed, retrying in 1s..."
@@ -314,7 +315,7 @@ call :log "Final exe size: !FINAL_SIZE! bytes"
 
 rem Verify the final exe matches expected size
 if !FINAL_SIZE! NEQ {expected_size} (
-    call :log "ERROR: Final exe size mismatch (!FINAL_SIZE! vs {expected_size}). File may be corrupt."
+    call :log "ERROR: Size mismatch (!FINAL_SIZE! vs {expected_size}). May be corrupt."
     goto fail_restore
 )
 

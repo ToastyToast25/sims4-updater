@@ -1,10 +1,9 @@
-import os
 import errno
 import json
-
+import os
 from pathlib import Path
 
-from .exceptions import UpdaterError, NotEnoughSpaceError
+from .exceptions import NotEnoughSpaceError, UpdaterError
 
 __all__ = ["load", "save"]
 
@@ -23,7 +22,7 @@ def load(path):
         raise UpdaterError(
             f'Can\'t read "{path}". Make sure your '
             "anti-virus doesn't block this program."
-        )
+        ) from None
 
 
 def save(path, obj):
@@ -42,11 +41,11 @@ def save(path, obj):
         if e.errno == errno.ENOSPC:
             raise NotEnoughSpaceError(
                 f"You don't have enough space on {Path(path).anchor} drive!"
-            )
+            ) from e
         raise UpdaterError(
             f'Can\'t save "{path}". Make sure your '
             "anti-virus doesn't block this program. "
             "If this file exists - move it somewhere else and then copy "
             "it back. If it doesn't exist - do the same with the folder "
             "this file was supposed to be in."
-        )
+        ) from e

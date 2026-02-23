@@ -167,7 +167,7 @@ class DownloaderFrame(ctk.CTkFrame):
 
         ctk.CTkLabel(
             top,
-            text="Download and install DLC content packs",
+            text="Download and install DLC packs from the CDN server",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=1, column=0, sticky="w", pady=(0, 8))
@@ -663,12 +663,18 @@ class DownloaderFrame(ctk.CTkFrame):
 
         # Checkbox
         var = ctk.BooleanVar(value=is_installed or is_cached)
+        if is_installed:
+            cb_text = f"\u2713  {dlc_id} \u2014 {name}"
+            cb_color = theme.COLORS["success"]
+        else:
+            cb_text = f"{dlc_id} \u2014 {name}"
+            cb_color = theme.COLORS["text"]
         cb = ctk.CTkCheckBox(
             row_frame,
-            text=f"{dlc_id} \u2014 {name}",
+            text=cb_text,
             variable=var,
             font=ctk.CTkFont(*theme.FONT_BODY),
-            text_color=theme.COLORS["text"],
+            text_color=cb_color,
             fg_color=theme.COLORS["accent"],
             hover_color=theme.COLORS["accent_hover"],
             border_color=theme.COLORS["text_muted"],
@@ -937,7 +943,16 @@ class DownloaderFrame(ctk.CTkFrame):
         elif state == DLCDownloadState.COMPLETED:
             prog_bar.set(1.0)
             badge.set_status("Installed", "success")
-            rw["checkbox"].configure(state="disabled")
+            cb = rw["checkbox"]
+            cb.configure(state="disabled")
+            # Update to green checkmark style
+            catalog = self.app.updater._dlc_manager.catalog
+            cinfo = catalog.get_by_id(dlc_id)
+            cname = cinfo.name_en if cinfo else dlc_id
+            cb.configure(
+                text=f"\u2713  {dlc_id} \u2014 {cname}",
+                text_color=theme.COLORS["success"],
+            )
             self._completed_count += 1
             self._installed_ids.add(dlc_id)
             # Record full size for overall progress bar

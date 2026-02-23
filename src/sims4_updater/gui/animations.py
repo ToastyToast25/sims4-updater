@@ -7,8 +7,9 @@ Provides easing functions, color interpolation, and a reusable Animator class.
 
 from __future__ import annotations
 
+import contextlib
 import time
-from typing import Callable
+from collections.abc import Callable
 
 # ── Easing Functions ────────────────────────────────────────────
 
@@ -121,10 +122,8 @@ class Animator:
         """Animate a color property (fg_color, text_color, etc.)."""
         def on_tick(t):
             color = lerp_color(start, end, t)
-            try:
+            with contextlib.suppress(Exception):
                 widget.configure(**{prop: color})
-            except Exception:
-                pass
 
         return self.animate(widget, duration_ms, on_tick, easing=easing, tag=tag)
 
@@ -139,10 +138,8 @@ class Animator:
                 match = False
             if match:
                 if anim.after_id is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         anim.widget.after_cancel(anim.after_id)
-                    except Exception:
-                        pass
                 to_remove.append(anim)
 
         for anim in to_remove:
@@ -165,17 +162,13 @@ class Animator:
             if raw_t >= 1.0:
                 self._remove(anim)
                 if anim.on_done:
-                    try:
+                    with contextlib.suppress(Exception):
                         anim.on_done()
-                    except Exception:
-                        pass
             else:
                 anim.after_id = anim.widget.after(FRAME_MS, step)
 
         anim.after_id = anim.widget.after(FRAME_MS, step)
 
     def _remove(self, anim: _Animation):
-        try:
+        with contextlib.suppress(ValueError):
             self._animations.remove(anim)
-        except ValueError:
-            pass

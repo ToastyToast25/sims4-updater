@@ -1,10 +1,10 @@
+import contextlib
+import hashlib
 import os
 import shutil
-import hashlib
-
 from pathlib import Path
 
-from .exceptions import WritePermissionError, NotEnoughSpaceError
+from .exceptions import WritePermissionError
 
 __all__ = [
     "get_short_path",
@@ -20,7 +20,6 @@ __all__ = [
 if os.name == "nt":
     import pywintypes
     import win32file
-    import win32timezone
 
     def get_short_path(long_path):
         path = Path(long_path)
@@ -78,7 +77,7 @@ def write_check(path="."):
         except (PermissionError, FileNotFoundError, OSError):
             raise WritePermissionError(
                 f"Write test failed. Cannot create files in {text}"
-            )
+            ) from None
         else:
             break
 
@@ -97,10 +96,7 @@ def get_files_dict(folder_path, all_folders=None):
             with os.scandir(path) as it:
                 for entry in it:
                     if entry.is_file(follow_symlinks=False):
-                        if rel_path != ".":
-                            p = rel_path + "/" + entry.name
-                        else:
-                            p = entry.name
+                        p = rel_path + "/" + entry.name if rel_path != "." else entry.name
                         result[p] = entry.stat
                     elif entry.is_dir(follow_symlinks=False):
                         paths.append(entry.path)
@@ -111,7 +107,7 @@ def get_files_dict(folder_path, all_folders=None):
             raise WritePermissionError(
                 f'Can\'t read files from "{path}". '
                 "Try copying it somewhere else."
-            )
+            ) from None
 
     return result
 
@@ -152,7 +148,5 @@ def copyfileobj(fsrc, fdst, progress, length=0):
 
 def delete_empty_dirs(src_dir):
     for dirpath, _, _ in os.walk(src_dir, topdown=False):
-        try:
+        with contextlib.suppress(OSError):
             os.rmdir(dirpath)
-        except OSError:
-            pass

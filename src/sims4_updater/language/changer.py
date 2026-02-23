@@ -8,7 +8,7 @@ to change the game language. Supports all 18 official Sims 4 languages.
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -243,7 +243,8 @@ def set_language(
         raise ValueError(f"Unknown language code: {language_code}")
 
     if log is None:
-        log = lambda msg: None
+        def log(_msg):
+            pass
 
     # Check if language pack files are installed
     if game_dir and not check_language_pack(game_dir, language_code):

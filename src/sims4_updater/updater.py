@@ -26,22 +26,21 @@ if (
 ):
     sys.path.insert(0, str(_patcher_root))
 
-from patcher.patcher import Patcher as BasePatcher, CallbackType  # noqa: E402
+from patcher.patcher import CallbackType  # noqa: E402
+from patcher.patcher import Patcher as BasePatcher  # noqa: E402
 
-from .core.version_detect import VersionDetector, DetectionResult
-from .core.learned_hashes import LearnedHashDB
-from .core.exceptions import (
+from . import constants  # noqa: E402
+from .config import Settings, get_app_dir  # noqa: E402
+from .core.exceptions import (  # noqa: E402
     UpdaterError,
-    DownloadError,
-    ManifestError,
-    NoUpdatePathError,
     VersionDetectionError,
 )
-from .patch.client import PatchClient, UpdateInfo
-from .patch.planner import UpdatePlan
-from .dlc.manager import DLCManager
-from .dlc.downloader import DLCDownloader
-from .config import Settings, get_app_dir
+from .core.learned_hashes import LearnedHashDB  # noqa: E402
+from .core.version_detect import DetectionResult, VersionDetector  # noqa: E402
+from .dlc.downloader import DLCDownloader  # noqa: E402
+from .dlc.manager import DLCManager  # noqa: E402
+from .patch.client import PatchClient, UpdateInfo  # noqa: E402
+from .patch.planner import UpdatePlan  # noqa: E402
 
 
 class UpdateState(Enum):
@@ -156,6 +155,39 @@ class Sims4Updater(BasePatcher):
         if found:
             self.settings.game_path = found
         return found
+
+    def get_patchable_files(self, game_dir: str) -> list[str]:
+        """Get list of relative file paths the patcher typically modifies.
+
+        This scans Game/Bin/ and Game-cracked/Bin/ for executables, DLLs,
+        and config files that patches update.
+        """
+        from pathlib import Path as _Path
+
+        result = []
+        game_path = _Path(game_dir)
+        # Directories the patcher modifies
+        bin_dirs = ["Game/Bin", "Game-cracked/Bin", "Game/Bin_LE", "Game-cracked/Bin_LE"]
+        backup_exts = {".exe", ".dll", ".ini", ".cfg", ".dat"}
+
+        for bin_rel in bin_dirs:
+            bin_dir = game_path / bin_rel.replace("/", os.sep)
+            if not bin_dir.is_dir():
+                continue
+            for f in bin_dir.iterdir():
+                if f.is_file() and f.suffix.lower() in backup_exts:
+                    result.append(str(f.relative_to(game_path)))
+
+        # Also include sentinel files
+        from .constants import SENTINEL_FILES
+        for sentinel in SENTINEL_FILES:
+            full = game_path / sentinel.replace("/", os.sep)
+            if full.is_file():
+                rel = str(full.relative_to(game_path))
+                if rel not in result:
+                    result.append(rel)
+
+        return result
 
     def detect_version(
         self, game_dir: str | None = None, progress=None

@@ -6,7 +6,6 @@ pill status badges, GreenLuma readiness indicators, and widget-reuse-based filte
 
 from __future__ import annotations
 
-import threading
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,7 +13,6 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from ...dlc.catalog import DLCInfo, DLCStatus
-from ...dlc.downloader import DLCDownloadState
 from ...dlc.steam import SteamPrice, fetch_prices_batch
 from ...patch.manifest import DLCDownloadEntry
 from .. import theme
@@ -27,19 +25,19 @@ if TYPE_CHECKING:
 # Status tag colors and background tints
 _STATUS_COLORS = {
     "Owned": theme.COLORS["success"],
-    "Patched": "#5b9bd5",
-    "Patched (disabled)": theme.COLORS["text_muted"],
-    "Incomplete": theme.COLORS["warning"],
-    "Missing files": theme.COLORS["warning"],
-    "Not installed": theme.COLORS["text_muted"],
+    "Ready": "#5b9bd5",
+    "Disabled": theme.COLORS["text_muted"],
+    "Incomplete Install": theme.COLORS["warning"],
+    "Not Downloaded": theme.COLORS["warning"],
+    "Not Installed": theme.COLORS["text_muted"],
 }
 _STATUS_BG = {
     "Owned": theme.COLORS["toast_success"],
-    "Patched": "#1a2a3d",
-    "Patched (disabled)": theme.COLORS["bg_card_alt"],
-    "Incomplete": theme.COLORS["toast_warning"],
-    "Missing files": theme.COLORS["toast_warning"],
-    "Not installed": theme.COLORS["bg_card_alt"],
+    "Ready": "#1a2a3d",
+    "Disabled": theme.COLORS["bg_card_alt"],
+    "Incomplete Install": theme.COLORS["toast_warning"],
+    "Not Downloaded": theme.COLORS["toast_warning"],
+    "Not Installed": theme.COLORS["bg_card_alt"],
 }
 
 # Filter chip definitions: (key, label)
@@ -47,13 +45,13 @@ _FILTER_DEFS = [
     ("owned", "Owned"),
     ("not_owned", "Not Owned"),
     ("installed", "Installed"),
-    ("patched", "Patched"),
+    ("patched", "Ready"),
     ("downloadable", "Downloadable"),
     ("on_sale", "On Sale"),
 ]
 
 # Statuses eligible for download
-_DOWNLOADABLE_STATUSES = {"Not installed", "Missing files", "Incomplete"}
+_DOWNLOADABLE_STATUSES = {"Not Installed", "Not Downloaded", "Incomplete Install"}
 
 # Pack type ordering and labels
 _TYPE_ORDER = ["expansion", "game_pack", "stuff_pack", "kit", "free_pack", "other"]
@@ -90,9 +88,8 @@ class DLCFrame(ctk.CTkFrame):
         self._filter_buttons: dict[str, ctk.CTkButton] = {}
         self._prices_loaded = False
 
-        # DLC download state
+        # DLC download state (used for "Downloadable" filter chip)
         self._dlc_downloads: dict[str, DLCDownloadEntry] = {}
-        self._is_downloading: bool = False
 
         # GreenLuma readiness state
         self._gl_readiness: dict = {}
@@ -124,19 +121,19 @@ class DLCFrame(ctk.CTkFrame):
         btn_frame.grid(row=0, column=1, sticky="e")
         btn_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        self._download_all_btn = ctk.CTkButton(
+        self._go_to_downloader_btn = ctk.CTkButton(
             btn_frame,
-            text="Download Missing",
+            text="Go to Downloader",
             font=ctk.CTkFont(size=12),
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
             hover_color="#3ae882",
             text_color="#1a1a2e",
-            command=self._on_download_all_missing,
+            command=lambda: self.app._show_frame("downloader"),
         )
-        self._download_all_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
-        self._download_all_btn.grid_remove()  # hidden until manifest loads
+        self._go_to_downloader_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        self._go_to_downloader_btn.grid_remove()  # hidden until manifest loads
 
         self._auto_btn = ctk.CTkButton(
             btn_frame,
@@ -217,8 +214,8 @@ class DLCFrame(ctk.CTkFrame):
 
         legend_items = [
             ("Owned", theme.COLORS["success"], theme.COLORS["toast_success"]),
-            ("Patched", "#5b9bd5", "#1a2a3d"),
-            ("Incomplete", theme.COLORS["warning"], theme.COLORS["toast_warning"]),
+            ("Ready", "#5b9bd5", "#1a2a3d"),
+            ("Disabled", theme.COLORS["text_muted"], theme.COLORS["bg_card_alt"]),
             ("Not Installed", theme.COLORS["text_muted"], theme.COLORS["bg_card_alt"]),
         ]
         col = 0
@@ -568,13 +565,21 @@ class DLCFrame(ctk.CTkFrame):
                 for f in self._active_filters:
                     if f == "owned" and state.owned:
                         return True
-                    if f == "not_owned" and not state.owned and not (state.installed and state.registered):
+                    if (
+                        f == "not_owned"
+                        and not state.owned
+                        and not (state.installed and state.registered)
+                    ):
                         return True
                     if f == "installed" and state.installed:
                         return True
                     if f == "patched" and state.registered and state.installed:
                         return True
-                    if f == "downloadable" and state.dlc.id in self._dlc_downloads and not state.installed:
+                    if (
+                        f == "downloadable"
+                        and state.dlc.id in self._dlc_downloads
+                        and not state.installed
+                    ):
                         return True
                     if f == "on_sale" and self._is_on_sale(state.dlc):
                         return True
@@ -646,7 +651,11 @@ class DLCFrame(ctk.CTkFrame):
                 # Show/hide description
                 if rw.get("desc_frame"):
                     if self._desc_expanded.get(dlc_id, False):
-                        rw["desc_frame"].grid(row=cb_row, column=0, padx=(35, 10), pady=(0, 2), sticky="ew")
+                        rw["desc_frame"].grid(
+                            row=cb_row, column=0,
+                            padx=(35, 10), pady=(0, 2),
+                            sticky="ew",
+                        )
                     else:
                         rw["desc_frame"].grid_remove()
                     cb_row += 1
@@ -972,7 +981,7 @@ class DLCFrame(ctk.CTkFrame):
             if not gl_r.has_manifest:
                 detail_parts.append("Manifest")
             if detail_parts:
-                missing_text = "Missing: " + ", ".join(detail_parts)
+                missing_text = "Missing: " + ", ".join(detail_parts) + "  (click to fix)"
             else:
                 missing_text = "GreenLuma Ready"
 
@@ -999,39 +1008,14 @@ class DLCFrame(ctk.CTkFrame):
 
             gl_pill.bind("<Enter>", _show_tip)
             gl_pill.bind("<Leave>", _hide_tip)
-            next_col += 1
 
-        # Download button (for uninstalled DLCs with available downloads)
-        has_download = dlc.id in self._dlc_downloads
-        show_download = has_download and label in _DOWNLOADABLE_STATUSES
-        download_btn = None
-        dl_progress_label = None
-
-        if show_download:
-            dl_col = next_col  # both btn and label share this column slot
-
-            download_btn = ctk.CTkButton(
-                row_frame,
-                text="\u2b07",
-                width=28, height=24,
-                font=ctk.CTkFont(size=12),
-                fg_color=theme.COLORS["success"],
-                hover_color="#3ae882",
-                text_color="#1a1a2e",
-                corner_radius=4,
-                command=lambda did=dlc.id: self._on_download_single(did),
-            )
-            download_btn.grid(row=0, column=dl_col, padx=(4, 4), pady=6, sticky="e")
-
-            dl_progress_label = ctk.CTkLabel(
-                row_frame,
-                text="",
-                font=ctk.CTkFont(size=9),
-                text_color=theme.COLORS["accent"],
-                width=60,
-            )
-            dl_progress_label._dl_col = dl_col  # stash column for grid later
-            # Hidden by default — shown during download
+            # Incomplete GL pills are clickable — navigate to GreenLuma tab
+            if not gl_r.ready:
+                gl_pill.configure(cursor="hand2")
+                gl_pill.bind(
+                    "<Button-1>",
+                    lambda e: self.app._show_frame("greenluma"),
+                )
 
             next_col += 1
 
@@ -1129,8 +1113,6 @@ class DLCFrame(ctk.CTkFrame):
             "desc_frame": desc_frame,
             "info_btn": info_btn,
             "checkbox": cb,
-            "download_btn": download_btn,
-            "dl_progress_label": dl_progress_label,
             "uninstall_btn": uninstall_btn,
             "_bg_normal": bg,
         }
@@ -1251,7 +1233,8 @@ class DLCFrame(ctk.CTkFrame):
         self._pending_dlcs = pending_dlcs
 
     def _on_dlc_error(self, error):
-        import traceback, logging
+        import logging
+        import traceback
         logging.error("DLC error: %s\n%s", error, traceback.format_exc())
         self._auto_btn.configure(state="normal")
         self._apply_btn.configure(state="normal")
@@ -1294,175 +1277,21 @@ class DLCFrame(ctk.CTkFrame):
                 else "Downloadable"
             )
 
-        # Show/hide the Download Missing button
+        # Show/hide the "Go to Downloader" button
         if downloadable_count > 0:
-            self._download_all_btn.grid()
+            self._go_to_downloader_btn.grid()
         else:
-            self._download_all_btn.grid_remove()
+            self._go_to_downloader_btn.grid_remove()
 
-        # Rebuild rows so download buttons appear
+        # Rebuild rows to update downloadable filter
         self._rebuild_rows()
         self._apply_filter()
 
     def _on_dlc_downloads_error(self, error):
         import logging
         logging.warning("Could not load DLC downloads from manifest: %s", error)
-        # Hide the download button since we have no download data
-        self._download_all_btn.grid_remove()
-
-    # ── DLC Download: Actions ─────────────────────────────────
-
-    def _on_download_single(self, dlc_id: str):
-        """Handle click on a single DLC download button."""
-        entry = self._dlc_downloads.get(dlc_id)
-        if not entry or self._is_downloading:
-            return
-        self._start_dlc_download([entry])
-
-    def _on_download_all_missing(self):
-        """Handle click on 'Download Missing' button."""
-        if self._is_downloading:
-            return
-
-        entries = []
-        for state in self._all_states:
-            if (
-                state.status_label in _DOWNLOADABLE_STATUSES
-                and state.dlc.id in self._dlc_downloads
-            ):
-                entries.append(self._dlc_downloads[state.dlc.id])
-
-        if not entries:
-            self.app.show_toast("No missing DLCs to download", "success")
-            return
-
-        self._start_dlc_download(entries)
-
-    def _start_dlc_download(self, entries: list[DLCDownloadEntry]):
-        """Start downloading DLCs in a background thread."""
-        self._is_downloading = True
-        self._download_all_btn.configure(state="disabled", text="Downloading...")
-        self._auto_btn.configure(state="disabled")
-        self._apply_btn.configure(state="disabled")
-
-        # Reset progress UI for each entry
-        for entry in entries:
-            rw = self._row_widgets.get(entry.dlc_id)
-            if rw and rw.get("download_btn"):
-                rw["download_btn"].grid_remove()
-            if rw and rw.get("dl_progress_label"):
-                lbl = rw["dl_progress_label"]
-                lbl.configure(text="Waiting...")
-                lbl.grid(
-                    row=0, column=lbl._dl_col,
-                    padx=(4, 4), pady=6, sticky="e",
-                )
-
-        # Run in a separate thread (not the single executor) to avoid blocking
-        thread = threading.Thread(
-            target=self._download_dlcs_bg,
-            args=(entries,),
-            daemon=True,
-        )
-        thread.start()
-
-    def _download_dlcs_bg(self, entries: list[DLCDownloadEntry]):
-        """Background thread: download DLCs sequentially."""
-        game_dir = self.app.updater.find_game_dir()
-        if not game_dir:
-            self.app._enqueue_gui(
-                self._on_download_error, "No game directory found."
-            )
-            return
-
-        downloader = self.app.updater.create_dlc_downloader(game_dir)
-
-        def progress_cb(dlc_id, state, downloaded, total, message):
-            self.app._enqueue_gui(
-                self._update_row_download_state,
-                dlc_id, state, downloaded, total, message,
-            )
-
-        try:
-            results = downloader.download_multiple(entries, progress=progress_cb)
-            self.app._enqueue_gui(self._on_download_done, results)
-        except Exception as e:
-            self.app._enqueue_gui(self._on_download_error, str(e))
-        finally:
-            downloader.close()
-
-    def _update_row_download_state(
-        self, dlc_id, state, downloaded, total, message,
-    ):
-        """GUI thread: update a single row's download progress display."""
-        rw = self._row_widgets.get(dlc_id)
-        if not rw:
-            return
-
-        lbl = rw.get("dl_progress_label")
-        if not lbl:
-            return
-
-        if state == DLCDownloadState.DOWNLOADING:
-            if total > 0:
-                pct = int(downloaded * 100 / total)
-                lbl.configure(
-                    text=f"{pct}%",
-                    text_color=theme.COLORS["accent"],
-                )
-            else:
-                lbl.configure(text="...", text_color=theme.COLORS["accent"])
-        elif state == DLCDownloadState.EXTRACTING:
-            lbl.configure(text="Extracting...", text_color=theme.COLORS["warning"])
-        elif state == DLCDownloadState.REGISTERING:
-            lbl.configure(text="Registering...", text_color=theme.COLORS["warning"])
-        elif state == DLCDownloadState.COMPLETED:
-            lbl.configure(text="\u2714", text_color=theme.COLORS["success"])
-        elif state == DLCDownloadState.FAILED:
-            lbl.configure(text="\u2716 Failed", text_color=theme.COLORS["error"])
-            # Re-show download button for retry
-            btn = rw.get("download_btn")
-            if btn:
-                btn.grid()
-        elif state == DLCDownloadState.CANCELLED:
-            lbl.configure(text="Cancelled", text_color=theme.COLORS["text_muted"])
-            btn = rw.get("download_btn")
-            if btn:
-                btn.grid()
-
-    def _on_download_done(self, results):
-        """GUI thread: all downloads finished."""
-        self._is_downloading = False
-        self._download_all_btn.configure(state="normal", text="Download Missing")
-        self._auto_btn.configure(state="normal")
-        self._apply_btn.configure(state="normal")
-
-        completed = sum(
-            1 for r in results if r.state == DLCDownloadState.COMPLETED
-        )
-        failed = sum(
-            1 for r in results if r.state == DLCDownloadState.FAILED
-        )
-
-        if failed == 0:
-            self.app.show_toast(
-                f"Downloaded {completed} DLC(s) successfully", "success",
-            )
-        else:
-            self.app.show_toast(
-                f"{completed} succeeded, {failed} failed", "warning",
-            )
-
-        # Reload DLC states to reflect newly installed DLCs
-        self._load_dlcs()
-
-    def _on_download_error(self, error):
-        """GUI thread: download thread raised an unexpected error."""
-        self._is_downloading = False
-        self._download_all_btn.configure(state="normal", text="Download Missing")
-        self._auto_btn.configure(state="normal")
-        self._apply_btn.configure(state="normal")
-        self.app.show_toast(f"Download error: {error}", "error")
+        # Hide the button since we have no download data
+        self._go_to_downloader_btn.grid_remove()
 
     # ── DLC Uninstall ─────────────────────────────────────────
 

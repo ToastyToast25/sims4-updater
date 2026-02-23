@@ -8,6 +8,7 @@ Also checks for updater self-updates from GitHub Releases.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import time
@@ -179,7 +180,10 @@ class HomeFrame(ctk.CTkFrame):
             text="Game Directory:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=0, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w")
+        ).grid(
+            row=0, column=0, padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w",
+        )
 
         self._game_dir_label = ctk.CTkLabel(
             self._card,
@@ -188,7 +192,10 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
             cursor="hand2",
         )
-        self._game_dir_label.grid(row=0, column=1, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w")
+        self._game_dir_label.grid(
+            row=0, column=1, padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w",
+        )
         self._game_dir_label.bind("<Button-1>", self._open_game_dir)
 
         # Installed version
@@ -205,7 +212,10 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._version_label.grid(row=1, column=1, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+        self._version_label.grid(
+            row=1, column=1, padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD, sticky="w",
+        )
 
         # Latest patchable version
         ctk.CTkLabel(
@@ -221,7 +231,10 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._latest_label.grid(row=2, column=1, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+        self._latest_label.grid(
+            row=2, column=1, padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD, sticky="w",
+        )
 
         # Game latest (actual EA release) — hidden until check
         self._game_latest_row_label = ctk.CTkLabel(
@@ -237,13 +250,32 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
 
+        # Install type
+        ctk.CTkLabel(
+            self._card,
+            text="Install Type:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=4, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+
+        self._install_type_label = ctk.CTkLabel(
+            self._card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
+        )
+        self._install_type_label.grid(
+            row=4, column=1, padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD, sticky="w",
+        )
+
         # DLC summary
         ctk.CTkLabel(
             self._card,
             text="DLCs:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=4, column=0, padx=theme.CARD_PAD_X, pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w")
+        ).grid(row=5, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._dlc_label = ctk.CTkLabel(
             self._card,
@@ -251,7 +283,75 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             anchor="w",
         )
-        self._dlc_label.grid(row=4, column=1, padx=theme.CARD_PAD_X, pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w")
+        self._dlc_label.grid(
+            row=5, column=1, padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD, sticky="w",
+        )
+
+        # Separator
+        ctk.CTkFrame(
+            self._card, height=1, fg_color=theme.COLORS["separator"],
+        ).grid(row=6, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=4, sticky="ew")
+
+        # Unlocker status
+        ctk.CTkLabel(
+            self._card,
+            text="Unlocker:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=7, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+
+        self._unlocker_label = ctk.CTkLabel(
+            self._card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
+        )
+        self._unlocker_label.grid(
+            row=7, column=1, padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD, sticky="w",
+        )
+
+        # GreenLuma status
+        ctk.CTkLabel(
+            self._card,
+            text="GreenLuma:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=8, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+
+        self._greenluma_label = ctk.CTkLabel(
+            self._card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
+        )
+        self._greenluma_label.grid(
+            row=8, column=1, padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD, sticky="w",
+        )
+
+        # CDN status
+        ctk.CTkLabel(
+            self._card,
+            text="CDN Server:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(
+            row=9, column=0, padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w",
+        )
+
+        self._cdn_label = ctk.CTkLabel(
+            self._card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
+        )
+        self._cdn_label.grid(
+            row=9, column=1, padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w",
+        )
 
         # ── Pricing Summary Card (hidden until prices load) ──
         self._pricing_card = InfoCard(self._scroll)
@@ -263,7 +363,10 @@ class HomeFrame(ctk.CTkFrame):
             text="DLC Pricing Summary",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=theme.COLORS["accent"],
-        ).grid(row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 6), sticky="w")
+        ).grid(
+            row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 6), sticky="w",
+        )
 
         self._price_total_label_key = ctk.CTkLabel(
             self._pricing_card, text="Total DLCs:",
@@ -331,7 +434,10 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["success"], anchor="w",
         )
-        self._price_on_sale_label.grid(row=6, column=1, padx=theme.CARD_PAD_X, pady=(2, theme.CARD_PAD_Y), sticky="w")
+        self._price_on_sale_label.grid(
+            row=6, column=1, padx=theme.CARD_PAD_X,
+            pady=(2, theme.CARD_PAD_Y), sticky="w",
+        )
 
         # ── Banner area (patch pending / new DLC notices) ──
         self._banner_frame = ctk.CTkFrame(self._scroll, fg_color="transparent")
@@ -415,6 +521,47 @@ class HomeFrame(ctk.CTkFrame):
         # Track detected exe paths
         self._legit_exe: Path | None = None
         self._cracked_exe: Path | None = None
+
+        # Game process state
+        self._game_launching = False
+        self._game_running = False
+        self._game_start_time: float | None = None
+        self._poll_after_id: int | None = None
+        self._play_time_after_id: int | None = None
+        self._launch_poll_count = 0
+
+        # ── Play time display (hidden by default) ──
+        self._play_time_frame = ctk.CTkFrame(
+            self, fg_color=theme.COLORS["bg_surface"], corner_radius=8,
+        )
+        # row=3 of self — below launch buttons
+        self._play_time_frame.grid(row=3, column=0, padx=30, pady=(0, 6), sticky="ew")
+        self._play_time_frame.grid_remove()  # hidden initially
+
+        self._play_dot = ctk.CTkLabel(
+            self._play_time_frame,
+            text="\u25cf",
+            font=ctk.CTkFont(size=10),
+            text_color=theme.COLORS["success"],
+            width=14,
+        )
+        self._play_dot.pack(side="left", padx=(12, 0), pady=6)
+
+        self._play_label = ctk.CTkLabel(
+            self._play_time_frame,
+            text="Playing The Sims 4",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=theme.COLORS["text"],
+        )
+        self._play_label.pack(side="left", padx=(4, 0), pady=6)
+
+        self._play_time_label = ctk.CTkLabel(
+            self._play_time_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.COLORS["text_muted"],
+        )
+        self._play_time_label.pack(side="right", padx=(0, 12), pady=6)
 
     def on_show(self):
         """Play staggered entrance animation on first show only."""
@@ -522,9 +669,16 @@ class HomeFrame(ctk.CTkFrame):
         if manifest and manifest.dlc_downloads:
             on_cdn = len(manifest.dlc_downloads)
             total_cat = len(self.app.updater._dlc_manager.catalog.dlcs)
-            self._price_patchable_key.grid(row=2, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
-            self._price_patchable_label.configure(text=f"{on_cdn} / {total_cat}")
-            self._price_patchable_label.grid(row=2, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
+            px = theme.CARD_PAD_X
+            self._price_patchable_key.grid(
+                row=2, column=0, padx=px, pady=2, sticky="w",
+            )
+            self._price_patchable_label.configure(
+                text=f"{on_cdn} / {total_cat}",
+            )
+            self._price_patchable_label.grid(
+                row=2, column=1, padx=px, pady=2, sticky="w",
+            )
         else:
             self._price_patchable_key.grid_forget()
             self._price_patchable_label.grid_forget()
@@ -536,7 +690,7 @@ class HomeFrame(ctk.CTkFrame):
         self.app.run_async(self._detect_info, on_done=self._on_info_detected)
 
     def _detect_info(self):
-        """Background: detect game dir and version."""
+        """Background: detect game dir, version, and component statuses."""
         updater = self.app.updater
 
         game_dir = updater.find_game_dir()
@@ -556,10 +710,92 @@ class HomeFrame(ctk.CTkFrame):
             except Exception:
                 dlc_info = "Error reading DLCs"
 
+        # Install type detection (legit vs cracked)
+        install_type = "Unknown"
+        if game_dir:
+            try:
+                from ...dlc.formats import detect_format
+                adapter = detect_format(game_dir)
+                has_legit = any(
+                    (Path(game_dir) / d / exe).is_file()
+                    for d in ("Game/Bin", "Game/Bin_LE")
+                    for exe in ("TS4_x64.exe", "TS4_DX9_x64.exe")
+                )
+                has_cracked = any(
+                    (Path(game_dir) / d / exe).is_file()
+                    for d in ("Game-cracked/Bin", "Game-cracked/Bin_LE")
+                    for exe in ("TS4_x64.exe", "TS4_DX9_x64.exe")
+                )
+                if adapter and has_legit:
+                    fmt = adapter.get_format_name()
+                    install_type = f"Hybrid — Cracked ({fmt}) + Legit"
+                elif adapter:
+                    fmt = adapter.get_format_name()
+                    install_type = f"Cracked ({fmt})"
+                elif has_cracked:
+                    install_type = "Cracked"
+                elif has_legit:
+                    install_type = "Legit (EA/Steam)"
+                else:
+                    install_type = "No executables found"
+            except Exception:
+                install_type = "Detection failed"
+
+        # Unlocker status
+        unlocker_status = "Not Installed"
+        try:
+            from ...core.unlocker import get_status as get_unlocker_status
+            status = get_unlocker_status()
+            unlocker_status = "Installed" if status.dll_installed else "Not Installed"
+        except RuntimeError:
+            unlocker_status = "EA app not found"
+        except Exception:
+            unlocker_status = "Unknown"
+
+        # GreenLuma status
+        gl_status = "Not Detected"
+        try:
+            from ...greenluma.steam import detect_steam_path, get_steam_info
+            steam_path_str = self.app.settings.steam_path
+            steam_path = (
+                Path(steam_path_str) if steam_path_str else detect_steam_path()
+            )
+            if steam_path and steam_path.is_dir():
+                steam_info = get_steam_info(steam_path)
+                if steam_info.greenluma_installed:
+                    mode = steam_info.greenluma_mode
+                    gl_status = f"Installed ({mode})" if mode != "none" else "Installed"
+                else:
+                    gl_status = "Not Installed"
+            else:
+                gl_status = "Steam not found"
+        except Exception:
+            gl_status = "Unknown"
+
+        # CDN reachability
+        manifest_url = self.app.settings.manifest_url
+        if not manifest_url:
+            cdn_status = "Not Configured"
+        else:
+            cdn_status = "Unreachable"
+            try:
+                import requests
+                resp = requests.head(manifest_url, timeout=5)
+                if resp.status_code < 400:
+                    cdn_status = "Reachable"
+                else:
+                    cdn_status = f"Error ({resp.status_code})"
+            except Exception:
+                cdn_status = "Unreachable"
+
         return {
             "game_dir": game_dir,
             "version": version,
+            "install_type": install_type,
             "dlc_info": dlc_info,
+            "unlocker_status": unlocker_status,
+            "gl_status": gl_status,
+            "cdn_status": cdn_status,
         }
 
     def _on_info_detected(self, info: dict):
@@ -581,8 +817,46 @@ class HomeFrame(ctk.CTkFrame):
         else:
             self._version_label.configure(text="Unknown")
 
+        # Install type
+        itype = info.get("install_type", "Unknown")
+        if "Legit" in itype and "Cracked" not in itype:
+            itype_color = theme.COLORS["success"]
+        elif "Cracked" in itype or "Hybrid" in itype:
+            itype_color = theme.COLORS["warning"]
+        else:
+            itype_color = theme.COLORS["text_muted"]
+        self._install_type_label.configure(text=itype, text_color=itype_color)
+
         self._latest_label.configure(text="Use 'Check for Updates'")
         self._dlc_label.configure(text=dlc_info or "N/A")
+
+        # Unlocker status
+        unlocker = info.get("unlocker_status", "Unknown")
+        unlocker_color = (
+            theme.COLORS["success"] if unlocker == "Installed"
+            else theme.COLORS["warning"] if unlocker == "Not Installed"
+            else theme.COLORS["text_muted"]
+        )
+        self._unlocker_label.configure(text=unlocker, text_color=unlocker_color)
+
+        # GreenLuma status
+        gl = info.get("gl_status", "Unknown")
+        gl_color = (
+            theme.COLORS["success"] if gl.startswith("Installed")
+            else theme.COLORS["warning"] if gl == "Not Installed"
+            else theme.COLORS["text_muted"]
+        )
+        self._greenluma_label.configure(text=gl, text_color=gl_color)
+
+        # CDN status
+        cdn = info.get("cdn_status", "Unknown")
+        cdn_color = (
+            theme.COLORS["success"] if cdn == "Reachable"
+            else theme.COLORS["warning"] if cdn == "Not Configured"
+            else theme.COLORS["error"]
+        )
+        self._cdn_label.configure(text=cdn, text_color=cdn_color)
+
         self._set_status("Ready", "muted")
         self._update_btn.configure(state="normal")
 
@@ -906,8 +1180,9 @@ class HomeFrame(ctk.CTkFrame):
         self._cracked_exe = None
 
         if not game_dir:
-            self._legit_launch_btn.configure(state="disabled")
-            self._cracked_launch_btn.configure(state="disabled")
+            if not self._game_running and not self._game_launching:
+                self._legit_launch_btn.configure(state="disabled")
+                self._cracked_launch_btn.configure(state="disabled")
             return
 
         game_dir = Path(game_dir)
@@ -932,42 +1207,219 @@ class HomeFrame(ctk.CTkFrame):
             if self._cracked_exe:
                 break
 
-        # Update button states
-        if self._legit_exe:
-            self._legit_launch_btn.configure(state="normal")
-        else:
-            self._legit_launch_btn.configure(state="disabled")
+        # Update button states (only if not in launching/running state)
+        if not self._game_running and not self._game_launching:
+            self._reset_launch_buttons()
 
-        if self._cracked_exe:
-            self._cracked_launch_btn.configure(state="normal")
-        else:
-            self._cracked_launch_btn.configure(state="disabled")
+        # Check if game is already running externally
+        if not self._game_running and not self._game_launching:
+            try:
+                from ...core.process import is_game_running
+                if is_game_running():
+                    self._set_game_running_state()
+                    self._start_play_timer()
+            except Exception:
+                pass
 
     def _on_legit_launch(self):
-        """Launch the legit game executable."""
+        """Launch the legit game executable or stop if running."""
+        if self._game_running:
+            self._ask_stop_game()
+            return
         if not self._legit_exe or not self._legit_exe.is_file():
             self.app.show_toast("Legit game executable not found.", "warning")
             return
-        self._launch_game(self._legit_exe, "Legit")
+        self._launch_game(self._legit_exe, "Legit", self._legit_launch_btn)
 
     def _on_cracked_launch(self):
-        """Launch the cracked game executable."""
+        """Launch the cracked game executable or stop if running."""
+        if self._game_running:
+            self._ask_stop_game()
+            return
         if not self._cracked_exe or not self._cracked_exe.is_file():
             self.app.show_toast("Cracked game executable not found.", "warning")
             return
-        self._launch_game(self._cracked_exe, "Cracked")
+        self._launch_game(self._cracked_exe, "Cracked", self._cracked_launch_btn)
 
-    def _launch_game(self, exe_path: Path, label: str):
-        """Launch a game executable."""
+    def _ask_stop_game(self):
+        """Ask user if they want to stop the running game."""
+        import tkinter.messagebox
+        stop = tkinter.messagebox.askyesno(
+            "Game Running",
+            "The Sims 4 is already running.\n\nWould you like to close it?",
+            parent=self.winfo_toplevel(),
+        )
+        if stop:
+            from ...core.process import kill_game_process
+            kill_game_process()
+            self.app.show_toast("Game process terminated.", "info")
+            self._game_running = False
+            self._game_launching = False
+            self._reset_launch_buttons()
+            self._stop_play_timer()
+
+    def _launch_game(self, exe_path: Path, label: str, btn: ctk.CTkButton):
+        """Launch a game executable with dynamic state feedback."""
+        # Set "Launching..." state immediately
+        self._game_launching = True
+        self._launch_poll_count = 0
+        btn.configure(
+            text="Launching...",
+            fg_color=theme.COLORS["warning"],
+            hover_color=theme.COLORS["warning"],
+            state="disabled",
+        )
+        # Disable the other button too
+        other = (
+            self._cracked_launch_btn
+            if btn == self._legit_launch_btn
+            else self._legit_launch_btn
+        )
+        other.configure(state="disabled")
+
+        # Launch the process (non-blocking)
         try:
             subprocess.Popen(
                 [str(exe_path)],
                 cwd=str(exe_path.parent),
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=(
+                    subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                ),
             )
             self.app.show_toast(f"{label} game launched!", "success")
         except OSError as e:
+            self._game_launching = False
+            self._reset_launch_buttons()
             self.app.show_toast(f"Failed to launch: {e}", "error")
+            return
+
+        # Start polling to detect when the process is actually running
+        self._start_game_poll()
+
+    def _set_game_running_state(self):
+        """Set both launch buttons to 'Game Running' state."""
+        self._game_running = True
+        self._game_launching = False
+        for btn in (self._legit_launch_btn, self._cracked_launch_btn):
+            btn.configure(
+                text="Game Running",
+                fg_color=theme.COLORS["accent"],
+                hover_color=theme.COLORS["accent_hover"],
+                state="normal",
+            )
+
+    def _reset_launch_buttons(self):
+        """Restore launch buttons to their default Ready/Disabled state."""
+        self._game_running = False
+        self._game_launching = False
+        self._stop_play_timer()
+
+        if self._legit_exe:
+            self._legit_launch_btn.configure(
+                text="Legit Launch",
+                fg_color=theme.COLORS["success"],
+                hover_color="#26b863",
+                state="normal",
+            )
+        else:
+            self._legit_launch_btn.configure(
+                text="Legit Launch",
+                fg_color=theme.COLORS["success"],
+                hover_color="#26b863",
+                state="disabled",
+            )
+
+        if self._cracked_exe:
+            self._cracked_launch_btn.configure(
+                text="Cracked Launch",
+                fg_color=theme.COLORS["bg_card"],
+                hover_color=theme.COLORS["card_hover"],
+                state="normal",
+            )
+        else:
+            self._cracked_launch_btn.configure(
+                text="Cracked Launch",
+                fg_color=theme.COLORS["bg_card"],
+                hover_color=theme.COLORS["card_hover"],
+                state="disabled",
+            )
+
+    # ── Game Process Polling ─────────────────────────────────
+
+    def _start_game_poll(self):
+        """Start polling for game process state changes."""
+        if self._poll_after_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._poll_after_id)
+        self._poll_after_id = self.after(3000, self._poll_game_process)
+
+    def _poll_game_process(self):
+        """Check game process state and update buttons dynamically."""
+        self._poll_after_id = None
+
+        try:
+            from ...core.process import is_game_running
+            running = is_game_running()
+        except Exception:
+            running = False
+
+        if self._game_launching:
+            self._launch_poll_count += 1
+            if running:
+                # Game started — transition to Running state
+                self._set_game_running_state()
+                self._start_play_timer()
+                # Continue polling to detect when game closes
+                self._poll_after_id = self.after(5000, self._poll_game_process)
+            elif self._launch_poll_count >= 5:
+                # 15 seconds, game never appeared — reset
+                self._game_launching = False
+                self._reset_launch_buttons()
+            else:
+                # Still waiting for game to start
+                self._poll_after_id = self.after(3000, self._poll_game_process)
+        elif self._game_running:
+            if not running:
+                # Game was closed externally
+                self._reset_launch_buttons()
+                self.app.show_toast("Game has been closed.", "info")
+            else:
+                # Still running — continue polling
+                self._poll_after_id = self.after(5000, self._poll_game_process)
+
+    # ── Play Time Tracking ───────────────────────────────────
+
+    def _start_play_timer(self):
+        """Show play time display and start the timer."""
+        if self._game_start_time is None:
+            self._game_start_time = time.time()
+        self._play_time_frame.grid()
+        self._update_play_time()
+
+    def _stop_play_timer(self):
+        """Hide play time display and stop the timer."""
+        self._game_start_time = None
+        if self._play_time_after_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._play_time_after_id)
+            self._play_time_after_id = None
+        self._play_time_frame.grid_remove()
+
+    def _update_play_time(self):
+        """Update the play time label every second."""
+        if self._game_start_time is None:
+            return
+        elapsed = int(time.time() - self._game_start_time)
+        if elapsed < 60:
+            time_str = f"{elapsed}s"
+        elif elapsed < 3600:
+            time_str = f"{elapsed // 60}m {elapsed % 60}s"
+        else:
+            hours = elapsed // 3600
+            mins = (elapsed % 3600) // 60
+            time_str = f"{hours}h {mins}m"
+        self._play_time_label.configure(text=time_str)
+        self._play_time_after_id = self.after(1000, self._update_play_time)
 
     # ── Banner helpers ──────────────────────────────────────────
 

@@ -302,7 +302,11 @@ class ModsFrame(ctk.CTkFrame):
         if not bundled and not detected:
             lbl = ctk.CTkLabel(
                 self._mod_scroll,
-                text="No mods found. Place mod ZIPs in the bundled mods directory or install mods to the game's Mods folder.",
+                text=(
+                    "No mods found. Place mod ZIPs in the bundled "
+                    "mods directory or install mods to the game's "
+                    "Mods folder."
+                ),
                 font=ctk.CTkFont(*theme.FONT_SMALL),
                 text_color=theme.COLORS["text_muted"],
                 wraplength=500,
@@ -596,7 +600,6 @@ class ModsFrame(ctk.CTkFrame):
 
         def _bg():
             # Register the detected mod temporarily so enable works
-            from ...mods.manager import ModInfo, DISABLED_SUFFIX
             mgr._registry[mod.name] = mod
             mgr.save_registry()
             return mgr.enable_mod(mod.name, log=self._enqueue_log)
@@ -639,7 +642,8 @@ class ModsFrame(ctk.CTkFrame):
             return
         confirmed = tk.messagebox.askyesno(
             "Confirm Uninstall",
-            f"Uninstall {mod.name}?\n\nThis will remove {len(mod.installed_files)} file(s) from the Mods folder.",
+            f"Uninstall {mod.name}?\n\nThis will remove "
+            f"{len(mod.installed_files)} file(s) from the Mods folder.",
             parent=self.winfo_toplevel(),
         )
         if not confirmed:

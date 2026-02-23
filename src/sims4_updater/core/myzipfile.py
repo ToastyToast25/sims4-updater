@@ -11,11 +11,10 @@ This module is an improved `zipfile` module. Changes:
 """
 
 import importlib.util
-import struct
-import lzma
-import json
 import io
-
+import json
+import lzma
+import struct
 from shutil import COPY_BUFSIZE
 
 __all__ = [
@@ -225,7 +224,7 @@ class ZipFile(_z.ZipFile):
             with lzma.open(compressed, "rt") as lz:
                 return json.loads(lz.read())
         except (EOFError, lzma.LZMAError, json.JSONDecodeError):
-            raise ValueError("Could not read the metadata")
+            raise ValueError("Could not read the metadata") from None
 
     def _copy_file_from(self, zinfo_or_arcname, zfile):
         # Ensure we have ZipInfo object

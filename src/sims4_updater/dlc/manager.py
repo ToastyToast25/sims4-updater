@@ -2,13 +2,14 @@
 DLC Manager — unified interface for toggling DLCs across all crack config formats.
 """
 
+import contextlib
 import os
 import shutil
 from pathlib import Path
 
-from .catalog import DLCCatalog, DLCInfo, DLCStatus
-from .formats import DLCConfigAdapter, detect_format
 from ..core.exceptions import NoCrackConfigError
+from .catalog import DLCCatalog, DLCStatus
+from .formats import DLCConfigAdapter, detect_format
 
 
 class DLCManager:
@@ -50,10 +51,8 @@ class DLCManager:
             # Count files in DLC folder
             file_count = 0
             if installed:
-                try:
+                with contextlib.suppress(OSError):
                     file_count = sum(1 for _ in dlc_dir.iterdir() if _.is_file())
-                except OSError:
-                    pass
 
             # Check crack config
             registered = False
@@ -201,16 +200,12 @@ class DLCManager:
             # Remove empty subdirectories
             for dname in dirs:
                 dpath = Path(root) / dname
-                try:
+                with contextlib.suppress(OSError):
                     dpath.rmdir()
-                except OSError:
-                    pass
 
         # Remove the DLC directory itself
-        try:
+        with contextlib.suppress(OSError):
             dlc_dir.rmdir()
-        except OSError:
-            pass  # Not empty due to failed deletes
 
         # Disable in crack config
         if disable_in_config and files_removed > 0:
@@ -274,10 +269,8 @@ class DLCManager:
         try:
             for root, _dirs, files in os.walk(dlc_dir):
                 for fname in files:
-                    try:
+                    with contextlib.suppress(OSError):
                         total += (Path(root) / fname).stat().st_size
-                    except OSError:
-                        pass
         except OSError:
             pass
         return total
