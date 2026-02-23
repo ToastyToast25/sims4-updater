@@ -927,6 +927,9 @@ class App(ctk.CTk):
         # Send telemetry heartbeat
         self.after(7000, self._send_heartbeat)
 
+        # Initialize CDN auth (registers this client with the CDN)
+        self.after(3000, self._init_cdn_auth_bg)
+
     def _auto_check_game_updates(self):
         """Automatically check for game updates on startup if configured."""
         if not self.settings.manifest_url:
@@ -1060,6 +1063,22 @@ class App(ctk.CTk):
                 self.telemetry.start_periodic_heartbeat(300)
             except Exception:
                 pass  # Never fail
+
+        threading.Thread(target=_bg, daemon=True).start()
+
+    def _init_cdn_auth_bg(self):
+        """Initialize CDN auth at startup (fire-and-forget daemon thread).
+
+        Fetches the manifest, requests a JWT token (registering this client
+        in the server-side token_log), and attaches auth to the download
+        session.  Errors are silently ignored — CDN auth is best-effort
+        at startup and will be retried when the user triggers a download.
+        """
+        import threading
+
+        def _bg():
+            with contextlib.suppress(Exception):
+                self.ensure_cdn_auth()
 
         threading.Thread(target=_bg, daemon=True).start()
 

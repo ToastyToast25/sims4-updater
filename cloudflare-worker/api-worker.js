@@ -1624,6 +1624,9 @@ async function handleTokenRequest(request, env) {
     return json({ error: "Missing machine_id" }, 400);
   }
 
+  // Log the token request FIRST (for admin visibility — even denied requests)
+  await logTokenRequest(env, { machine_id: machineId, uid, ip, app_version: appVersion });
+
   // Check access mode (dynamic from Supabase, fallback to env var)
   const cdnAccess = await getCDNSetting(env, "cdn_access") || env.CDN_ACCESS || "public";
   if (cdnAccess === "private") {
@@ -1639,9 +1642,6 @@ async function handleTokenRequest(request, env) {
       );
     }
   }
-
-  // Log the token request (for admin visibility)
-  await logTokenRequest(env, { machine_id: machineId, uid, ip, app_version: appVersion });
 
   // Generate JWT (1-hour expiry)
   const now = Math.floor(Date.now() / 1000);
@@ -2283,6 +2283,7 @@ async function serveBansDashboard(env, pw) {
   .badge.expired { background: rgba(240,173,78,0.15); color: #f0ad4e; }
   .badge.removed { background: rgba(72,79,88,0.2); color: #484f58; }
   .mono { font-family: monospace; font-size: 11px; color: #8b949e; }
+  .copy-btn:hover { opacity: 0.9 !important; color: #58a6ff; }
   .search { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; color: #e1e4e8; font-size: 12px; outline: none; width: 200px; }
   .search:focus { border-color: #58a6ff; }
 
@@ -2478,7 +2479,10 @@ var allClients = [];
 function loadClients() {
   api("/admin/clients/api").then(function(data) {
     allClients = data.clients || [];
-    document.getElementById("clientCount").textContent = allClients.length;
+    var online = allClients.filter(function(c) {
+      return c.last_seen && (Date.now() - new Date(c.last_seen).getTime()) < 6 * 60 * 1000;
+    }).length;
+    document.getElementById("clientCount").textContent = online + " online / " + allClients.length + " recent";
     renderClients();
   });
 }
@@ -2492,12 +2496,17 @@ function renderClients() {
     return (c.machine_id||"").toLowerCase().indexOf(q) >= 0 || (c.uid||"").toLowerCase().indexOf(q) >= 0 || (c.ip||"").indexOf(q) >= 0 || (c.app_version||"").indexOf(q) >= 0;
   });
   var html = "";
+  function copyCell(val) {
+    return val && val !== "-" ? ' <span class="copy-btn" data-copy-val="' + val + '" title="Copy" style="cursor:pointer;opacity:0.4;font-size:10px">&#x2398;</span>' : "";
+  }
   rows.forEach(function(c) {
+    var isOnline = c.last_seen && (Date.now() - new Date(c.last_seen).getTime()) < 6 * 60 * 1000;
+    var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + (isOnline ? "#2ecc71" : "#484f58") + '" title="' + (isOnline ? "Online" : "Offline") + '"></span>';
     html += "<tr>";
-    html += '<td class="mono" title="' + c.machine_id + '">' + (c.machine_id||"").substring(0,16) + "...</td>";
-    html += '<td class="mono">' + (c.uid || "-") + "</td>";
-    html += "<td>" + (c.ip || "-") + "</td>";
-    html += "<td>" + (c.app_version || "-") + "</td>";
+    html += '<td class="mono" title="' + c.machine_id + '">' + dot + (c.machine_id||"").substring(0,16) + "..." + copyCell(c.machine_id) + "</td>";
+    html += '<td class="mono">' + (c.uid || "-") + copyCell(c.uid) + "</td>";
+    html += "<td>" + (c.ip || "-") + copyCell(c.ip) + "</td>";
+    html += "<td>" + (c.app_version || "-") + copyCell(c.app_version) + "</td>";
     html += "<td>" + timeAgo(c.last_seen) + "</td>";
     html += "<td>" + (c.request_count || 0) + "</td>";
     html += '<td><button class="btn btn-create" style="padding:4px 8px;font-size:10px;margin:0" data-ban-ip="' + (c.ip||"") + '" data-ban-mid="' + (c.machine_id||"") + '">Ban</button></td>';
@@ -2507,6 +2516,13 @@ function renderClients() {
 }
 
 document.addEventListener("click", function(e) {
+  var copyBtn = e.target.closest(".copy-btn");
+  if (copyBtn && copyBtn.dataset.copyVal) {
+    navigator.clipboard.writeText(copyBtn.dataset.copyVal).then(function() {
+      toast("Copied!");
+    });
+    return;
+  }
   var btn = e.target.closest("[data-ban-mid]");
   if (btn && !btn.dataset.unban) {
     var mid = btn.dataset.banMid;
@@ -2817,9 +2833,11 @@ async function updateCDNSetting(request, env) {
 // ---------------------------------------------------------------------------
 
 async function getClientsData(env) {
+  // Only return clients seen in the last 24 hours
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const resp = await supabaseGet(
     env,
-    "/rest/v1/token_log?select=*&order=last_seen.desc&limit=200"
+    `/rest/v1/token_log?select=*&order=last_seen.desc&limit=200&last_seen=gte.${since}`
   );
   const clients = await resp.json();
   return json({ clients: clients || [] });
