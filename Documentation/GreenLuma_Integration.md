@@ -1766,7 +1766,7 @@ The submitter serialises the list of `DepotContribution` objects to JSON and POS
 **URL construction:**
 
 ```python
-CONTRIBUTE_URL: str = "https://api.hyperabyss.com/v1"
+CONTRIBUTE_URL: str = "https://api.example.com/v1"
 
 endpoint = CONTRIBUTE_URL.rstrip("/") + "/contribute/greenluma"
 ```
@@ -1834,7 +1834,7 @@ Approved contributions are published as a top-level `"greenluma"` field in the e
       "dlc_id": "EP19",
       "key": "a3f1...64hex",
       "manifest_id": "7823456789012345678",
-      "manifest_url": "https://cdn.hyperabyss.com/gl/3199780_7823456789012345678.manifest"
+      "manifest_url": "https://cdn.example.com/gl/3199780_7823456789012345678.manifest"
     }
   }
 }

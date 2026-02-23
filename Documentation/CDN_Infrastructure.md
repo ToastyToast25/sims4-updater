@@ -1,7 +1,7 @@
 # CDN Infrastructure — Technical Reference
 
 **Project**: The Sims 4 Updater
-**CDN Domain**: cdn.hyperabyss.com
+**CDN Domain**: cdn.example.com
 **Last Updated**: 2026-02-22
 **Applies to:** Sims 4 Updater v2.3.0
 
@@ -13,7 +13,7 @@
 2. [Component Reference](#2-component-reference)
    - [Cloudflare Worker](#21-cloudflare-worker-workerjs)
    - [Cloudflare KV Namespace](#22-cloudflare-kv-namespace-cdn_routes)
-   - [Whatbox Seedbox](#23-whatbox-seedbox)
+   - [Backend Seedbox](#23-backend-seedbox)
 3. [URL Structure](#3-url-structure)
 4. [Environment Secrets and Configuration](#4-environment-secrets-and-configuration)
    - [Worker Environment Secrets](#41-worker-environment-secrets)
@@ -30,7 +30,9 @@
 
 ## 1. Overview
 
-The Sims 4 Updater distributes game patches and DLC content through a CDN proxy built on Cloudflare Workers and a private Whatbox seedbox. The CDN layer decouples the public-facing download URLs from the backend storage infrastructure, provides global edge caching, and prevents direct exposure of seedbox credentials or internal paths.
+The Sims 4 Updater distributes game patches and DLC content through a CDN proxy built on Cloudflare Workers and a backend seedbox. The CDN layer decouples the public-facing download URLs from the backend storage infrastructure, provides global edge caching, and prevents direct exposure of seedbox credentials or internal paths.
+
+> **Seedbox flexibility**: Any seedbox or server that supports **SFTP upload** and **HTTP/HTTPS download** can be used as the storage backend. The CDN Manager connects via SFTP (paramiko) for file uploads, and the Cloudflare Worker proxies HTTP downloads to clients. Compatible providers include Whatbox, RapidSeedbox, Ultraseedbox, Seedbox.io, or any VPS/dedicated server running SSH + a web server. Configure your provider's credentials in `cdn_config.json`.
 
 ### Architecture Diagram
 
@@ -45,14 +47,14 @@ The Sims 4 Updater distributes game patches and DLC content through a CDN proxy 
  │  │  Downloader.download_file() ← HTTP resume + MD5 verify       │  │
  │  └───────────────────────────────────────────────────────────────┘  │
  └───────────────────────────────┬─────────────────────────────────────┘
-                                 │  HTTPS GET cdn.hyperabyss.com/dlc/EP01.zip
+                                 │  HTTPS GET cdn.example.com/dlc/EP01.zip
                                  ▼
  ┌─────────────────────────────────────────────────────────────────────┐
  │                    Cloudflare Edge Network                          │
  │                                                                     │
  │  ┌─────────────────────┐       ┌─────────────────────────────────┐  │
  │  │   Cloudflare DNS    │──────▶│      Cloudflare Worker          │  │
- │  │  cdn.hyperabyss.com │       │      worker.js                  │  │
+ │  │  cdn.example.com │       │      worker.js                  │  │
  │  │  AAAA → 100:: (proxy│       │                                 │  │
  │  │  enabled)           │       │  1. Strip leading slash         │  │
  │  └─────────────────────┘       │  2. KV lookup: CDN_ROUTES[path] │  │
@@ -65,8 +67,8 @@ The Sims 4 Updater distributes game patches and DLC content through a CDN proxy 
  │  │  → "files/sims4/    │                       │  (Worker secrets)  │
  │  │    dlc/EP01.zip"    │                       ▼                    │
  │  └─────────────────────┘       ┌─────────────────────────────────┐  │
- │                                │      Whatbox Seedbox             │  │
- │                                │  server.whatbox.ca               │  │
+ │                                │      Backend Seedbox             │  │
+ │                                │  your-seedbox.example.com        │  │
  │                                │                                 │  │
  │                                │  files/sims4/                   │  │
  │                                │    dlc/     ← DLC ZIPs          │  │
@@ -78,7 +80,7 @@ The Sims 4 Updater distributes game patches and DLC content through a CDN proxy 
 
 ### How the Proxy Works
 
-When a user's app requests `https://cdn.hyperabyss.com/dlc/EP01.zip`, the following chain executes entirely within the Cloudflare edge before any bytes from the file reach the client:
+When a user's app requests `https://cdn.example.com/dlc/EP01.zip`, the following chain executes entirely within the Cloudflare edge before any bytes from the file reach the client:
 
 1. **DNS resolution** routes the request to the nearest Cloudflare PoP (point of presence) via the Anycast network.
 2. **The Worker intercepts** the request before any origin fetch occurs.
@@ -106,7 +108,7 @@ When a user's app requests `https://cdn.hyperabyss.com/dlc/EP01.zip`, the follow
 ### 2.1 Cloudflare Worker (worker.js)
 
 **Location**: `cloudflare-worker/worker.js`
-**Scope**: Handles every inbound request to `cdn.hyperabyss.com/*`
+**Scope**: Handles every inbound request to `cdn.example.com/*`
 
 #### Request Handling Logic
 
@@ -250,9 +252,9 @@ Entries are managed via:
 
 ---
 
-### 2.3 Whatbox Seedbox
+### 2.3 Backend Seedbox
 
-The seedbox is a managed private server at Whatbox (whatbox.ca). It provides both SFTP and HTTPS access to the same file tree.
+The backend storage is a seedbox or server that provides both SFTP and HTTPS access to the same file tree. Any provider that supports SFTP upload and HTTP/HTTPS download can be used — Whatbox, RapidSeedbox, Ultraseedbox, Seedbox.io, or a self-hosted VPS with SSH and a web server (e.g., nginx).
 
 #### Access Methods
 
@@ -284,16 +286,16 @@ files/
         └── {locale_code}.zip  # Language file archive (e.g., de_DE.zip)
 ```
 
-All upload scripts write into `files/sims4/` on the seedbox. The Worker's `SEEDBOX_BASE_URL` must point to the parent directory that contains this tree (e.g., `https://server.whatbox.ca/private`), so that the full resolved URL becomes `https://server.whatbox.ca/private/files/sims4/dlc/EP01.zip`.
+All upload scripts write into `files/sims4/` on the seedbox. The Worker's `SEEDBOX_BASE_URL` must point to the parent directory that contains this tree (e.g., `https://your-seedbox.example.com/private`), so that the full resolved URL becomes `https://your-seedbox.example.com/private/files/sims4/dlc/EP01.zip`.
 
 ---
 
 ## 3. URL Structure
 
-All content is served from `https://cdn.hyperabyss.com/`. The URL space is organized into four top-level paths:
+All content is served from `https://cdn.example.com/`. The URL space is organized into four top-level paths:
 
 ```
-cdn.hyperabyss.com/
+cdn.example.com/
 │
 ├── manifest.json
 │     The master manifest. Fetched by the app on startup.
@@ -334,9 +336,9 @@ These are set in the Cloudflare dashboard under **Workers & Pages → your-worke
 
 | Secret Name | Example Value | Description |
 |---|---|---|
-| `SEEDBOX_BASE_URL` | `https://server.whatbox.ca/private` | Base HTTPS URL of the Whatbox file server. No trailing slash. |
-| `SEEDBOX_USER` | `myusername` | Whatbox account username for HTTP Basic Auth |
-| `SEEDBOX_PASS` | `s3cur3password` | Whatbox account password for HTTP Basic Auth |
+| `SEEDBOX_BASE_URL` | `https://your-seedbox.example.com/private` | Base HTTPS URL of your seedbox file server. No trailing slash. |
+| `SEEDBOX_USER` | `myusername` | Seedbox account username for HTTP Basic Auth |
+| `SEEDBOX_PASS` | `s3cur3password` | Seedbox account password for HTTP Basic Auth |
 
 Additionally, a **KV namespace binding** must be configured:
 
@@ -358,10 +360,10 @@ This file provides credentials to the CDN Manager GUI application. It is read at
 
 ```json
 {
-  "whatbox_host": "server.whatbox.ca",
+  "whatbox_host": "your-seedbox-host.example.com",
   "whatbox_port": 22,
-  "whatbox_user": "username",
-  "whatbox_pass": "password",
+  "whatbox_user": "your-username",
+  "whatbox_pass": "your-password",
   "cloudflare_account_id": "abcdef1234567890abcdef1234567890",
   "cloudflare_api_token": "your-cloudflare-api-token-here",
   "cloudflare_kv_namespace_id": "abcdef1234567890abcdef1234567890"
@@ -372,10 +374,10 @@ This file provides credentials to the CDN Manager GUI application. It is read at
 
 | Field | Description | Where to Find It |
 |---|---|---|
-| `whatbox_host` | Seedbox SFTP hostname | Whatbox control panel |
-| `whatbox_port` | SFTP port (almost always 22) | Whatbox control panel |
-| `whatbox_user` | Seedbox username | Whatbox control panel |
-| `whatbox_pass` | Seedbox password | Whatbox control panel |
+| `whatbox_host` | Seedbox SFTP hostname | Your seedbox provider's control panel |
+| `whatbox_port` | SFTP port (almost always 22) | Your seedbox provider's control panel |
+| `whatbox_user` | Seedbox username | Your seedbox provider's control panel |
+| `whatbox_pass` | Seedbox password | Your seedbox provider's control panel |
 | `cloudflare_account_id` | Cloudflare account ID | Cloudflare dashboard → right sidebar |
 | `cloudflare_api_token` | API token with KV edit permissions | Cloudflare dashboard → My Profile → API Tokens |
 | `cloudflare_kv_namespace_id` | KV namespace ID for CDN_ROUTES | Cloudflare dashboard → Workers & Pages → KV |
@@ -488,7 +490,7 @@ This ensures 10-50 MB/s throughput instead of the default ~1 MB/s caused by cons
 
 ## 6. Manifest Format
 
-The manifest is the central configuration document that the app fetches on startup from `https://cdn.hyperabyss.com/manifest.json`. It tells the app:
+The manifest is the central configuration document that the app fetches on startup from `https://cdn.example.com/manifest.json`. It tells the app:
 
 - What the latest game version is
 - What patch archives exist and how they connect (the patch graph)
@@ -506,20 +508,20 @@ The manifest is the central configuration document that the app fetches on start
     {
       "from": "1.121.372.1020",
       "to": "1.122.100.1020",
-      "url": "https://cdn.hyperabyss.com/patches/1.121.372.1020_to_1.122.100.1020.zip",
+      "url": "https://cdn.example.com/patches/1.121.372.1020_to_1.122.100.1020.zip",
       "size": 892341234,
       "md5": "A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4"
     }
   ],
   "dlc_downloads": {
     "EP01": {
-      "url": "https://cdn.hyperabyss.com/dlc/EP01.zip",
+      "url": "https://cdn.example.com/dlc/EP01.zip",
       "size": 1706434567,
       "md5": "A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4",
       "filename": "EP01.zip"
     },
     "GP05": {
-      "url": "https://cdn.hyperabyss.com/dlc/GP05.zip",
+      "url": "https://cdn.example.com/dlc/GP05.zip",
       "size": 523412345,
       "md5": "B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5",
       "filename": "GP05.zip"
@@ -527,7 +529,7 @@ The manifest is the central configuration document that the app fetches on start
   },
   "language_downloads": {
     "de_DE": {
-      "url": "https://cdn.hyperabyss.com/language/de_DE.zip",
+      "url": "https://cdn.example.com/language/de_DE.zip",
       "size": 134567890,
       "md5": "C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6",
       "filename": "de_DE.zip"
@@ -585,7 +587,7 @@ DownloaderFrame.on_show()
          ▼  run_async()
 PatchClient.fetch_manifest(manifest_url)
    [patch/client.py]
-   → GET https://cdn.hyperabyss.com/manifest.json
+   → GET https://cdn.example.com/manifest.json
    → parse_manifest(json_text)  [patch/manifest.py]
    → returns Manifest(dlc_downloads={...}, ...)
          │
@@ -637,7 +639,7 @@ DLCDownloader.download(entry, game_dir, callbacks)
 
 1. If a partial download file exists at the destination, its size is read.
 2. The next request includes `Range: bytes=<existing_size>-`.
-3. The server (Whatbox via the Worker) returns HTTP 206 Partial Content.
+3. The server (seedbox via the Worker) returns HTTP 206 Partial Content.
 4. The downloader appends to the existing file rather than overwriting.
 5. After the final byte is received, MD5 is computed over the complete file and compared against `DLCDownloadEntry.md5`. A mismatch causes the download to be deleted and retried from zero.
 
@@ -653,7 +655,7 @@ This section covers standing up a new CDN instance from scratch. Follow these st
 
 - A domain name you control (to create a subdomain like `cdn.yourdomain.com`)
 - A Cloudflare account (free tier is sufficient)
-- A Whatbox seedbox subscription (or equivalent SFTP + HTTPS file host)
+- A seedbox subscription or server with SFTP + HTTPS access (e.g., Whatbox, RapidSeedbox, Ultraseedbox, or any VPS)
 - Python 3.12+ with `paramiko` and `requests` installed
 - The DLC files from a licensed game installation
 
@@ -726,11 +728,11 @@ If you already manage your domain in Cloudflare, skip this step.
 
 Still under **Variables**, in the **Environment Variables** section:
 
-1. Add `SEEDBOX_BASE_URL` → your Whatbox HTTPS base URL (e.g., `https://server.whatbox.ca/private`)
+1. Add `SEEDBOX_BASE_URL` → your seedbox HTTPS base URL (e.g., `https://your-seedbox.example.com/private`)
    - Mark as **Secret**.
-2. Add `SEEDBOX_USER` → your Whatbox username.
+2. Add `SEEDBOX_USER` → your seedbox username.
    - Mark as **Secret**.
-3. Add `SEEDBOX_PASS` → your Whatbox password.
+3. Add `SEEDBOX_PASS` → your seedbox password.
    - Mark as **Secret**.
 4. Click **Save and Deploy**.
 
@@ -844,7 +846,7 @@ access-control-allow-origin: *
 
 ### Upload Stuck at Low Speed (1 MB/s)
 
-**Symptom**: SFTP uploads to Whatbox are capped at approximately 1 MB/s despite a fast local connection.
+**Symptom**: SFTP uploads to the seedbox are capped at approximately 1 MB/s despite a fast local connection.
 
 **Cause**: Paramiko (the Python SSH/SFTP library) uses a conservative TCP window size by default (32 KB), which severely limits throughput on high-latency connections.
 
@@ -868,14 +870,14 @@ This setting is already applied in the CDN Manager's backend (`connection.py`). 
 
 **Symptom**: Worker returns HTTP 401 or 403, or the file is served but content looks like an HTML login page.
 
-**Cause**: Incorrect `SEEDBOX_USER` or `SEEDBOX_PASS` Worker secrets, or the Whatbox HTTPS URL requires a different path prefix.
+**Cause**: Incorrect `SEEDBOX_USER` or `SEEDBOX_PASS` Worker secrets, or the seedbox HTTPS URL requires a different path prefix.
 
 **Fix**:
 1. Verify credentials by testing the seedbox URL directly:
    ```bash
-   curl -u "username:password" https://server.whatbox.ca/private/files/sims4/manifest.json -I
+   curl -u "username:password" https://your-seedbox.example.com/private/files/sims4/manifest.json -I
    ```
-2. If that fails, log in to the Whatbox control panel and confirm the HTTPS path.
+2. If that fails, log in to your seedbox provider's control panel and confirm the HTTPS path.
 3. Update the Worker secrets in the Cloudflare dashboard (**Workers & Pages → your-worker → Settings → Variables**).
 4. Re-deploy the Worker (edit any line and save to trigger a re-deploy).
 
@@ -905,7 +907,7 @@ This setting is already applied in the CDN Manager's backend (`connection.py`). 
 
 ## 10. Cost Breakdown
 
-The CDN architecture is designed to operate within Cloudflare's free tier for typical usage volumes. The only non-free component is the Whatbox seedbox.
+The CDN architecture is designed to operate within Cloudflare's free tier for typical usage volumes. The only non-free component is the seedbox.
 
 | Service | Tier | Monthly Cost | Notes |
 |---|---|---|---|
@@ -913,15 +915,15 @@ The CDN architecture is designed to operate within Cloudflare's free tier for ty
 | Cloudflare Worker | Free | $0 | 100,000 requests/day included; $5/mo for 10M req/day if you exceed it |
 | Cloudflare KV Reads | Free | $0 | 100,000 reads/day included; $0.50 per million reads above that |
 | Cloudflare KV Writes | Free | $0 | 1,000 writes/day included; $5 per million writes above that |
-| Whatbox Seedbox | Paid | ~$15/mo | File hosting, HTTPS, SFTP, unlimited egress |
-| **Total** | | **~$15/mo** | |
+| Seedbox (any provider) | Paid | ~$5-15/mo | File hosting, HTTPS, SFTP; cost varies by provider and plan |
+| **Total** | | **~$5-15/mo** | |
 
 ### Scaling Considerations
 
 - **Worker requests**: Each file download involves one Worker invocation (the KV lookup is a sub-request, not a separate invocation). A deployment serving 1,000 users/day downloading 10 files each = 10,000 requests/day, well within the free tier.
 - **KV reads**: Each Worker invocation does one KV read. Same calculation: 10,000 reads/day on a 100,000 limit.
-- **Bandwidth**: Cloudflare does not charge for egress bandwidth from Workers to clients. The only bandwidth cost is the Worker-to-seedbox fetch, which is included in the Whatbox subscription.
-- **Whatbox storage**: Storage on Whatbox is quota-based. A full DLC catalog (all expansion/game/stuff/kit packs) typically totals 40–80 GB. Verify your Whatbox plan's storage quota before uploading.
+- **Bandwidth**: Cloudflare does not charge for egress bandwidth from Workers to clients. The only bandwidth cost is the Worker-to-seedbox fetch, which is typically included in the seedbox subscription.
+- **Seedbox storage**: A full DLC catalog (all expansion/game/stuff/kit packs) typically totals 40–80 GB. Verify your seedbox plan's storage quota before uploading.
 
 If usage grows significantly beyond these estimates, upgrading to the Cloudflare Workers Paid plan ($5/month for 10M requests) is the first and likely only additional cost.
 

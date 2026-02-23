@@ -1,0 +1,95 @@
+name: Feature Request
+description: Suggest a new feature or improvement for the Sims 4 Updater
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for the Sims 4 Updater? We'd love to hear it. Please describe your suggestion in detail so we can evaluate and prioritize it.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      options:
+        - label: I have searched [existing issues](https://github.com/ToastyToast25/sims4-updater/issues) and this feature has not been requested yet.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature Area
+      description: Which part of the application does this relate to?
+      multiple: true
+      options:
+        - Game Updates / Patching
+        - DLC Management
+        - DLC Downloads
+        - GreenLuma Integration
+        - Language Changer
+        - Settings / Configuration
+        - User Interface / UX
+        - CLI (Command Line)
+        - CDN / Infrastructure
+        - New Area
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What pain point or limitation are you experiencing?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe how you'd like this to work. Be as specific as possible.
+      placeholder: "I would like the app to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any workarounds or alternative approaches?
+      placeholder: "I've tried... / Another approach could be..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact Level
+      description: How many users would benefit from this feature?
+      options:
+        - "High — affects most users"
+        - "Medium — affects users of a specific feature"
+        - "Low — niche use case"
+    validations:
+      required: true
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups / Examples
+      description: If applicable, add mockups, screenshots of similar features in other apps, or diagrams.
+      placeholder: "Drag and drop images or describe the UI..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other details that would help us understand and evaluate this request.
+    validations:
+      required: false

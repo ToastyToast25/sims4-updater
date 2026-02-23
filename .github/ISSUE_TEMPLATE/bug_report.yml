@@ -1,0 +1,146 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in the Sims 4 Updater
+title: "[Bug]: "
+labels: ["bug"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill out the form below as completely as possible — the more detail you provide, the faster we can investigate and fix the issue.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched [existing issues](https://github.com/ToastyToast25/sims4-updater/issues) and this bug has not been reported yet.
+          required: true
+        - label: I am using the [latest release](https://github.com/ToastyToast25/sims4-updater/releases/latest) of Sims 4 Updater.
+          required: true
+        - label: I have checked the [Troubleshooting](https://github.com/ToastyToast25/sims4-updater/wiki/Troubleshooting) and [FAQ](https://github.com/ToastyToast25/sims4-updater/wiki/FAQ) wiki pages.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Updater Version
+      description: The version of Sims 4 Updater (shown in the title bar or Settings tab).
+      placeholder: "e.g., 2.3.1"
+    validations:
+      required: true
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Game Version
+      description: Your current Sims 4 game version (shown on the Home tab).
+      placeholder: "e.g., 1.108.349.1020"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      description: Which part of the application is affected?
+      multiple: true
+      options:
+        - Game Updates / Patching
+        - DLC Management
+        - DLC Downloads
+        - GreenLuma Integration
+        - Language Changer
+        - Settings / Configuration
+        - Self-Update
+        - Startup / Launch
+        - CLI (Command Line)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear, concise description of the bug.
+      placeholder: "Describe what happened..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the bug.
+      placeholder: |
+        1. Open Sims 4 Updater
+        2. Navigate to '...'
+        3. Click on '...'
+        4. Observe error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+      placeholder: "Describe what should have happened..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened instead.
+      placeholder: "Describe what happened instead..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Error Messages
+      description: If applicable, add screenshots or paste error messages. Drag and drop images here.
+      placeholder: "Paste error messages or drag screenshots here..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: crack-format
+    attributes:
+      label: Crack Configuration Format
+      description: Which crack format does your game use? (Check `Game/Bin/` for config files)
+      options:
+        - anadius.cfg (Config2 / CODEX)
+        - anadius.cfg (Simple)
+        - rune.ini
+        - codex.cfg
+        - RldOrigin.ini
+        - Not sure / Don't know
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Windows Version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other relevant details — antivirus software, game install location, mods, etc.
+      placeholder: "Any other information that might help..."
+    validations:
+      required: false
