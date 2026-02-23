@@ -31,6 +31,7 @@ _TASK_NAME = "copy_dlc_unlocker"
 
 # ── Admin Check ──────────────────────────────────────────────────
 
+
 def is_admin() -> bool:
     """Check if the current process has administrator privileges."""
     try:
@@ -40,6 +41,7 @@ def is_admin() -> bool:
 
 
 # ── Data ─────────────────────────────────────────────────────────
+
 
 @dataclass
 class UnlockerStatus:
@@ -52,13 +54,17 @@ class UnlockerStatus:
 
 # ── Registry Detection ───────────────────────────────────────────
 
+
 def _read_registry_value(key_path: str, value_name: str) -> str | None:
     """Read a string value from the Windows registry."""
     try:
         import winreg
+
         for root in (winreg.HKEY_LOCAL_MACHINE,):
-            for view in (winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
-                         winreg.KEY_READ | winreg.KEY_WOW64_32KEY):
+            for view in (
+                winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+                winreg.KEY_READ | winreg.KEY_WOW64_32KEY,
+            ):
                 try:
                     with winreg.OpenKey(root, key_path, 0, view) as key:
                         val, _ = winreg.QueryValueEx(key, value_name)
@@ -72,9 +78,7 @@ def _read_registry_value(key_path: str, value_name: str) -> str | None:
 
 def _detect_client() -> tuple[str, Path]:
     """Detect EA Desktop. Returns (client_name, client_path)."""
-    client_exe = _read_registry_value(
-        r"SOFTWARE\Electronic Arts\EA Desktop", "ClientPath"
-    )
+    client_exe = _read_registry_value(r"SOFTWARE\Electronic Arts\EA Desktop", "ClientPath")
     if client_exe:
         return "EA app", Path(client_exe).resolve().parent
 
@@ -85,6 +89,7 @@ def _detect_client() -> tuple[str, Path]:
 
 
 # ── Path Helpers ─────────────────────────────────────────────────
+
 
 def _get_appdata_dir() -> Path:
     return Path(os.environ["APPDATA"]) / _COMMON_DIR
@@ -102,12 +107,14 @@ def _get_staged_dir(client_path: Path) -> Path:
 
 # ── Scheduled Task ───────────────────────────────────────────────
 
+
 def _task_exists() -> bool:
     """Check if the copy_dlc_unlocker scheduled task exists."""
     try:
         result = subprocess.run(
             ["schtasks", "/Query", "/TN", _TASK_NAME],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         return result.returncode == 0
     except Exception:
@@ -122,11 +129,24 @@ def _create_task(dst_dll: Path, staged_dir: Path) -> bool:
         try:
             result = subprocess.run(
                 [
-                    "schtasks", "/Create", "/F", "/RL", "HIGHEST",
-                    "/SC", "ONCE", "/ST", "00:00", "/SD", date_fmt,
-                    "/TN", _TASK_NAME, "/TR", cmd,
+                    "schtasks",
+                    "/Create",
+                    "/F",
+                    "/RL",
+                    "HIGHEST",
+                    "/SC",
+                    "ONCE",
+                    "/ST",
+                    "00:00",
+                    "/SD",
+                    date_fmt,
+                    "/TN",
+                    _TASK_NAME,
+                    "/TR",
+                    cmd,
                 ],
-                capture_output=True, timeout=15,
+                capture_output=True,
+                timeout=15,
             )
             if result.returncode == 0:
                 return True
@@ -140,11 +160,13 @@ def _delete_task():
     with contextlib.suppress(Exception):
         subprocess.run(
             ["schtasks", "/Delete", "/TN", _TASK_NAME, "/F"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
 
 
 # ── Kill Processes ───────────────────────────────────────────────
+
 
 def _stop_client_processes(log: Callable[[str], None]):
     """Force-stop EA Desktop processes and wait for file locks to release."""
@@ -153,7 +175,8 @@ def _stop_client_processes(log: Callable[[str], None]):
         try:
             result = subprocess.run(
                 ["taskkill", "/F", "/IM", f"{name}.exe"],
-                capture_output=True, timeout=10,
+                capture_output=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 killed_any = True
@@ -167,6 +190,7 @@ def _stop_client_processes(log: Callable[[str], None]):
 
 
 # ── Remove Old Unlocker ─────────────────────────────────────────
+
 
 def _remove_old_unlocker(client_path: Path, log: Callable[[str], None]):
     """Remove old unlocker files (version_o.dll, winhttp.dll, w_*.ini)."""
@@ -193,8 +217,10 @@ def _remove_old_unlocker(client_path: Path, log: Callable[[str], None]):
 
 # ── Copy with Retry ──────────────────────────────────────────────
 
-def _copy_with_retry(src: Path, dst: Path, log: Callable[[str], None],
-                     retries: int = 3, delay: float = 2.0):
+
+def _copy_with_retry(
+    src: Path, dst: Path, log: Callable[[str], None], retries: int = 3, delay: float = 2.0
+):
     """Copy a file with retry logic for locked files."""
     for attempt in range(retries):
         try:
@@ -202,8 +228,7 @@ def _copy_with_retry(src: Path, dst: Path, log: Callable[[str], None],
             return
         except PermissionError:
             if attempt < retries - 1:
-                log(f"File locked, retrying in {delay}s... "
-                    f"(attempt {attempt + 1}/{retries})")
+                log(f"File locked, retrying in {delay}s... (attempt {attempt + 1}/{retries})")
                 time.sleep(delay)
             else:
                 raise PermissionError(
@@ -214,10 +239,13 @@ def _copy_with_retry(src: Path, dst: Path, log: Callable[[str], None],
 
 # ── Public API ───────────────────────────────────────────────────
 
+
 def get_status(log: Callable[[str], None] | None = None) -> UnlockerStatus:
     """Detect client and gather current unlocker status."""
     if log is None:
-        def log(_): pass
+
+        def log(_):
+            pass
 
     client_name, client_path = _detect_client()
     log(f"Detected {client_name} at: {client_path}")
@@ -275,8 +303,7 @@ def install(log: Callable[[str], None]) -> None:
     """Install the DLC Unlocker."""
     if not is_admin():
         raise PermissionError(
-            "Administrator privileges required.\n"
-            "Please run the application as Administrator."
+            "Administrator privileges required.\nPlease run the application as Administrator."
         )
 
     client_name, client_path = _detect_client()
@@ -300,9 +327,7 @@ def install(log: Callable[[str], None]) -> None:
             "The file may be incomplete or removed by antivirus."
         )
     if not src_entitlements.is_file():
-        raise FileNotFoundError(
-            "entitlements.ini missing from tools bundle."
-        )
+        raise FileNotFoundError("entitlements.ini missing from tools bundle.")
 
     # Stop client processes
     log("Stopping client processes...")
@@ -332,14 +357,15 @@ def install(log: Callable[[str], None]) -> None:
     if _create_task(dst_dll, staged_dir):
         log("Scheduled task created for EA Desktop updates.")
     else:
-        log("Warning: Could not create scheduled task. "
-            "You may need to reinstall after EA app updates.")
+        log(
+            "Warning: Could not create scheduled task. "
+            "You may need to reinstall after EA app updates."
+        )
 
     # Disable background standalone in machine.ini
     _BG_STANDALONE_LINE = "machine.bgsstandaloneenabled=0"
     machine_ini = (
-        Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData"))
-        / "EA Desktop" / "machine.ini"
+        Path(os.environ.get("PROGRAMDATA", r"C:\ProgramData")) / "EA Desktop" / "machine.ini"
     )
     try:
         existing = ""
@@ -361,8 +387,7 @@ def uninstall(log: Callable[[str], None]) -> None:
     """Uninstall the DLC Unlocker."""
     if not is_admin():
         raise PermissionError(
-            "Administrator privileges required.\n"
-            "Please run the application as Administrator."
+            "Administrator privileges required.\nPlease run the application as Administrator."
         )
 
     client_name, client_path = _detect_client()
@@ -401,12 +426,13 @@ def uninstall(log: Callable[[str], None]) -> None:
                     break
                 except PermissionError:
                     if attempt < 2:
-                        log(f"File locked, retrying in 2s... "
-                            f"(attempt {attempt + 1}/3)")
+                        log(f"File locked, retrying in 2s... (attempt {attempt + 1}/3)")
                         time.sleep(2)
                     else:
-                        log(f"Warning: Could not remove version.dll from "
-                            f"{label} directory (file locked)")
+                        log(
+                            f"Warning: Could not remove version.dll from "
+                            f"{label} directory (file locked)"
+                        )
 
     # Delete scheduled task
     _delete_task()

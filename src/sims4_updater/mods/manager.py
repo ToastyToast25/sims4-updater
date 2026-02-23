@@ -62,9 +62,7 @@ class ModManager:
         try:
             with open(self._registry_path, encoding="utf-8") as f:
                 data = json.load(f)
-            self._registry = {
-                name: ModInfo.from_dict(info) for name, info in data.items()
-            }
+            self._registry = {name: ModInfo.from_dict(info) for name, info in data.items()}
         except (FileNotFoundError, json.JSONDecodeError, TypeError):
             self._registry = {}
 
@@ -97,20 +95,25 @@ class ModManager:
                 info.enabled = self._check_enabled(info)
                 result.append(info)
             else:
-                result.append(ModInfo(
-                    name=name,
-                    source="bundled",
-                    zip_path=str(zp),
-                    installed_files=[],
-                    enabled=True,
-                ))
+                result.append(
+                    ModInfo(
+                        name=name,
+                        source="bundled",
+                        zip_path=str(zp),
+                        installed_files=[],
+                        enabled=True,
+                    )
+                )
         return result
 
     def install_mod(
-        self, mod_name: str, log: Callable[[str], None] | None = None,
+        self,
+        mod_name: str,
+        log: Callable[[str], None] | None = None,
     ) -> bool:
         """Extract a bundled mod ZIP into the game's Mods folder."""
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -164,10 +167,13 @@ class ModManager:
         return True
 
     def uninstall_mod(
-        self, mod_name: str, log: Callable[[str], None] | None = None,
+        self,
+        mod_name: str,
+        log: Callable[[str], None] | None = None,
     ) -> bool:
         """Remove tracked files for a mod from the game Mods folder."""
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -208,10 +214,13 @@ class ModManager:
         return True
 
     def delete_bundled_mod(
-        self, mod_name: str, log: Callable[[str], None] | None = None,
+        self,
+        mod_name: str,
+        log: Callable[[str], None] | None = None,
     ) -> bool:
         """Delete the bundled ZIP file for a mod."""
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -237,10 +246,13 @@ class ModManager:
     # ── Enable / Disable ───────────────────────────────────────
 
     def enable_mod(
-        self, mod_name: str, log: Callable[[str], None] | None = None,
+        self,
+        mod_name: str,
+        log: Callable[[str], None] | None = None,
     ) -> bool:
         """Enable a mod by removing .disabled suffix from its files."""
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -266,10 +278,13 @@ class ModManager:
         return True
 
     def disable_mod(
-        self, mod_name: str, log: Callable[[str], None] | None = None,
+        self,
+        mod_name: str,
+        log: Callable[[str], None] | None = None,
     ) -> bool:
         """Disable a mod by adding .disabled suffix to its files."""
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -353,9 +368,7 @@ class ModManager:
         result = []
         for name, files in sorted(groups.items()):
             # Check enabled state
-            enabled = all(
-                not f.lower().endswith(DISABLED_SUFFIX) for f in files
-            )
+            enabled = all(not f.lower().endswith(DISABLED_SUFFIX) for f in files)
             # Normalize installed_files to not include .disabled suffix
             clean_files = []
             for f in files:
@@ -363,13 +376,15 @@ class ModManager:
                     clean_files.append(f[: -len(DISABLED_SUFFIX)])
                 else:
                     clean_files.append(f)
-            result.append(ModInfo(
-                name=name,
-                source="detected",
-                zip_path=None,
-                installed_files=clean_files,
-                enabled=enabled,
-            ))
+            result.append(
+                ModInfo(
+                    name=name,
+                    source="detected",
+                    zip_path=None,
+                    installed_files=clean_files,
+                    enabled=enabled,
+                )
+            )
         return result
 
     def get_all_mods(self) -> tuple[list[ModInfo], list[ModInfo]]:

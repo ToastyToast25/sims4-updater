@@ -131,7 +131,9 @@ class GameValidator:
             if full_path.is_file():
                 size = full_path.stat().st_size
                 result = FileResult(
-                    path=rel_path, state=FileState.OK, size=size,
+                    path=rel_path,
+                    state=FileState.OK,
+                    size=size,
                 )
                 if check_hashes:
                     result.actual_md5 = hash_file(str(full_path))
@@ -161,7 +163,10 @@ class GameValidator:
                 progress(f"Checking {dlc_name}...", i + 1, total_dlcs)
 
             summary = self._validate_dlc_folder(
-                game_dir, dlc_dir, report, check_hashes,
+                game_dir,
+                dlc_dir,
+                report,
+                check_hashes,
             )
             report.folders.append(summary)
 
@@ -192,9 +197,7 @@ class GameValidator:
         dlc_dirs = []
         try:
             for entry in sorted(game_dir.iterdir()):
-                if entry.is_dir() and any(
-                    entry.name.startswith(p) for p in _DLC_PREFIXES
-                ):
+                if entry.is_dir() and any(entry.name.startswith(p) for p in _DLC_PREFIXES):
                     dlc_dirs.append(entry)
         except OSError:
             pass
@@ -218,7 +221,9 @@ class GameValidator:
             if full_path.is_file():
                 size = full_path.stat().st_size
                 result = FileResult(
-                    path=rel_path, state=FileState.OK, size=size,
+                    path=rel_path,
+                    state=FileState.OK,
+                    size=size,
                 )
                 if check_hashes:
                     result.actual_md5 = hash_file(str(full_path))

@@ -20,8 +20,7 @@ def load(path):
         return None
     except (OSError, PermissionError):
         raise UpdaterError(
-            f'Can\'t read "{path}". Make sure your '
-            "anti-virus doesn't block this program."
+            f"Can't read \"{path}\". Make sure your anti-virus doesn't block this program."
         ) from None
 
 

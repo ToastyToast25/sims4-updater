@@ -23,12 +23,8 @@ import sys
 def _fix_console_encoding():
     """Ensure stdout/stderr can handle Unicode on Windows."""
     if os.name == "nt" and hasattr(sys.stdout, "buffer"):
-        sys.stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-        sys.stderr = io.TextIOWrapper(
-            sys.stderr.buffer, encoding="utf-8", errors="replace"
-        )
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 
 _fix_console_encoding()
@@ -195,6 +191,7 @@ def check_for_updates(args):
     manifest_url = getattr(args, "manifest_url", None)
     if not manifest_url:
         from sims4_updater.constants import MANIFEST_URL
+
         manifest_url = MANIFEST_URL
 
     if not manifest_url:
@@ -311,6 +308,7 @@ def show_status(args):
     # Language
     language = get_current_language()
     from sims4_updater.language.changer import LANGUAGES
+
     lang_name = LANGUAGES.get(language, language)
     print(f"Language: {lang_name} ({language})")
 
@@ -499,14 +497,18 @@ def main():
     # check
     check_parser = subparsers.add_parser("check", help="Check for updates")
     check_parser.add_argument(
-        "game_dir", nargs="?", help="Path to Sims 4 install directory",
+        "game_dir",
+        nargs="?",
+        help="Path to Sims 4 install directory",
     )
     check_parser.add_argument("--manifest-url", help="Manifest URL to check against")
 
     # status
     status_parser = subparsers.add_parser("status", help="Show game status overview")
     status_parser.add_argument(
-        "game_dir", nargs="?", help="Path to Sims 4 install directory",
+        "game_dir",
+        nargs="?",
+        help="Path to Sims 4 install directory",
     )
 
     # manifest
@@ -523,15 +525,19 @@ def main():
 
     # pack-dlc
     pack_parser = subparsers.add_parser(
-        "pack-dlc", help="Create standard zip archives for DLCs",
+        "pack-dlc",
+        help="Create standard zip archives for DLCs",
     )
     pack_parser.add_argument("game_dir", help="Path to The Sims 4 installation directory")
     pack_parser.add_argument(
-        "dlc_ids", nargs="+",
+        "dlc_ids",
+        nargs="+",
         help="DLC IDs to pack (e.g. EP01 GP01) or 'all' for all installed",
     )
     pack_parser.add_argument(
-        "-o", "--output", default=".",
+        "-o",
+        "--output",
+        default=".",
         help="Output directory for zip files (default: current dir)",
     )
 
@@ -569,21 +575,22 @@ def main():
         # No command — launch the GUI
         try:
             from sims4_updater.gui.app import launch
+
             launch()
         except ImportError:
             print("Sims 4 Updater v2.0.0")
             print("GUI requires customtkinter: pip install customtkinter")
             print()
             print("Commands:")
-            print('  status [game_dir]         Show game status overview')
-            print('  detect <game_dir>         Detect installed version')
-            print('  check [game_dir]          Check for updates')
-            print('  manifest <url|file>       Inspect a patch manifest')
-            print('  dlc <game_dir>            Show DLC states')
-            print('  dlc-auto <game_dir>       Auto-toggle DLCs')
-            print('  pack-dlc <dir> <ids...>   Pack DLC zip archives')
-            print('  learn <game_dir> <ver>    Learn version hashes')
-            print('  language [code]           Show or set language')
+            print("  status [game_dir]         Show game status overview")
+            print("  detect <game_dir>         Detect installed version")
+            print("  check [game_dir]          Check for updates")
+            print("  manifest <url|file>       Inspect a patch manifest")
+            print("  dlc <game_dir>            Show DLC states")
+            print("  dlc-auto <game_dir>       Auto-toggle DLCs")
+            print("  pack-dlc <dir> <ids...>   Pack DLC zip archives")
+            print("  learn <game_dir> <ver>    Learn version hashes")
+            print("  language [code]           Show or set language")
     else:
         parser.print_help()
 

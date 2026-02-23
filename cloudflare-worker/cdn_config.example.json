@@ -1,12 +1,12 @@
 {
-    "whatbox_host": "spirit.whatbox.ca",
-    "whatbox_user": "toastytoast",
+    "whatbox_host": "YOUR_WHATBOX_HOST",
+    "whatbox_user": "YOUR_WHATBOX_USER",
     "whatbox_pass": "YOUR_WHATBOX_PASSWORD",
     "whatbox_port": 22,
 
     "cloudflare_account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
     "cloudflare_api_token": "YOUR_CLOUDFLARE_API_TOKEN",
-    "cloudflare_kv_namespace_id": "21b161fd30af47d19c4b298f597ff259",
+    "cloudflare_kv_namespace_id": "YOUR_KV_NAMESPACE_ID",
 
     "contribution_api_url": "https://api.hyperabyss.com",
     "contribution_admin_password": "YOUR_ADMIN_PASSWORD"

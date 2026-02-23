@@ -50,7 +50,6 @@ def _format_size(size_bytes: int) -> str:
 
 
 class PackerFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -133,9 +132,7 @@ class PackerFrame(ctk.CTkFrame):
         self._import_btn.grid(row=0, column=2, padx=(0, 8))
 
         # Spacer
-        ctk.CTkFrame(bar, fg_color="transparent", height=1).grid(
-            row=0, column=3, sticky="ew"
-        )
+        ctk.CTkFrame(bar, fg_color="transparent", height=1).grid(row=0, column=3, sticky="ew")
 
         self._pack_selected_btn = ctk.CTkButton(
             bar,
@@ -299,8 +296,11 @@ class PackerFrame(ctk.CTkFrame):
 
             hdr = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
             hdr.grid(
-                row=grid_row, column=0, padx=8,
-                pady=(10 if grid_row > 0 else 8, 4), sticky="ew",
+                row=grid_row,
+                column=0,
+                padx=8,
+                pady=(10 if grid_row > 0 else 8, 4),
+                sticky="ew",
             )
             ctk.CTkLabel(
                 hdr,
@@ -320,7 +320,9 @@ class PackerFrame(ctk.CTkFrame):
         # ── Language Packs section ──
         if langs:
             sep = ctk.CTkFrame(
-                self._scroll_frame, height=1, fg_color=theme.COLORS["separator"],
+                self._scroll_frame,
+                height=1,
+                fg_color=theme.COLORS["separator"],
             )
             sep.grid(row=grid_row, column=0, padx=5, pady=(12, 0), sticky="ew")
             self._all_widgets.append(sep)
@@ -339,7 +341,12 @@ class PackerFrame(ctk.CTkFrame):
 
             for locale_code, lang_name, pkg_filename, file_size in langs:
                 self._build_lang_row(
-                    grid_row, row_idx, locale_code, lang_name, pkg_filename, file_size,
+                    grid_row,
+                    row_idx,
+                    locale_code,
+                    lang_name,
+                    pkg_filename,
+                    file_size,
                 )
                 grid_row += 1
                 row_idx += 1
@@ -412,7 +419,13 @@ class PackerFrame(ctk.CTkFrame):
         self._all_widgets.append(row)
 
     def _build_lang_row(
-        self, grid_row, row_idx, locale_code, lang_name, pkg_filename, file_size,
+        self,
+        grid_row,
+        row_idx,
+        locale_code,
+        lang_name,
+        pkg_filename,
+        file_size,
     ):
         bg = theme.COLORS["bg_card"] if row_idx % 2 == 0 else theme.COLORS["bg_card_alt"]
         row = ctk.CTkFrame(
@@ -485,6 +498,7 @@ class PackerFrame(ctk.CTkFrame):
 
         # Estimate total size and check disk space
         import shutil
+
         estimated_size = sum(self._dlc_sizes.get(d, 0) for d in dlc_ids)
         self._output_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -553,7 +567,9 @@ class PackerFrame(ctk.CTkFrame):
         )
 
         self.app.run_async(
-            self._pack_bg, dlc_ids, lang_codes,
+            self._pack_bg,
+            dlc_ids,
+            lang_codes,
             on_done=self._on_pack_done,
             on_error=self._on_pack_error,
         )
@@ -577,11 +593,18 @@ class PackerFrame(ctk.CTkFrame):
         def dlc_progress_cb(idx, count, dlc_id, msg):
             pct = idx / total if total > 0 else 0
             self.app._enqueue_gui(
-                self._update_pack_progress, idx, total, dlc_id or msg, pct,
+                self._update_pack_progress,
+                idx,
+                total,
+                dlc_id or msg,
+                pct,
             )
 
         dlc_results = self._packer.pack_multiple(
-            game_path, dlcs, self._output_dir, dlc_progress_cb,
+            game_path,
+            dlcs,
+            self._output_dir,
+            dlc_progress_cb,
         )
 
         # Pack Languages
@@ -591,11 +614,18 @@ class PackerFrame(ctk.CTkFrame):
             pct = (offset + idx) / total if total > 0 else 0
             label = code or msg
             self.app._enqueue_gui(
-                self._update_pack_progress, offset + idx, total, label, pct,
+                self._update_pack_progress,
+                offset + idx,
+                total,
+                label,
+                pct,
             )
 
         lang_results = self._lang_packer.pack_multiple(
-            game_path, lang_codes, self._output_dir, lang_progress_cb,
+            game_path,
+            lang_codes,
+            self._output_dir,
+            lang_progress_cb,
         )
 
         # Generate manifests
@@ -627,10 +657,7 @@ class PackerFrame(ctk.CTkFrame):
             self.app.show_toast("Nothing was packed", "warning")
             return
 
-        total_size = (
-            sum(r.size for r in dlc_results)
-            + sum(r.size for r in lang_results)
-        )
+        total_size = sum(r.size for r in dlc_results) + sum(r.size for r in lang_results)
 
         parts = []
         if dlc_results:
@@ -642,7 +669,8 @@ class PackerFrame(ctk.CTkFrame):
             text=f"Packed {', '.join(parts)}, {_format_size(total_size)} total",
         )
         self.app.show_toast(
-            f"Packed {', '.join(parts)} successfully", "success",
+            f"Packed {', '.join(parts)} successfully",
+            "success",
         )
 
     def _on_pack_error(self, error):
@@ -681,7 +709,7 @@ class PackerFrame(ctk.CTkFrame):
         filename = Path(file_path).name
         confirm = tk.messagebox.askyesno(
             "Import DLC Archive",
-            f"Extract \"{filename}\" into:\n{game_dir}\n\nContinue?",
+            f'Extract "{filename}" into:\n{game_dir}\n\nContinue?',
             parent=self,
         )
         if not confirm:
@@ -693,7 +721,9 @@ class PackerFrame(ctk.CTkFrame):
         self._progress_bar.set(0)
 
         self.app.run_async(
-            self._import_bg, file_path, game_dir,
+            self._import_bg,
+            file_path,
+            game_dir,
             on_done=self._on_import_done,
             on_error=self._on_import_error,
         )
@@ -716,22 +746,24 @@ class PackerFrame(ctk.CTkFrame):
         dlc_list = ", ".join(found_dlc_ids)
         self._status_label.configure(text=f"Imported: {dlc_list}")
         self.app.show_toast(
-            f"Imported {len(found_dlc_ids)} DLC(s): {dlc_list}", "success",
+            f"Imported {len(found_dlc_ids)} DLC(s): {dlc_list}",
+            "success",
         )
 
         # Ask if user wants to register the DLCs
         register = tk.messagebox.askyesno(
             "Register DLCs",
-            f"The following DLCs were extracted:\n{dlc_list}\n\n"
-            "Enable them in the crack config?",
+            f"The following DLCs were extracted:\n{dlc_list}\n\nEnable them in the crack config?",
             parent=self,
         )
         if register:
             self.app.run_async(
-                self._register_bg, found_dlc_ids,
+                self._register_bg,
+                found_dlc_ids,
                 on_done=lambda _: self.app.show_toast("DLCs registered", "success"),
                 on_error=lambda e: self.app.show_toast(
-                    f"Registration error: {e}", "error",
+                    f"Registration error: {e}",
+                    "error",
                 ),
             )
 
@@ -743,9 +775,7 @@ class PackerFrame(ctk.CTkFrame):
         states = mgr.get_dlc_states(game_dir)
         enabled_set = set()
         for state in states:
-            if state.enabled is True or (
-                state.dlc.id in dlc_ids and state.installed
-            ):
+            if state.enabled is True or (state.dlc.id in dlc_ids and state.installed):
                 enabled_set.add(state.dlc.id)
         mgr.apply_changes(game_dir, enabled_set)
 
@@ -783,6 +813,7 @@ class PackerFrame(ctk.CTkFrame):
     def _open_output_folder(self):
         """Open the output folder in the system file explorer."""
         import os
+
         self._output_dir.mkdir(parents=True, exist_ok=True)
         os.startfile(self._output_dir)
 

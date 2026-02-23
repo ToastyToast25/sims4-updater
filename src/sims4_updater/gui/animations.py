@@ -13,6 +13,7 @@ from collections.abc import Callable
 
 # ── Easing Functions ────────────────────────────────────────────
 
+
 def ease_linear(t: float) -> float:
     return t
 
@@ -39,6 +40,7 @@ def ease_out_quad(t: float) -> float:
 
 
 # ── Color Utilities ─────────────────────────────────────────────
+
 
 def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     """Convert '#RRGGBB' (or '#RRGGBBAA') to (R, G, B)."""
@@ -73,8 +75,14 @@ class _Animation:
     """Represents a single running animation."""
 
     __slots__ = (
-        "widget", "duration_ms", "on_tick", "on_done", "easing",
-        "start_time", "after_id", "tag",
+        "widget",
+        "duration_ms",
+        "on_tick",
+        "on_done",
+        "easing",
+        "start_time",
+        "after_id",
+        "tag",
     )
 
     def __init__(self, widget, duration_ms, on_tick, on_done, easing, tag):
@@ -120,6 +128,7 @@ class Animator:
         tag: str = "",
     ) -> _Animation:
         """Animate a color property (fg_color, text_color, etc.)."""
+
         def on_tick(t):
             color = lerp_color(start, end, t)
             with contextlib.suppress(Exception):
@@ -147,6 +156,7 @@ class Animator:
 
     def _schedule(self, anim: _Animation):
         """Schedule the next frame of an animation."""
+
         def step():
             elapsed = (time.perf_counter() - anim.start_time) * 1000
             raw_t = min(elapsed / anim.duration_ms, 1.0) if anim.duration_ms > 0 else 1.0

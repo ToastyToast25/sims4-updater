@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install "ruff>=0.8.0"
+
+      - name: Lint
+        run: ruff check src/
+
+      - name: Format check
+        run: ruff format --check src/
+
+  test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout patcher dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/patcher
+          path: patcher
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: |
+          $env:PYTHONPATH = "src"
+          python -m pytest tests/ -v --tb=short
+
+  build-check:
+    runs-on: windows-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout patcher dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/patcher
+          path: patcher
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install customtkinter requests pywin32 pyinstaller py7zr
+
+      - name: Move patcher to expected location
+        shell: bash
+        run: |
+          if [ -d patcher ]; then
+            mv patcher ../patcher
+          fi
+
+      - name: Build Sims4Updater.exe
+        run: pyinstaller --clean --noconfirm sims4_updater.spec
+
+      - name: Verify exe exists
+        shell: bash
+        run: test -f dist/Sims4Updater.exe && echo "Build OK"

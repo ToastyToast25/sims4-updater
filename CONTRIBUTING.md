@@ -88,7 +88,7 @@ python -m sims4_updater --help
 
 ### Branch Naming
 
-Always branch from `main`. The CI also triggers on `master` (a legacy inconsistency), but all human contributors should use `main` as their base.
+Always branch from `main`.
 
 ```bash
 git checkout main
@@ -113,7 +113,7 @@ ruff format src/
 pytest tests/ -v --tb=short
 
 # 5. Optional: build the exe to verify packaging
-pyinstaller --clean --noconfirm Sims4Updater.spec
+pyinstaller --clean --noconfirm sims4_updater.spec
 # Output: dist/Sims4Updater.exe
 
 # 6. Commit with a clear message

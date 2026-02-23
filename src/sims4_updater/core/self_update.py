@@ -385,10 +385,7 @@ exit /b 0
     bat_path.write_text(script, encoding="utf-8")
 
     # VBScript wrapper — launches the bat with a hidden window (no console flash)
-    vbs_script = (
-        'CreateObject("Wscript.Shell").Run '
-        f'"cmd.exe /c ""{bat_path}""", 0, False'
-    )
+    vbs_script = f'CreateObject("Wscript.Shell").Run "cmd.exe /c ""{bat_path}""", 0, False'
     vbs_path.write_text(vbs_script, encoding="utf-8")
 
     # Launch via wscript.exe — the VBS runs the bat silently

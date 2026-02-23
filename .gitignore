@@ -35,9 +35,18 @@ build/
 dist/
 *.manifest
 
+# Local-only spec files (hardcoded paths, not portable)
+Sims4Updater.spec
+Sims4Updater_debug.spec
+
+# Manual edge-case tests (require admin, not for CI)
+test_unlocker_edge.py
+test_edge_output.txt
+
 # Misc
 *.log
 .env
 
-# CDN credentials (never commit)
+# CDN credentials and config (never commit)
 cloudflare-worker/cdn_config.json
+cloudflare-worker/cdn_manager_config.json

@@ -80,7 +80,9 @@ class SteamPriceCache:
 
 
 def _fetch_single_price(
-    session: requests.Session, app_id: int, cc: str = "US",
+    session: requests.Session,
+    app_id: int,
+    cc: str = "US",
 ) -> SteamPrice | None:
     """Fetch price for a single Steam app ID. Returns None on error."""
     try:

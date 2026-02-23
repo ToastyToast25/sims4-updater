@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
 
 class UnlockerFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -57,7 +56,8 @@ class UnlockerFrame(ctk.CTkFrame):
 
         # Row 0: Client detected
         ctk.CTkLabel(
-            self._card, text="Client",
+            self._card,
+            text="Client",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=0, column=0, padx=(theme.CARD_PAD_X, 8), pady=(theme.CARD_PAD_Y, 4), sticky="w")
@@ -67,7 +67,8 @@ class UnlockerFrame(ctk.CTkFrame):
 
         # Row 1: Unlocker status
         ctk.CTkLabel(
-            self._card, text="Status",
+            self._card,
+            text="Status",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
@@ -77,12 +78,14 @@ class UnlockerFrame(ctk.CTkFrame):
 
         # Row 2: Admin status
         ctk.CTkLabel(
-            self._card, text="Admin",
+            self._card,
+            text="Admin",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=2, column=0, padx=(theme.CARD_PAD_X, 8), pady=(4, theme.CARD_PAD_Y), sticky="w")
 
         from ...core.unlocker import is_admin
+
         self._is_admin = is_admin()
         admin_text = "Elevated" if self._is_admin else "Not Elevated"
         admin_style = "success" if self._is_admin else "warning"
@@ -256,11 +259,11 @@ class UnlockerFrame(ctk.CTkFrame):
         if self._busy:
             return
         if not self._is_admin:
-            self.app.show_toast(
-                "Run as Administrator to install the unlocker.", "warning"
+            self.app.show_toast("Run as Administrator to install the unlocker.", "warning")
+            self._log(
+                "Install requires administrator privileges. "
+                "Right-click the app and select 'Run as administrator'."
             )
-            self._log("Install requires administrator privileges. "
-                       "Right-click the app and select 'Run as administrator'.")
             return
         self._set_busy(True)
         self._log("--- Installing DLC Unlocker ---")
@@ -287,11 +290,11 @@ class UnlockerFrame(ctk.CTkFrame):
         if self._busy:
             return
         if not self._is_admin:
-            self.app.show_toast(
-                "Run as Administrator to uninstall the unlocker.", "warning"
+            self.app.show_toast("Run as Administrator to uninstall the unlocker.", "warning")
+            self._log(
+                "Uninstall requires administrator privileges. "
+                "Right-click the app and select 'Run as administrator'."
             )
-            self._log("Uninstall requires administrator privileges. "
-                       "Right-click the app and select 'Run as administrator'.")
             return
 
         # Confirmation dialog
@@ -327,7 +330,6 @@ class UnlockerFrame(ctk.CTkFrame):
 
     def _on_open_configs(self):
         from ...core.unlocker import open_configs_folder
+
         if not open_configs_folder():
-            self.app.show_toast(
-                "Configs folder not found. Install the Unlocker first.", "warning"
-            )
+            self.app.show_toast("Configs folder not found. Install the Unlocker first.", "warning")

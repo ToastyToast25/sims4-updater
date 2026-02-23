@@ -63,7 +63,7 @@ def _find_depots_section(content: str) -> tuple[int, int]:
     pattern = re.compile(r'"depots"\s*\{')
     match = pattern.search(content)
     if match is None:
-        raise ValueError("No \"depots\" section found in config.vdf")
+        raise ValueError('No "depots" section found in config.vdf')
 
     open_brace = match.end() - 1
     depth = 1
@@ -225,17 +225,14 @@ def add_depot_keys(
 
     if is_steam_running():
         raise RuntimeError(
-            "Cannot modify config.vdf while Steam is running. "
-            "Please close Steam and try again."
+            "Cannot modify config.vdf while Steam is running. Please close Steam and try again."
         )
 
     path = Path(config_vdf_path)
     content = path.read_text(encoding="utf-8")
 
     if not _validate_braces(content):
-        raise ValueError(
-            f"config.vdf has unbalanced braces before modification: {path}"
-        )
+        raise ValueError(f"config.vdf has unbalanced braces before modification: {path}")
 
     if auto_backup:
         backup_config_vdf(path)

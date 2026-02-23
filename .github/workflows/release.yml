@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-updater:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout patcher dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/patcher
+          path: patcher
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install customtkinter requests pywin32 pyinstaller py7zr
+
+      - name: Verify version matches tag
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CODE_VERSION=$(python -c "exec(open('src/sims4_updater/__init__.py').read()); print(VERSION)")
+          echo "Tag version:  $TAG_VERSION"
+          echo "Code version: $CODE_VERSION"
+          if [ "$TAG_VERSION" != "$CODE_VERSION" ]; then
+            echo "::error::Version mismatch! Tag is v$TAG_VERSION but __init__.py has $CODE_VERSION"
+            exit 1
+          fi
+
+      - name: Move patcher to expected location
+        shell: bash
+        run: |
+          # The spec expects ../patcher/ relative to the repo root
+          # GitHub Actions checks out to patcher/ inside the repo, move it up
+          mv patcher ../patcher
+
+      - name: Build Sims4Updater.exe
+        run: pyinstaller --clean --noconfirm sims4_updater.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sims4Updater
+          path: dist/Sims4Updater.exe
+          if-no-files-found: error
+
+  build-cdn-manager:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout patcher dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/patcher
+          path: patcher
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install customtkinter requests pyinstaller paramiko bcrypt cryptography
+
+      - name: Move patcher to expected location
+        shell: bash
+        run: mv patcher ../patcher
+
+      - name: Build CDNManager.exe
+        run: |
+          cd cloudflare-worker
+          pyinstaller --clean --noconfirm cdn_manager.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CDNManager
+          path: cloudflare-worker/dist/CDNManager.exe
+          if-no-files-found: error
+
+  release:
+    needs: [build-updater, build-cdn-manager]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Sims4Updater
+        uses: actions/download-artifact@v4
+        with:
+          name: Sims4Updater
+
+      - name: Download CDNManager
+        uses: actions/download-artifact@v4
+        with:
+          name: CDNManager
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Sims4Updater.exe
+            CDNManager.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -154,7 +154,10 @@ def get_current_language(game_dir: str | Path | None = None) -> str:
     ):
         try:
             with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY, 0, view,
+                winreg.HKEY_LOCAL_MACHINE,
+                REGISTRY_KEY,
+                0,
+                view,
             ) as key:
                 value, _ = winreg.QueryValueEx(key, REGISTRY_VALUE)
                 if value in LANGUAGES:
@@ -243,6 +246,7 @@ def set_language(
         raise ValueError(f"Unknown language code: {language_code}")
 
     if log is None:
+
         def log(_msg):
             pass
 
@@ -260,7 +264,9 @@ def set_language(
     anadius_updated = []
     if game_dir:
         anadius_updated = _update_anadius_configs(
-            Path(game_dir), language_code, log,
+            Path(game_dir),
+            language_code,
+            log,
         )
 
     # 2. Update Windows registry
@@ -307,9 +313,7 @@ def _set_registry_language(language_code: str) -> bool:
         winreg.KEY_WRITE | winreg.KEY_WOW64_32KEY,
     ):
         try:
-            with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY, 0, view
-            ) as key:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY, 0, view) as key:
                 winreg.SetValueEx(key, REGISTRY_VALUE, 0, winreg.REG_SZ, language_code)
                 success = True
         except (OSError, PermissionError):
@@ -319,6 +323,7 @@ def _set_registry_language(language_code: str) -> bool:
 
 
 # ── Anadius crack config ─────────────────────────────────────────
+
 
 def _read_anadius_language(game_dir: Path) -> str | None:
     """Read the Language field, checking override file first, then anadius.cfg."""
@@ -344,7 +349,9 @@ def _read_anadius_language(game_dir: Path) -> str | None:
 
 
 def _update_anadius_configs(
-    game_dir: Path, language_code: str, log: callable,
+    game_dir: Path,
+    language_code: str,
+    log: callable,
 ) -> list[str]:
     """Update language in anadius.cfg and anadius_override.cfg files.
 
@@ -370,7 +377,7 @@ def _update_anadius_configs(
             # Must NOT match "Languages" or "LanguageRegistryKey" etc.
             content = re.sub(
                 r'("Language"(\s+)")[^"]*(")',
-                rf'\g<1>{language_code}\3',
+                rf"\g<1>{language_code}\3",
                 content,
             )
 
@@ -378,7 +385,7 @@ def _update_anadius_configs(
             # Language field directly instead of reading the registry
             content = re.sub(
                 r'("LanguageRegistrySpoof"(\s+)")[^"]*(")',
-                r'\g<1>true\3',
+                r"\g<1>true\3",
                 content,
             )
 
@@ -391,7 +398,7 @@ def _update_anadius_configs(
                 m2 = re.search(r'"LanguageRegistrySpoof"\s+"([^"]+)"', verify)
                 spoof_val = m2.group(1) if m2 else "not found"
                 log(f"Updated: {config_path}")
-                log(f"  Language = \"{written_lang}\", LanguageRegistrySpoof = \"{spoof_val}\"")
+                log(f'  Language = "{written_lang}", LanguageRegistrySpoof = "{spoof_val}"')
                 updated.append(str(config_path))
             else:
                 log(f"No changes needed: {config_path}")
@@ -419,7 +426,9 @@ def _update_anadius_configs(
 
 
 def _ensure_language_override(
-    override_path: Path, language_code: str, log: callable,
+    override_path: Path,
+    language_code: str,
+    log: callable,
 ):
     """Create or update anadius_override.cfg with language settings.
 
@@ -433,13 +442,13 @@ def _ensure_language_override(
         if re.search(r'"Language"\s+"[^"]*"', content):
             new_content = re.sub(
                 r'("Language"(\s+)")[^"]*(")',
-                rf'\g<1>{language_code}\3',
+                rf"\g<1>{language_code}\3",
                 content,
             )
             if new_content != content:
                 override_path.write_text(new_content, encoding="utf-8")
                 log(f"Updated override: {override_path}")
-                log(f"  Language = \"{language_code}\"")
+                log(f'  Language = "{language_code}"')
             else:
                 log(f"Override already set: {override_path}")
             return
@@ -448,11 +457,11 @@ def _ensure_language_override(
         # Add the Game section inside the existing Config2 block.
         game_section = (
             '    "Game"\n'
-            '    {\n'
+            "    {\n"
             f'        "Languages"             "{_ALL_LANGUAGES_CSV}"\n'
             f'        "Language"              "{language_code}"\n'
             '        "LanguageRegistryKey"   "Software\\Maxis\\The Sims 4\\Locale"\n'
-            '    }\n'
+            "    }\n"
         )
         if '"Config2"' in content:
             # Insert before the last closing brace of Config2
@@ -474,6 +483,7 @@ def _ensure_language_override(
 
 # ── Steam appmanifest ────────────────────────────────────────────
 
+
 def _find_steam_manifest(game_dir: Path) -> Path | None:
     """Find the Steam appmanifest for The Sims 4.
 
@@ -494,7 +504,9 @@ def _find_steam_manifest(game_dir: Path) -> Path | None:
 
 
 def _update_steam_manifest(
-    game_dir: Path, language_code: str, log: callable,
+    game_dir: Path,
+    language_code: str,
+    log: callable,
 ) -> bool:
     """Update the Steam appmanifest language for The Sims 4.
 
@@ -519,7 +531,7 @@ def _update_steam_manifest(
         # Pattern: "language"		"english"  (with tabs as separators)
         content = re.sub(
             r'("language"\s+")[^"]*(")',
-            rf'\g<1>{steam_lang}\2',
+            rf"\g<1>{steam_lang}\2",
             content,
         )
 
@@ -541,8 +553,11 @@ def _update_steam_manifest(
 
 # ── RldOrigin.ini ────────────────────────────────────────────────
 
+
 def _update_rld_configs(
-    game_dir: Path, language_code: str, log: callable,
+    game_dir: Path,
+    language_code: str,
+    log: callable,
 ) -> list[str]:
     """Update RldOrigin.ini files with the new language.
 

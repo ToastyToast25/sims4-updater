@@ -32,9 +32,7 @@ class Popen2(subprocess.Popen):
         self._check_exiting = check_exiting
 
         if os.name == "nt":
-            kwargs["creationflags"] = (
-                kwargs.get("creationflags", 0) | subprocess.CREATE_NEW_CONSOLE
-            )
+            kwargs["creationflags"] = kwargs.get("creationflags", 0) | subprocess.CREATE_NEW_CONSOLE
             startupinfo = kwargs.get("startupinfo", subprocess.STARTUPINFO())
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE

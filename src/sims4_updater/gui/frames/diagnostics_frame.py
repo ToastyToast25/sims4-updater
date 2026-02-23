@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 
 
 class DiagnosticsFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -239,7 +238,9 @@ class DiagnosticsFrame(ctk.CTkFrame):
 
         try:
             report = self._validator.validate(
-                game_dir, progress=progress, check_hashes=False,
+                game_dir,
+                progress=progress,
+                check_hashes=False,
             )
             self.app._enqueue_gui(self._on_validate_done, report)
         except Exception as e:
@@ -291,7 +292,11 @@ class DiagnosticsFrame(ctk.CTkFrame):
                 corner_radius=6,
             )
             folder_card.grid(
-                row=row, column=0, padx=5, pady=(5, 10), sticky="ew",
+                row=row,
+                column=0,
+                padx=5,
+                pady=(5, 10),
+                sticky="ew",
             )
             folder_card.grid_columnconfigure(1, weight=1)
             row += 1
@@ -353,7 +358,9 @@ class DiagnosticsFrame(ctk.CTkFrame):
 
             # Bottom padding
             ctk.CTkFrame(
-                folder_card, height=6, fg_color="transparent",
+                folder_card,
+                height=6,
+                fg_color="transparent",
             ).grid(row=len(report.folders) + 2, column=0, columnspan=4)
 
         # Problems list
@@ -431,7 +438,8 @@ class DiagnosticsFrame(ctk.CTkFrame):
         self._validate_btn.configure(state="normal", text="Validate Game Files")
         self._progress_bar.grid_remove()
         self._status_label.configure(
-            text=f"Error: {error}", text_color=theme.COLORS["error"],
+            text=f"Error: {error}",
+            text_color=theme.COLORS["error"],
         )
         self.app.show_toast(f"Validation failed: {error}", "error")
 
@@ -487,7 +495,8 @@ class DiagnosticsFrame(ctk.CTkFrame):
         self._validate_btn.configure(state="normal", text="Validate Game Files")
         self._progress_bar.grid_remove()
         self._status_label.configure(
-            text=f"Error: {error}", text_color=theme.COLORS["error"],
+            text=f"Error: {error}",
+            text_color=theme.COLORS["error"],
         )
 
     def _clear_results(self):
@@ -506,7 +515,10 @@ class DiagnosticsFrame(ctk.CTkFrame):
         )
         card.grid(
             row=len(self._results.winfo_children()),
-            column=0, padx=5, pady=(5, 5), sticky="ew",
+            column=0,
+            padx=5,
+            pady=(5, 5),
+            sticky="ew",
         )
         card.grid_columnconfigure(1, weight=1)
         card.grid_propagate(False)

@@ -21,9 +21,7 @@ class DLCManager:
     def detect_format(self, game_dir: str | Path) -> DLCConfigAdapter | None:
         return detect_format(Path(game_dir))
 
-    def get_dlc_states(
-        self, game_dir: str | Path, locale: str = "en_US"
-    ) -> list[DLCStatus]:
+    def get_dlc_states(self, game_dir: str | Path, locale: str = "en_US") -> list[DLCStatus]:
         """
         Get full DLC state info for display.
 
@@ -69,15 +67,17 @@ class DLCManager:
             # Free packs are always owned when installed — they're free for everyone
             owned = installed and (not registered or dlc.pack_type == "free_pack")
 
-            results.append(DLCStatus(
-                dlc=dlc,
-                installed=installed,
-                complete=complete,
-                registered=registered,
-                enabled=enabled,
-                owned=owned,
-                file_count=file_count,
-            ))
+            results.append(
+                DLCStatus(
+                    dlc=dlc,
+                    installed=installed,
+                    complete=complete,
+                    registered=registered,
+                    enabled=enabled,
+                    owned=owned,
+                    file_count=file_count,
+                )
+            )
 
         return results
 
@@ -103,9 +103,7 @@ class DLCManager:
         if config_path is None:
             raise NoCrackConfigError("Crack config file not found.")
 
-        content = config_path.read_text(
-            encoding=adapter.get_encoding(), errors="replace"
-        )
+        content = config_path.read_text(encoding=adapter.get_encoding(), errors="replace")
 
         for dlc in self.catalog.all_dlcs():
             should_enable = dlc.id in enabled_dlcs
@@ -150,11 +148,7 @@ class DLCManager:
     def export_states(self, game_dir: str | Path) -> dict[str, bool]:
         """Export current DLC states for backup before patching."""
         states = self.get_dlc_states(game_dir)
-        return {
-            s.dlc.id: s.enabled
-            for s in states
-            if s.enabled is not None
-        }
+        return {s.dlc.id: s.enabled for s in states if s.enabled is not None}
 
     def import_states(self, game_dir: str | Path, saved_states: dict[str, bool]) -> None:
         """Restore DLC states from a previous export."""
@@ -215,14 +209,16 @@ class DLCManager:
                     config_path = adapter.get_config_path(game_dir)
                     if config_path and config_path.is_file():
                         content = config_path.read_text(
-                            encoding=adapter.get_encoding(), errors="replace",
+                            encoding=adapter.get_encoding(),
+                            errors="replace",
                         )
                         dlc = self.catalog.get_by_id(dlc_id)
                         if dlc:
                             for code in dlc.all_codes:
                                 content = adapter.set_dlc_state(content, code, False)
                             config_path.write_text(
-                                content, encoding=adapter.get_encoding(),
+                                content,
+                                encoding=adapter.get_encoding(),
                             )
                             # Mirror to Bin_LE if present
                             bin_le = Path(str(config_path).replace("Bin", "Bin_LE"))

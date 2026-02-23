@@ -101,6 +101,7 @@ class SteamLanguageDownloader:
         Returns True on success.
         """
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -108,10 +109,7 @@ class SteamLanguageDownloader:
 
         try:
             # Get latest release info
-            api_url = (
-                f"https://api.github.com/repos/{DEPOT_DOWNLOADER_REPO}"
-                f"/releases/latest"
-            )
+            api_url = f"https://api.github.com/repos/{DEPOT_DOWNLOADER_REPO}/releases/latest"
             req = urllib.request.Request(
                 api_url,
                 headers={"Accept": "application/vnd.github.v3+json"},
@@ -138,7 +136,8 @@ class SteamLanguageDownloader:
 
             # Download to temp file
             with tempfile.NamedTemporaryFile(
-                suffix=".zip", delete=False,
+                suffix=".zip",
+                delete=False,
             ) as tmp:
                 tmp_path = Path(tmp.name)
 
@@ -207,6 +206,7 @@ class SteamLanguageDownloader:
             SteamDownloadResult with success status and installed locales.
         """
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -231,7 +231,8 @@ class SteamLanguageDownloader:
 
         if not targets:
             return SteamDownloadResult(
-                success=False, error="No languages to download.",
+                success=False,
+                error="No languages to download.",
             )
 
         # Create filelist for Strings filtering
@@ -256,17 +257,23 @@ class SteamLanguageDownloader:
                     break
 
                 from .changer import LANGUAGES
+
                 lang_name = LANGUAGES.get(locale_code, locale_code)
                 log(f"[{i}/{len(targets)}] Downloading {lang_name} ({steam_lang})...")
 
                 args = [
                     str(self.get_tool_path()),
-                    "-app", SIMS4_APP_ID,
-                    "-username", username,
+                    "-app",
+                    SIMS4_APP_ID,
+                    "-username",
+                    username,
                     "-remember-password",
-                    "-language", steam_lang,
-                    "-filelist", str(filelist_path),
-                    "-dir", str(download_dir),
+                    "-language",
+                    steam_lang,
+                    "-filelist",
+                    str(filelist_path),
+                    "-dir",
+                    str(download_dir),
                 ]
 
                 # Only pass interactive auth callbacks on the first run.
@@ -288,10 +295,7 @@ class SteamLanguageDownloader:
                 if exit_code != 0:
                     output_lower = output.lower()
                     if "not available from this account" in output_lower:
-                        error = (
-                            "The Sims 4 is not available on this Steam "
-                            "account."
-                        )
+                        error = "The Sims 4 is not available on this Steam account."
                         log(f"ERROR: {error}")
                         return SteamDownloadResult(
                             success=False,
@@ -318,15 +322,12 @@ class SteamLanguageDownloader:
 
             # Summary
             if all_installed:
-                log(
-                    f"Successfully installed {len(all_installed)} "
-                    f"language pack(s)."
-                )
+                log(f"Successfully installed {len(all_installed)} language pack(s).")
                 if errors:
-                    log(f"{len(errors)} language(s) failed: "
-                        + ", ".join(errors))
+                    log(f"{len(errors)} language(s) failed: " + ", ".join(errors))
                 return SteamDownloadResult(
-                    success=True, installed_locales=all_installed,
+                    success=True,
+                    installed_locales=all_installed,
                 )
             else:
                 error = "No language files were downloaded."
@@ -383,6 +384,7 @@ class SteamLanguageDownloader:
         Returns (exit_code, combined_output).
         """
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -484,9 +486,13 @@ class SteamLanguageDownloader:
 
                     # 2FA / Steam Guard prompt
                     elif not auth_code_sent and any(
-                        kw in partial_lower for kw in (
-                            "steam guard", "two-factor", "2fa",
-                            "authentication code", "auth code",
+                        kw in partial_lower
+                        for kw in (
+                            "steam guard",
+                            "two-factor",
+                            "2fa",
+                            "authentication code",
+                            "auth code",
                         )
                     ):
                         output_lines.append(partial)
@@ -554,10 +560,18 @@ class SteamLanguageDownloader:
             return
 
         # General depot/download output
-        if any(kw in line_lower for kw in (
-            "downloading", "depot", "manifest", "validating",
-            "got depot", "downloaded", "total",
-        )):
+        if any(
+            kw in line_lower
+            for kw in (
+                "downloading",
+                "depot",
+                "manifest",
+                "validating",
+                "got depot",
+                "downloaded",
+                "total",
+            )
+        ):
             log(line)
             return
 
@@ -566,7 +580,9 @@ class SteamLanguageDownloader:
             log(line)
 
     def _copy_strings_to_game(
-        self, download_dir: Path, log: LogCallback,
+        self,
+        download_dir: Path,
+        log: LogCallback,
     ) -> list[str]:
         """Copy downloaded Strings files to the game's Data/Client/ directory.
 
@@ -592,7 +608,7 @@ class SteamLanguageDownloader:
             if not filename.startswith("Strings_") or not filename.endswith(".package"):
                 continue
 
-            suffix = filename[len("Strings_"):-len(".package")]
+            suffix = filename[len("Strings_") : -len(".package")]
             locale = strings_to_locale.get(suffix)
 
             dest_path = dest_dir / filename

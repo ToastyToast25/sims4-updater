@@ -14,12 +14,12 @@ class DLCStatus:
     """Rich status info for a single DLC."""
 
     dlc: "DLCInfo"
-    installed: bool = False       # folder exists on disk
-    complete: bool = False        # SimulationFullBuild0.package present
-    registered: bool = False      # has entry in crack config
-    enabled: bool | None = None   # enabled in crack config (None if not registered)
-    owned: bool = False           # installed AND not in crack config = legit EA copy
-    file_count: int = 0           # number of files in DLC folder
+    installed: bool = False  # folder exists on disk
+    complete: bool = False  # SimulationFullBuild0.package present
+    registered: bool = False  # has entry in crack config
+    enabled: bool | None = None  # enabled in crack config (None if not registered)
+    owned: bool = False  # installed AND not in crack config = legit EA copy
+    file_count: int = 0  # number of files in DLC folder
 
     @property
     def status_label(self) -> str:
@@ -38,10 +38,10 @@ class DLCStatus:
 
 @dataclass
 class DLCInfo:
-    id: str           # e.g. "EP01"
-    code: str         # e.g. "SIMS4.OFF.SOLP.0x0000000000011AC5"
-    code2: str        # alternative code (may be empty)
-    pack_type: str    # expansion, game_pack, stuff_pack, free_pack, kit
+    id: str  # e.g. "EP01"
+    code: str  # e.g. "SIMS4.OFF.SOLP.0x0000000000011AC5"
+    code2: str  # alternative code (may be empty)
+    pack_type: str  # expansion, game_pack, stuff_pack, free_pack, kit
     names: dict[str, str]  # {locale: display_name}
     description: str = ""  # short English description of the pack
     steam_app_id: int | None = None  # Steam store app ID
@@ -120,6 +120,7 @@ class DLCCatalog:
         """Path to the custom DLCs file in app data."""
         try:
             from ..config import get_app_dir
+
             return get_app_dir() / "custom_dlcs.json"
         except Exception:
             return None

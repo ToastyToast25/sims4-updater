@@ -20,8 +20,8 @@ from .learned_hashes import LearnedHashDB
 
 class Confidence(Enum):
     DEFINITIVE = "definitive"  # unique match on all available sentinels
-    PROBABLE = "probable"      # matched but some sentinels missing
-    UNKNOWN = "unknown"        # no match found
+    PROBABLE = "probable"  # matched but some sentinels missing
+    UNKNOWN = "unknown"  # no match found
 
 
 @dataclass
@@ -157,8 +157,7 @@ class VersionDetector:
 
         if not self.validate_game_dir(game_dir):
             raise VersionDetectionError(
-                f'"{game_dir}" does not look like a Sims 4 installation. '
-                f"Missing expected files."
+                f'"{game_dir}" does not look like a Sims 4 installation. Missing expected files.'
             )
 
         sentinels = self.db.sentinel_files

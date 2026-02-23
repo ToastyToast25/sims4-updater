@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
 
 class SettingsFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -34,7 +33,8 @@ class SettingsFrame(ctk.CTkFrame):
 
         # ── Scrollable body ──
         scroll = ctk.CTkScrollableFrame(
-            self, fg_color="transparent",
+            self,
+            fg_color="transparent",
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
@@ -52,34 +52,55 @@ class SettingsFrame(ctk.CTkFrame):
 
         # ── Game Directory ──
         ctk.CTkLabel(
-            card1, text="Game Directory",
+            card1,
+            text="Game Directory",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 2), sticky="w")
+        ).grid(
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 2),
+            sticky="w",
+        )
         row += 1
 
         path_frame = ctk.CTkFrame(card1, fg_color="transparent")
         path_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         path_frame.grid_columnconfigure(0, weight=1)
 
         self._game_dir_entry = ctk.CTkEntry(
-            path_frame, font=ctk.CTkFont(size=12), height=36,
+            path_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text=r"C:\Program Files (x86)\Steam\steamapps\common\The Sims 4",
         )
         self._game_dir_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         ctk.CTkButton(
-            path_frame, text="Browse", font=ctk.CTkFont(size=12),
-            height=36, width=80, corner_radius=theme.CORNER_RADIUS_SMALL,
+            path_frame,
+            text="Browse",
+            font=ctk.CTkFont(size=12),
+            height=36,
+            width=80,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_game_dir,
         ).grid(row=0, column=1, padx=(0, 5))
 
         ctk.CTkButton(
-            path_frame, text="Auto Detect", font=ctk.CTkFont(size=12),
-            height=36, width=100, corner_radius=theme.CORNER_RADIUS_SMALL,
+            path_frame,
+            text="Auto Detect",
+            font=ctk.CTkFont(size=12),
+            height=36,
+            width=100,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
             command=self._auto_detect_game_dir,
@@ -89,45 +110,56 @@ class SettingsFrame(ctk.CTkFrame):
 
         # ── Separator ──
         ctk.CTkFrame(
-            card1, height=1, fg_color=theme.COLORS["separator"],
+            card1,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Patch Manifest URL ──
         ctk.CTkLabel(
-            card1, text="Patch Manifest URL",
+            card1,
+            text="Patch Manifest URL",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(6, 0), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(6, 0), sticky="w")
         row += 1
 
         ctk.CTkLabel(
-            card1, text="URL for game patches and DLC content updates",
+            card1,
+            text="URL for game patches and DLC content updates",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(0, 4), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(0, 4), sticky="w")
         row += 1
 
         self._manifest_entry = ctk.CTkEntry(
-            card1, font=ctk.CTkFont(size=12), height=36,
+            card1,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text="https://example.com/manifest.json",
         )
         self._manifest_entry.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card1, height=1, fg_color=theme.COLORS["separator"],
+            card1,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Language ──
         ctk.CTkLabel(
-            card1, text="Language",
+            card1,
+            text="Language",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
         ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
@@ -138,24 +170,35 @@ class SettingsFrame(ctk.CTkFrame):
         self._lang_var = ctk.StringVar()
 
         self._lang_dropdown = ctk.CTkComboBox(
-            card1, values=lang_values, variable=self._lang_var,
-            font=ctk.CTkFont(size=12), height=36, state="readonly",
+            card1,
+            values=lang_values,
+            variable=self._lang_var,
+            font=ctk.CTkFont(size=12),
+            height=36,
+            state="readonly",
         )
         self._lang_dropdown.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card1, height=1, fg_color=theme.COLORS["separator"],
+            card1,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Theme ──
         ctk.CTkLabel(
-            card1, text="Theme",
+            card1,
+            text="Theme",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
         ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
@@ -163,41 +206,62 @@ class SettingsFrame(ctk.CTkFrame):
         self._theme_var = ctk.StringVar(value="Dark")
         theme_frame = ctk.CTkFrame(card1, fg_color="transparent")
         theme_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="w",
         )
         for val in ("Dark", "Light", "System"):
             ctk.CTkRadioButton(
-                theme_frame, text=val, variable=self._theme_var, value=val,
+                theme_frame,
+                text=val,
+                variable=self._theme_var,
+                value=val,
                 font=ctk.CTkFont(size=12),
             ).pack(side="left", padx=(0, 20))
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card1, height=1, fg_color=theme.COLORS["separator"],
+            card1,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Check on start ──
         self._check_start_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
-            card1, text="Check for updates on startup",
-            variable=self._check_start_var, font=ctk.CTkFont(size=12),
+            card1,
+            text="Check for updates on startup",
+            variable=self._check_start_var,
+            font=ctk.CTkFont(size=12),
         ).grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(6, 4), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(6, 4),
+            sticky="w",
         )
         row += 1
 
         # ── DLC-Only Mode ──
         self._skip_update_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
-            card1, text="DLC-only mode (skip base game updates)",
-            variable=self._skip_update_var, font=ctk.CTkFont(size=12),
+            card1,
+            text="DLC-only mode (skip base game updates)",
+            variable=self._skip_update_var,
+            font=ctk.CTkFont(size=12),
         ).grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 2), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 2),
+            sticky="w",
         )
         row += 1
 
@@ -207,9 +271,12 @@ class SettingsFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(
-            row=row, column=0, columnspan=2,
+            row=row,
+            column=0,
+            columnspan=2,
             padx=(theme.CARD_PAD_X + 24, theme.CARD_PAD_X),
-            pady=(0, theme.CARD_PAD_Y), sticky="w",
+            pady=(0, theme.CARD_PAD_Y),
+            sticky="w",
         )
         row += 1
 
@@ -217,12 +284,14 @@ class SettingsFrame(ctk.CTkFrame):
         # CARD 2: GreenLuma
         # ═══════════════════════════════════════════════════════════
         ctk.CTkLabel(
-            scroll, text="GreenLuma",
+            scroll,
+            text="GreenLuma",
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).grid(row=1, column=0, padx=30, pady=(5, 2), sticky="w")
 
         ctk.CTkLabel(
-            scroll, text="Settings for Steam DLC downloads via GreenLuma",
+            scroll,
+            text="Settings for Steam DLC downloads via GreenLuma",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=2, column=0, padx=30, pady=(0, 8), sticky="w")
@@ -235,156 +304,217 @@ class SettingsFrame(ctk.CTkFrame):
 
         # ── Steam Path ──
         ctk.CTkLabel(
-            card2, text="Steam Path",
+            card2,
+            text="Steam Path",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 2), sticky="w")
+        ).grid(
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 2),
+            sticky="w",
+        )
         row += 1
 
         sp_frame = ctk.CTkFrame(card2, fg_color="transparent")
         sp_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         sp_frame.grid_columnconfigure(0, weight=1)
 
         self._steam_path_entry = ctk.CTkEntry(
-            sp_frame, font=ctk.CTkFont(size=12), height=36,
+            sp_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text=r"C:\Program Files (x86)\Steam",
         )
         self._steam_path_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         ctk.CTkButton(
-            sp_frame, text="Browse", font=ctk.CTkFont(size=12),
-            height=36, width=80, corner_radius=theme.CORNER_RADIUS_SMALL,
+            sp_frame,
+            text="Browse",
+            font=ctk.CTkFont(size=12),
+            height=36,
+            width=80,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_steam_path,
         ).grid(row=0, column=1)
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card2, height=1, fg_color=theme.COLORS["separator"],
+            card2,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── GreenLuma Archive ──
         ctk.CTkLabel(
-            card2, text="GreenLuma Archive",
+            card2,
+            text="GreenLuma Archive",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
 
         ar_frame = ctk.CTkFrame(card2, fg_color="transparent")
         ar_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         ar_frame.grid_columnconfigure(0, weight=1)
 
         self._gl_archive_entry = ctk.CTkEntry(
-            ar_frame, font=ctk.CTkFont(size=12), height=36,
+            ar_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text=r"C:\path\to\GreenLuma_2025_1.7.0.7z",
         )
         self._gl_archive_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         ctk.CTkButton(
-            ar_frame, text="Browse", font=ctk.CTkFont(size=12),
-            height=36, width=80, corner_radius=theme.CORNER_RADIUS_SMALL,
+            ar_frame,
+            text="Browse",
+            font=ctk.CTkFont(size=12),
+            height=36,
+            width=80,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_gl_archive,
         ).grid(row=0, column=1)
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card2, height=1, fg_color=theme.COLORS["separator"],
+            card2,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── LUA Manifest File ──
         ctk.CTkLabel(
-            card2, text="LUA Manifest File",
+            card2,
+            text="LUA Manifest File",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
         row += 1
 
         lua_frame = ctk.CTkFrame(card2, fg_color="transparent")
         lua_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         lua_frame.grid_columnconfigure(0, weight=1)
 
         self._gl_lua_entry = ctk.CTkEntry(
-            lua_frame, font=ctk.CTkFont(size=12), height=36,
+            lua_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text=r"C:\path\to\manifest.lua",
         )
         self._gl_lua_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         ctk.CTkButton(
-            lua_frame, text="Browse", font=ctk.CTkFont(size=12),
-            height=36, width=80, corner_radius=theme.CORNER_RADIUS_SMALL,
+            lua_frame,
+            text="Browse",
+            font=ctk.CTkFont(size=12),
+            height=36,
+            width=80,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_gl_lua,
         ).grid(row=0, column=1)
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card2, height=1, fg_color=theme.COLORS["separator"],
+            card2,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Manifest Files Directory ──
         ctk.CTkLabel(
-            card2, text="Manifest Files Directory",
+            card2,
+            text="Manifest Files Directory",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(6, 0), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(6, 0), sticky="w")
         row += 1
 
         ctk.CTkLabel(
-            card2, text="Directory containing .manifest files (defaults to Steam depotcache)",
+            card2,
+            text="Directory containing .manifest files (defaults to Steam depotcache)",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(0, 4), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(0, 4), sticky="w")
         row += 1
 
         md_frame = ctk.CTkFrame(card2, fg_color="transparent")
         md_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 10), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 10),
+            sticky="ew",
         )
         md_frame.grid_columnconfigure(0, weight=1)
 
         self._gl_manifest_dir_entry = ctk.CTkEntry(
-            md_frame, font=ctk.CTkFont(size=12), height=36,
+            md_frame,
+            font=ctk.CTkFont(size=12),
+            height=36,
             placeholder_text=r"C:\Program Files (x86)\Steam\depotcache",
         )
         self._gl_manifest_dir_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
 
         ctk.CTkButton(
-            md_frame, text="Browse", font=ctk.CTkFont(size=12),
-            height=36, width=80, corner_radius=theme.CORNER_RADIUS_SMALL,
+            md_frame,
+            text="Browse",
+            font=ctk.CTkFont(size=12),
+            height=36,
+            width=80,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
             command=self._browse_gl_manifest_dir,
         ).grid(row=0, column=1)
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card2, height=1, fg_color=theme.COLORS["separator"],
+            card2,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Auto-backup ──
         self._gl_auto_backup_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
-            card2, text="Auto-backup config.vdf and AppList before changes",
-            variable=self._gl_auto_backup_var, font=ctk.CTkFont(size=12),
+            card2,
+            text="Auto-backup config.vdf and AppList before changes",
+            variable=self._gl_auto_backup_var,
+            font=ctk.CTkFont(size=12),
         ).grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(6, theme.CARD_PAD_Y), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(6, theme.CARD_PAD_Y),
+            sticky="w",
         )
         row += 1
 
@@ -395,16 +525,20 @@ class SettingsFrame(ctk.CTkFrame):
         backup_header.grid(row=4, column=0, padx=30, pady=(5, 2), sticky="ew")
 
         ctk.CTkLabel(
-            backup_header, text="Backup & Restore",
+            backup_header,
+            text="Backup & Restore",
             font=ctk.CTkFont(*theme.FONT_HEADING),
         ).pack(side="left")
 
         ctk.CTkLabel(
-            backup_header, text="BETA",
+            backup_header,
+            text="BETA",
             font=ctk.CTkFont(size=9, weight="bold"),
             text_color=theme.COLORS["warning"],
             fg_color=theme.COLORS["toast_warning"],
-            corner_radius=4, width=40, height=18,
+            corner_radius=4,
+            width=40,
+            height=18,
         ).pack(side="left", padx=(8, 0))
 
         ctk.CTkLabel(
@@ -423,11 +557,17 @@ class SettingsFrame(ctk.CTkFrame):
         # ── Enable backup ──
         self._backup_enabled_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
-            card3, text="Enable backup before patching",
-            variable=self._backup_enabled_var, font=ctk.CTkFont(size=12),
+            card3,
+            text="Enable backup before patching",
+            variable=self._backup_enabled_var,
+            font=ctk.CTkFont(size=12),
         ).grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(theme.CARD_PAD_Y, 4), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 4),
+            sticky="w",
         )
         row += 1
 
@@ -437,34 +577,44 @@ class SettingsFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(
-            row=row, column=0, columnspan=2,
+            row=row,
+            column=0,
+            columnspan=2,
             padx=(theme.CARD_PAD_X + 24, theme.CARD_PAD_X),
-            pady=(0, 6), sticky="w",
+            pady=(0, 6),
+            sticky="w",
         )
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card3, height=1, fg_color=theme.COLORS["separator"],
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=6, sticky="ew")
+            card3,
+            height=1,
+            fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Max backup count ──
         ctk.CTkLabel(
-            card3, text="Max Backups",
+            card3,
+            text="Max Backups",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0,
-               padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
+        ).grid(row=row, column=0, padx=theme.CARD_PAD_X, pady=(6, 2), sticky="w")
 
         max_frame = ctk.CTkFrame(card3, fg_color="transparent")
         max_frame.grid(
-            row=row, column=1,
-            padx=(0, theme.CARD_PAD_X), pady=(6, 2), sticky="e",
+            row=row,
+            column=1,
+            padx=(0, theme.CARD_PAD_X),
+            pady=(6, 2),
+            sticky="e",
         )
 
         self._backup_max_entry = ctk.CTkEntry(
-            max_frame, font=ctk.CTkFont(size=12), height=30, width=60,
+            max_frame,
+            font=ctk.CTkFont(size=12),
+            height=30,
+            width=60,
             justify="center",
         )
         self._backup_max_entry.pack(side="left")
@@ -477,16 +627,21 @@ class SettingsFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 6), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 6),
+            sticky="w",
         )
         row += 1
 
         # ── Separator ──
         ctk.CTkFrame(
-            card3, height=1, fg_color=theme.COLORS["separator"],
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=6, sticky="ew")
+            card3,
+            height=1,
+            fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Backup info + actions ──
@@ -497,20 +652,31 @@ class SettingsFrame(ctk.CTkFrame):
             text_color=theme.COLORS["text_muted"],
         )
         self._backup_info_label.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(6, 6), sticky="w",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(6, 6),
+            sticky="w",
         )
         row += 1
 
         btn_row = ctk.CTkFrame(card3, fg_color="transparent")
         btn_row.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, 6), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, 6),
+            sticky="ew",
         )
 
         ctk.CTkButton(
-            btn_row, text="Open Folder",
-            font=ctk.CTkFont(size=11), height=28, width=100,
+            btn_row,
+            text="Open Folder",
+            font=ctk.CTkFont(size=11),
+            height=28,
+            width=100,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -518,8 +684,11 @@ class SettingsFrame(ctk.CTkFrame):
         ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
-            btn_row, text="Delete All",
-            font=ctk.CTkFont(size=11), height=28, width=90,
+            btn_row,
+            text="Delete All",
+            font=ctk.CTkFont(size=11),
+            height=28,
+            width=90,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
             hover_color="#cc3040",
@@ -530,25 +699,31 @@ class SettingsFrame(ctk.CTkFrame):
 
         # ── Separator ──
         ctk.CTkFrame(
-            card3, height=1, fg_color=theme.COLORS["separator"],
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=6, sticky="ew")
+            card3,
+            height=1,
+            fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
         row += 1
 
         # ── Backup list (scrollable) ──
         ctk.CTkLabel(
-            card3, text="Existing Backups",
+            card3,
+            text="Existing Backups",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-        ).grid(row=row, column=0, columnspan=2,
-               padx=theme.CARD_PAD_X, pady=(6, 4), sticky="w")
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=(6, 4), sticky="w")
         row += 1
 
         self._backup_list_frame = ctk.CTkFrame(
-            card3, fg_color="transparent",
+            card3,
+            fg_color="transparent",
         )
         self._backup_list_frame.grid(
-            row=row, column=0, columnspan=2,
-            padx=theme.CARD_PAD_X, pady=(0, theme.CARD_PAD_Y), sticky="ew",
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(0, theme.CARD_PAD_Y),
+            sticky="ew",
         )
         self._backup_list_frame.grid_columnconfigure(0, weight=1)
 
@@ -560,7 +735,8 @@ class SettingsFrame(ctk.CTkFrame):
         btn_frame.grid_columnconfigure(0, weight=1)
 
         self._save_btn = ctk.CTkButton(
-            btn_frame, text="Save Settings",
+            btn_frame,
+            text="Save Settings",
             font=ctk.CTkFont(size=14, weight="bold"),
             height=theme.BUTTON_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
@@ -571,7 +747,8 @@ class SettingsFrame(ctk.CTkFrame):
         self._save_btn.grid(row=0, column=0, sticky="ew")
 
         self._status_label = ctk.CTkLabel(
-            btn_frame, text="",
+            btn_frame,
+            text="",
             font=ctk.CTkFont(*theme.FONT_SMALL),
         )
         self._status_label.grid(row=1, column=0, pady=(8, 0), sticky="w")
@@ -738,9 +915,12 @@ class SettingsFrame(ctk.CTkFrame):
             animator = get_animator()
             animator.cancel_all(self._save_btn, tag="save_flash")
             animator.animate_color(
-                self._save_btn, "fg_color",
-                theme.COLORS["success"], theme.COLORS["accent"],
-                600, tag="save_flash",
+                self._save_btn,
+                "fg_color",
+                theme.COLORS["success"],
+                theme.COLORS["accent"],
+                600,
+                tag="save_flash",
             )
         except Exception as e:
             self._status_label.configure(
@@ -753,6 +933,7 @@ class SettingsFrame(ctk.CTkFrame):
     def _get_backup_manager(self):
         from ...config import get_app_dir
         from ...core.backup import BackupManager
+
         return BackupManager(get_app_dir(), self.app.settings.backup_max_count)
 
     def _refresh_backup_list(self):
@@ -802,8 +983,8 @@ class SettingsFrame(ctk.CTkFrame):
             ctk.CTkLabel(
                 row_frame,
                 text=f"{backup.version}  —  "
-                     f"{backup.timestamp.strftime('%Y-%m-%d %H:%M')}  —  "
-                     f"{size_mb:.1f} MB",
+                f"{backup.timestamp.strftime('%Y-%m-%d %H:%M')}  —  "
+                f"{size_mb:.1f} MB",
                 font=ctk.CTkFont(size=10),
                 text_color=theme.COLORS["text"],
                 anchor="w",
@@ -813,8 +994,11 @@ class SettingsFrame(ctk.CTkFrame):
             btn_frame.grid(row=0, column=1, padx=(0, 6), sticky="e")
 
             restore_btn = ctk.CTkButton(
-                btn_frame, text="Restore",
-                font=ctk.CTkFont(size=10), height=24, width=60,
+                btn_frame,
+                text="Restore",
+                font=ctk.CTkFont(size=10),
+                height=24,
+                width=60,
                 corner_radius=4,
                 fg_color=theme.COLORS["warning"],
                 hover_color="#cc8800",
@@ -823,8 +1007,11 @@ class SettingsFrame(ctk.CTkFrame):
             restore_btn.pack(side="left", padx=(0, 4))
 
             delete_btn = ctk.CTkButton(
-                btn_frame, text="Delete",
-                font=ctk.CTkFont(size=10), height=24, width=55,
+                btn_frame,
+                text="Delete",
+                font=ctk.CTkFont(size=10),
+                height=24,
+                width=55,
                 corner_radius=4,
                 fg_color=theme.COLORS["error"],
                 hover_color="#cc3040",
@@ -835,6 +1022,7 @@ class SettingsFrame(ctk.CTkFrame):
     def _open_backup_folder(self):
         """Open the backup directory in Explorer."""
         import os
+
         bm = self._get_backup_manager()
         bm.backup_dir.mkdir(parents=True, exist_ok=True)
         os.startfile(str(bm.backup_dir))
@@ -842,6 +1030,7 @@ class SettingsFrame(ctk.CTkFrame):
     def _delete_all_backups(self):
         """Delete all backups after confirmation."""
         import tkinter.messagebox
+
         confirm = tkinter.messagebox.askyesno(
             "Delete All Backups",
             "Are you sure you want to delete all backups?\n\nThis cannot be undone.",
@@ -857,6 +1046,7 @@ class SettingsFrame(ctk.CTkFrame):
     def _delete_single_backup(self, backup):
         """Delete a single backup."""
         import tkinter.messagebox
+
         confirm = tkinter.messagebox.askyesno(
             "Delete Backup",
             f"Delete backup: {backup.display_name}?",
@@ -872,6 +1062,7 @@ class SettingsFrame(ctk.CTkFrame):
     def _restore_backup(self, backup):
         """Restore a backup to the game directory."""
         import tkinter.messagebox
+
         game_dir = self.app.settings.game_path
         if not game_dir:
             self.app.show_toast("No game directory configured.", "warning")
@@ -888,6 +1079,7 @@ class SettingsFrame(ctk.CTkFrame):
 
         def _bg():
             from pathlib import Path as _Path
+
             bm = self._get_backup_manager()
             return bm.restore_backup(backup.path, _Path(game_dir))
 

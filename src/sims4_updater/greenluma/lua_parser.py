@@ -17,41 +17,36 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 # addappid with decryption key: addappid(ID, FLAGS, "HEX_KEY")
-_RE_ADDAPPID_KEY = re.compile(
-    r'addappid\(\s*(\d+)\s*,\s*\d+\s*,\s*"([0-9a-fA-F]+)"\s*\)'
-)
+_RE_ADDAPPID_KEY = re.compile(r'addappid\(\s*(\d+)\s*,\s*\d+\s*,\s*"([0-9a-fA-F]+)"\s*\)')
 
 # addappid without key: addappid(ID) or addappid(ID, FLAGS)
-_RE_ADDAPPID_NOKEY = re.compile(
-    r'addappid\(\s*(\d+)\s*(?:,\s*\d+\s*)?\)'
-)
+_RE_ADDAPPID_NOKEY = re.compile(r"addappid\(\s*(\d+)\s*(?:,\s*\d+\s*)?\)")
 
 # setManifestid: setManifestid(DEPOT_ID, "MANIFEST_ID")
-_RE_MANIFEST = re.compile(
-    r'setManifestid\(\s*(\d+)\s*,\s*"(\d+)"\s*\)'
-)
+_RE_MANIFEST = re.compile(r'setManifestid\(\s*(\d+)\s*,\s*"(\d+)"\s*\)')
 
 
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DepotEntry:
     """A single depot with optional decryption key and manifest ID."""
 
     depot_id: str
-    decryption_key: str = ""   # 64-char hex string, empty if none
-    manifest_id: str = ""      # large numeric string, empty if none
+    decryption_key: str = ""  # 64-char hex string, empty if none
+    manifest_id: str = ""  # large numeric string, empty if none
 
 
 @dataclass
 class LuaManifest:
     """Parsed representation of a GreenLuma LUA manifest file."""
 
-    app_id: str                                          # first addappid (base game)
+    app_id: str  # first addappid (base game)
     entries: dict[str, DepotEntry] = field(default_factory=dict)  # depot_id -> DepotEntry
-    all_app_ids: list[str] = field(default_factory=list)          # all IDs in order
+    all_app_ids: list[str] = field(default_factory=list)  # all IDs in order
 
     @property
     def keys_count(self) -> int:
@@ -67,6 +62,7 @@ class LuaManifest:
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
+
 
 def parse_lua_string(content: str) -> LuaManifest:
     """Parse LUA manifest content from a string.
@@ -112,9 +108,7 @@ def parse_lua_string(content: str) -> LuaManifest:
         if depot_id in entries:
             entries[depot_id].manifest_id = manifest_id
         else:
-            entries[depot_id] = DepotEntry(
-                depot_id=depot_id, manifest_id=manifest_id
-            )
+            entries[depot_id] = DepotEntry(depot_id=depot_id, manifest_id=manifest_id)
 
     return LuaManifest(
         app_id=base_app_id,
@@ -148,6 +142,7 @@ def parse_lua_file(path: Path) -> LuaManifest:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def count_summary(manifest: LuaManifest) -> dict[str, int]:
     """Return a summary of counts from a parsed manifest.

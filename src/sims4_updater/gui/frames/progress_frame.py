@@ -25,7 +25,6 @@ if TYPE_CHECKING:
 
 
 class ProgressFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -126,20 +125,25 @@ class ProgressFrame(ctk.CTkFrame):
 
         # Configure log text tags for color coding
         self._log._textbox.tag_configure(
-            "header", foreground=theme.COLORS["accent"],
+            "header",
+            foreground=theme.COLORS["accent"],
             font=("Consolas", 11, "bold"),
         )
         self._log._textbox.tag_configure(
-            "success", foreground=theme.COLORS["success"],
+            "success",
+            foreground=theme.COLORS["success"],
         )
         self._log._textbox.tag_configure(
-            "warning", foreground=theme.COLORS["warning"],
+            "warning",
+            foreground=theme.COLORS["warning"],
         )
         self._log._textbox.tag_configure(
-            "error", foreground=theme.COLORS["error"],
+            "error",
+            foreground=theme.COLORS["error"],
         )
         self._log._textbox.tag_configure(
-            "muted", foreground=theme.COLORS["text_muted"],
+            "muted",
+            foreground=theme.COLORS["text_muted"],
         )
 
         # ── Bottom button bar ──
@@ -205,9 +209,7 @@ class ProgressFrame(ctk.CTkFrame):
 
         total_size = format_size(plan.total_download_size)
         steps = plan.step_count
-        self._step_label.configure(
-            text=f"{steps} step{'s' if steps != 1 else ''} | {total_size}"
-        )
+        self._step_label.configure(text=f"{steps} step{'s' if steps != 1 else ''} | {total_size}")
         self._stage_label.configure(
             text=f"Updating: {plan.current_version}  ->  {plan.target_version}"
         )
@@ -270,6 +272,7 @@ class ProgressFrame(ctk.CTkFrame):
                     self._pct_label.configure(text=f"{pct * 100:.0f}%")
 
                     from ...patch.client import format_size
+
                     self._size_label.configure(
                         text=f"{format_size(current)} / {format_size(total)}"
                     )
@@ -329,20 +332,24 @@ class ProgressFrame(ctk.CTkFrame):
                     from ...core.backup import BackupManager
 
                     bm = BackupManager(
-                        get_app_dir(), self.app.settings.backup_max_count,
+                        get_app_dir(),
+                        self.app.settings.backup_max_count,
                     )
                     files = updater.get_patchable_files(game_dir)
                     size = bm.estimate_backup_size(_Path(game_dir), files)
                     size_mb = size / 1024 / 1024
                     self._enqueue_gui(
                         self._log_text,
-                        f"Creating backup ({size_mb:.1f} MB)...\n", "info",
+                        f"Creating backup ({size_mb:.1f} MB)...\n",
+                        "info",
                     )
                     version_label = plan.target_version or "unknown"
                     bm.create_backup(_Path(game_dir), files, version_label)
                     bm.prune_old_backups()
                     self._enqueue_gui(
-                        self._log_text, "Backup created.\n", "success",
+                        self._log_text,
+                        "Backup created.\n",
+                        "success",
                     )
                 except Exception as e:
                     self._enqueue_gui(
@@ -380,9 +387,12 @@ class ProgressFrame(ctk.CTkFrame):
         # Flash stage label and show toast
         animator = get_animator()
         animator.animate_color(
-            self._stage_label, "text_color",
-            "#ffffff", theme.COLORS["success"],
-            400, tag="done_flash",
+            self._stage_label,
+            "text_color",
+            "#ffffff",
+            theme.COLORS["success"],
+            400,
+            tag="done_flash",
         )
         self.app.show_toast("Update complete!", "success")
 
@@ -432,7 +442,7 @@ class ProgressFrame(ctk.CTkFrame):
         """Shorten a file path/action for the current-file label."""
         for prefix in ("extracting ", "hashing ", "updating ", "copying ", "moving "):
             if text.startswith(prefix):
-                return text[len(prefix):]
+                return text[len(prefix) :]
         return text
 
     # ── Button handlers ──────────────────────────────────────────
@@ -472,17 +482,25 @@ class ProgressFrame(ctk.CTkFrame):
         if phase == 0:
             # Brighten
             animator.animate_color(
-                self._progress_bar, "progress_color",
-                theme.COLORS["accent"], theme.COLORS["accent_hover"],
-                800, easing=ease_in_out_cubic, tag="pulse",
+                self._progress_bar,
+                "progress_color",
+                theme.COLORS["accent"],
+                theme.COLORS["accent_hover"],
+                800,
+                easing=ease_in_out_cubic,
+                tag="pulse",
             )
             self._pulse_after_id = self.after(850, lambda: self._pulse_step(1))
         else:
             # Dim back
             animator.animate_color(
-                self._progress_bar, "progress_color",
-                theme.COLORS["accent_hover"], theme.COLORS["accent"],
-                800, easing=ease_in_out_cubic, tag="pulse",
+                self._progress_bar,
+                "progress_color",
+                theme.COLORS["accent_hover"],
+                theme.COLORS["accent"],
+                800,
+                easing=ease_in_out_cubic,
+                tag="pulse",
             )
             self._pulse_after_id = self.after(850, lambda: self._pulse_step(0))
 

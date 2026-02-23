@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 
 
 # Default Documents-based Mods folder
-_DEFAULT_MODS_DIR = (
-    Path.home() / "Documents" / "Electronic Arts" / "The Sims 4" / "Mods"
-)
+_DEFAULT_MODS_DIR = Path.home() / "Documents" / "Electronic Arts" / "The Sims 4" / "Mods"
 
 
 def _format_size(size_bytes: int) -> str:
@@ -36,7 +34,6 @@ def _format_size(size_bytes: int) -> str:
 
 
 class ModsFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -71,7 +68,8 @@ class ModsFrame(ctk.CTkFrame):
         self._card.grid_columnconfigure(1, weight=1)
 
         ctk.CTkLabel(
-            self._card, text="Mods Folder",
+            self._card,
+            text="Mods Folder",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=0, column=0, padx=(theme.CARD_PAD_X, 8), pady=(theme.CARD_PAD_Y, 4), sticky="w")
@@ -80,7 +78,8 @@ class ModsFrame(ctk.CTkFrame):
         self._folder_badge.grid(row=0, column=1, padx=0, pady=(theme.CARD_PAD_Y, 4), sticky="w")
 
         ctk.CTkLabel(
-            self._card, text="Status",
+            self._card,
+            text="Status",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
@@ -89,7 +88,8 @@ class ModsFrame(ctk.CTkFrame):
         self._status_badge.grid(row=1, column=1, padx=0, pady=4, sticky="w")
 
         ctk.CTkLabel(
-            self._card, text="Total Size",
+            self._card,
+            text="Total Size",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=2, column=0, padx=(theme.CARD_PAD_X, 8), pady=(4, theme.CARD_PAD_Y), sticky="w")
@@ -164,7 +164,8 @@ class ModsFrame(ctk.CTkFrame):
             header_row,
             text="Clear",
             font=ctk.CTkFont(size=11),
-            height=24, width=60,
+            height=24,
+            width=60,
             corner_radius=4,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -192,6 +193,7 @@ class ModsFrame(ctk.CTkFrame):
     def _get_manager(self):
         if self._manager is None:
             from ...mods.manager import ModManager
+
             self._manager = ModManager(_DEFAULT_MODS_DIR)
         return self._manager
 
@@ -327,7 +329,8 @@ class ModsFrame(ctk.CTkFrame):
         if size_bytes > 0:
             name_text += f"  ({_format_size(size_bytes)})"
         ctk.CTkLabel(
-            row, text=name_text,
+            row,
+            text=name_text,
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=theme.COLORS["text"],
         ).grid(row=0, column=0, padx=(12, 8), pady=8, sticky="w")
@@ -349,8 +352,11 @@ class ModsFrame(ctk.CTkFrame):
 
         if not installed:
             ctk.CTkButton(
-                btn_container, text="Install",
-                font=ctk.CTkFont(size=11), height=28, width=70,
+                btn_container,
+                text="Install",
+                font=ctk.CTkFont(size=11),
+                height=28,
+                width=70,
                 corner_radius=4,
                 fg_color=theme.COLORS["accent"],
                 hover_color=theme.COLORS["accent_hover"],
@@ -359,8 +365,11 @@ class ModsFrame(ctk.CTkFrame):
         else:
             if mod.enabled:
                 ctk.CTkButton(
-                    btn_container, text="Disable",
-                    font=ctk.CTkFont(size=11), height=28, width=70,
+                    btn_container,
+                    text="Disable",
+                    font=ctk.CTkFont(size=11),
+                    height=28,
+                    width=70,
                     corner_radius=4,
                     fg_color=theme.COLORS["warning"],
                     hover_color="#cc8400",
@@ -368,8 +377,11 @@ class ModsFrame(ctk.CTkFrame):
                 ).pack(side="left", padx=2)
             else:
                 ctk.CTkButton(
-                    btn_container, text="Enable",
-                    font=ctk.CTkFont(size=11), height=28, width=70,
+                    btn_container,
+                    text="Enable",
+                    font=ctk.CTkFont(size=11),
+                    height=28,
+                    width=70,
                     corner_radius=4,
                     fg_color=theme.COLORS["success"],
                     hover_color="#26b863",
@@ -377,8 +389,11 @@ class ModsFrame(ctk.CTkFrame):
                 ).pack(side="left", padx=2)
 
             ctk.CTkButton(
-                btn_container, text="Uninstall",
-                font=ctk.CTkFont(size=11), height=28, width=80,
+                btn_container,
+                text="Uninstall",
+                font=ctk.CTkFont(size=11),
+                height=28,
+                width=80,
                 corner_radius=4,
                 fg_color=theme.COLORS["bg_card_alt"],
                 hover_color=theme.COLORS["card_hover"],
@@ -386,8 +401,11 @@ class ModsFrame(ctk.CTkFrame):
             ).pack(side="left", padx=2)
 
         ctk.CTkButton(
-            btn_container, text="Delete",
-            font=ctk.CTkFont(size=11), height=28, width=60,
+            btn_container,
+            text="Delete",
+            font=ctk.CTkFont(size=11),
+            height=28,
+            width=60,
             corner_radius=4,
             fg_color=theme.COLORS["error"],
             hover_color="#cc3944",
@@ -406,7 +424,8 @@ class ModsFrame(ctk.CTkFrame):
         if size_bytes > 0:
             name_text += f"  ({_format_size(size_bytes)})"
         ctk.CTkLabel(
-            row, text=name_text,
+            row,
+            text=name_text,
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=theme.COLORS["text"],
         ).grid(row=0, column=0, padx=(12, 8), pady=8, sticky="w")
@@ -427,8 +446,11 @@ class ModsFrame(ctk.CTkFrame):
 
         if mod.enabled:
             ctk.CTkButton(
-                btn_container, text="Disable",
-                font=ctk.CTkFont(size=11), height=28, width=70,
+                btn_container,
+                text="Disable",
+                font=ctk.CTkFont(size=11),
+                height=28,
+                width=70,
                 corner_radius=4,
                 fg_color=theme.COLORS["warning"],
                 hover_color="#cc8400",
@@ -436,8 +458,11 @@ class ModsFrame(ctk.CTkFrame):
             ).pack(side="left", padx=2)
         else:
             ctk.CTkButton(
-                btn_container, text="Enable",
-                font=ctk.CTkFont(size=11), height=28, width=70,
+                btn_container,
+                text="Enable",
+                font=ctk.CTkFont(size=11),
+                height=28,
+                width=70,
                 corner_radius=4,
                 fg_color=theme.COLORS["success"],
                 hover_color="#26b863",
@@ -445,8 +470,11 @@ class ModsFrame(ctk.CTkFrame):
             ).pack(side="left", padx=2)
 
         ctk.CTkButton(
-            btn_container, text="Uninstall",
-            font=ctk.CTkFont(size=11), height=28, width=80,
+            btn_container,
+            text="Uninstall",
+            font=ctk.CTkFont(size=11),
+            height=28,
+            width=80,
             corner_radius=4,
             fg_color=theme.COLORS["bg_card_alt"],
             hover_color=theme.COLORS["card_hover"],
@@ -676,6 +704,7 @@ class ModsFrame(ctk.CTkFrame):
         mods_dir = self._get_manager().game_mods_dir
         if mods_dir.is_dir():
             import os
+
             os.startfile(str(mods_dir))
         else:
             self.app.show_toast("Mods folder not found.", "warning")

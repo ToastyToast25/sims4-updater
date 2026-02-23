@@ -57,9 +57,7 @@ def read_applist(applist_dir: Path) -> AppListState:
     duplicates: list[tuple[str, str]] = []
 
     if not applist_dir.is_dir():
-        return AppListState(
-            entries=entries, unique_ids=unique_ids, count=0, duplicates=duplicates
-        )
+        return AppListState(entries=entries, unique_ids=unique_ids, count=0, duplicates=duplicates)
 
     # Collect and sort by numeric index so iteration order is deterministic
     txt_files = sorted(
@@ -80,9 +78,7 @@ def read_applist(applist_dir: Path) -> AppListState:
 
         # Validate that content looks like a numeric ID
         if not content.isdigit():
-            log.warning(
-                "Non-numeric content in AppList file %s: %r", filepath.name, content
-            )
+            log.warning("Non-numeric content in AppList file %s: %r", filepath.name, content)
             continue
 
         entries[filepath.name] = content

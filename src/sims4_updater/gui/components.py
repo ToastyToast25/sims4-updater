@@ -31,6 +31,7 @@ def get_animator() -> Animator:
 
 # ── InfoCard ────────────────────────────────────────────────────
 
+
 class InfoCard(ctk.CTkFrame):
     """CTkFrame with animated border glow on hover."""
 
@@ -51,17 +52,23 @@ class InfoCard(ctk.CTkFrame):
     def _on_enter(self, _event):
         _animator.cancel_all(self, tag="card_hover")
         _animator.animate_color(
-            self, "border_color",
-            self._base_border, self._hover_border,
-            theme.ANIM_FAST, tag="card_hover",
+            self,
+            "border_color",
+            self._base_border,
+            self._hover_border,
+            theme.ANIM_FAST,
+            tag="card_hover",
         )
 
     def _on_leave(self, _event):
         _animator.cancel_all(self, tag="card_hover")
         _animator.animate_color(
-            self, "border_color",
-            self._hover_border, self._base_border,
-            theme.ANIM_FAST, tag="card_hover",
+            self,
+            "border_color",
+            self._hover_border,
+            self._base_border,
+            theme.ANIM_FAST,
+            tag="card_hover",
         )
 
 
@@ -137,8 +144,12 @@ class StatusBadge(ctk.CTkFrame):
                 old_bg = old_bg[0]
             _animator.cancel_all(self, tag="badge")
             _animator.animate_color(
-                self, "fg_color", old_bg, s["bg"],
-                theme.ANIM_FAST, tag="badge",
+                self,
+                "fg_color",
+                old_bg,
+                s["bg"],
+                theme.ANIM_FAST,
+                tag="badge",
             )
             self._dot.configure(text_color=s["dot"])
             self._label.configure(text_color=s["text"])
@@ -260,11 +271,14 @@ class ToastNotification(ctk.CTkFrame):
 
         # Slide in
         _animator.animate(
-            self, theme.TOAST_SLIDE_MS,
+            self,
+            theme.TOAST_SLIDE_MS,
             on_tick=lambda t, _y=y: self.place(
-                relx=1.0, rely=0.0,
+                relx=1.0,
+                rely=0.0,
                 x=int(300 * (1 - t)) - 10,
-                y=_y, anchor="ne",
+                y=_y,
+                anchor="ne",
             ),
             on_done=self._start_dismiss_timer,
             easing=ease_out_cubic,
@@ -297,11 +311,14 @@ class ToastNotification(ctk.CTkFrame):
 
         _animator.cancel_all(self)
         _animator.animate(
-            self, theme.TOAST_SLIDE_MS,
+            self,
+            theme.TOAST_SLIDE_MS,
             on_tick=lambda t: self.place(
-                relx=1.0, rely=0.0,
+                relx=1.0,
+                rely=0.0,
                 x=-10 + int(310 * t),
-                y=self._compute_y_offset(), anchor="ne",
+                y=self._compute_y_offset(),
+                anchor="ne",
             ),
             on_done=self._destroy,
             easing=ease_out_cubic,
@@ -325,9 +342,14 @@ def _reflow_toasts():
         y = toast._compute_y_offset()
         with contextlib.suppress(Exception):
             _animator.animate(
-                toast, 150,
+                toast,
+                150,
                 on_tick=lambda t, _toast=toast, _y=y: _toast.place(
-                    relx=1.0, rely=0.0, x=-10, y=_y, anchor="ne",
+                    relx=1.0,
+                    rely=0.0,
+                    x=-10,
+                    y=_y,
+                    anchor="ne",
                 ),
                 easing=ease_out_cubic,
             )

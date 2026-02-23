@@ -113,9 +113,7 @@ class PatchClient:
 
         from ..constants import FALLBACK_MANIFEST_URLS
 
-        urls = [self.manifest_url] + [
-            u for u in FALLBACK_MANIFEST_URLS if u != self.manifest_url
-        ]
+        urls = [self.manifest_url] + [u for u in FALLBACK_MANIFEST_URLS if u != self.manifest_url]
         last_error = None
 
         for url in urls:

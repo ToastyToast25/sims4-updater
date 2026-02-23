@@ -129,7 +129,9 @@ class App(ctk.CTk):
 
         # Separator below logo
         ctk.CTkFrame(
-            self._sidebar, height=1, fg_color=theme.COLORS["separator"],
+            self._sidebar,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=1, column=0, columnspan=2, padx=15, sticky="ew")
 
         # Nav buttons — two-column grid: col 0 = indicator, col 1 = button
@@ -166,17 +168,24 @@ class App(ctk.CTk):
         # ── Tools section header (collapsible) ──
         self._tools_collapsed = getattr(self.settings, "tools_collapsed", True)
         tools_header = ctk.CTkFrame(
-            self._sidebar, fg_color="transparent", cursor="hand2",
+            self._sidebar,
+            fg_color="transparent",
+            cursor="hand2",
         )
         tools_header.grid(
-            row=current_row, column=0, columnspan=2,
-            padx=(10, 10), pady=(8, 2), sticky="ew",
+            row=current_row,
+            column=0,
+            columnspan=2,
+            padx=(10, 10),
+            pady=(8, 2),
+            sticky="ew",
         )
         tools_header.grid_columnconfigure(1, weight=1)
 
         arrow = "\u25b6" if self._tools_collapsed else "\u25bc"
         self._tools_chevron = ctk.CTkLabel(
-            tools_header, text=arrow,
+            tools_header,
+            text=arrow,
             font=ctk.CTkFont(size=10),
             text_color=theme.COLORS["text_dim"],
             width=14,
@@ -184,7 +193,8 @@ class App(ctk.CTk):
         self._tools_chevron.grid(row=0, column=0, padx=(4, 2))
 
         tools_label = ctk.CTkLabel(
-            tools_header, text="Tools",
+            tools_header,
+            text="Tools",
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color=theme.COLORS["text_dim"],
             anchor="w",
@@ -208,8 +218,11 @@ class App(ctk.CTk):
 
         # Progress nav item — hidden by default, shown during updates
         self._progress_indicator = ctk.CTkFrame(
-            self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
-            corner_radius=0, fg_color="transparent",
+            self._sidebar,
+            width=3,
+            height=theme.SIDEBAR_BTN_HEIGHT,
+            corner_radius=0,
+            fg_color="transparent",
         )
         self._progress_indicator.grid(row=current_row, column=0, padx=(5, 0), pady=3)
         self._progress_indicator.grid_propagate(False)
@@ -228,7 +241,11 @@ class App(ctk.CTk):
             command=lambda: self._show_frame("progress"),
         )
         self._progress_nav_btn.grid(
-            row=current_row, column=1, padx=(4, 10), pady=3, sticky="ew",
+            row=current_row,
+            column=1,
+            padx=(4, 10),
+            pady=3,
+            sticky="ew",
         )
         self._nav_buttons["progress"] = self._progress_nav_btn
         self._nav_labels["progress"] = "Updating..."
@@ -241,7 +258,9 @@ class App(ctk.CTk):
 
         # Separator above footer
         ctk.CTkFrame(
-            self._sidebar, height=1, fg_color=theme.COLORS["separator"],
+            self._sidebar,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=current_row + 1, column=0, columnspan=2, padx=15, sticky="ew")
 
         # Bell icon — notification history
@@ -250,7 +269,8 @@ class App(ctk.CTk):
             self._sidebar,
             text="\U0001f514",
             font=ctk.CTkFont(size=14),
-            width=30, height=26,
+            width=30,
+            height=26,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color="transparent",
             hover_color=theme.COLORS["sidebar_hover"],
@@ -258,7 +278,12 @@ class App(ctk.CTk):
             command=self._toggle_notification_popup,
         )
         self._bell_btn.grid(
-            row=bell_row, column=0, columnspan=2, padx=18, pady=(6, 0), sticky="w",
+            row=bell_row,
+            column=0,
+            columnspan=2,
+            padx=18,
+            pady=(6, 0),
+            sticky="w",
         )
         self._notification_popup = None
 
@@ -268,7 +293,12 @@ class App(ctk.CTk):
 
         footer = ctk.CTkFrame(self._sidebar, fg_color="transparent")
         footer.grid(
-            row=bell_row + 1, column=0, columnspan=2, padx=18, pady=(4, 14), sticky="ew",
+            row=bell_row + 1,
+            column=0,
+            columnspan=2,
+            padx=18,
+            pady=(4, 14),
+            sticky="ew",
         )
 
         elevated = is_admin()
@@ -352,12 +382,18 @@ class App(ctk.CTk):
             frame.grid(row=0, column=0, sticky="nsew")
 
     def _build_nav_item(
-        self, key: str, label: str, row_idx: int,
+        self,
+        key: str,
+        label: str,
+        row_idx: int,
     ) -> tuple[ctk.CTkFrame, ctk.CTkButton]:
         """Create a sidebar nav indicator + button at the given row."""
         indicator = ctk.CTkFrame(
-            self._sidebar, width=3, height=theme.SIDEBAR_BTN_HEIGHT,
-            corner_radius=0, fg_color="transparent",
+            self._sidebar,
+            width=3,
+            height=theme.SIDEBAR_BTN_HEIGHT,
+            corner_radius=0,
+            fg_color="transparent",
         )
         indicator.grid(row=row_idx, column=0, padx=(5, 0), pady=3)
         indicator.grid_propagate(False)
@@ -488,7 +524,8 @@ class App(ctk.CTk):
                 frame.on_show()
 
         self._animator.animate(
-            frame, theme.ANIM_NORMAL,
+            frame,
+            theme.ANIM_NORMAL,
             on_tick=on_tick,
             on_done=finalize,
             easing=ease_out_cubic,
@@ -501,6 +538,7 @@ class App(ctk.CTk):
 
     def run_async(self, func, *args, on_done=None, on_error=None):
         """Run a function in the background thread."""
+
         def wrapper():
             try:
                 result = func(*args)
@@ -611,14 +649,16 @@ class App(ctk.CTk):
         header = ctk.CTkFrame(popup, fg_color="transparent")
         header.pack(fill="x", padx=10, pady=(8, 4))
         ctk.CTkLabel(
-            header, text="Notifications",
+            header,
+            text="Notifications",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=theme.COLORS["text"],
         ).pack(side="left")
 
         if self._notification_history:
             clear_btn = ctk.CTkLabel(
-                header, text="Clear all",
+                header,
+                text="Clear all",
                 font=ctk.CTkFont(size=10, underline=True),
                 text_color=theme.COLORS["accent"],
                 cursor="hand2",
@@ -628,7 +668,8 @@ class App(ctk.CTk):
 
         # Scrollable list
         scroll = ctk.CTkScrollableFrame(
-            popup, fg_color="transparent",
+            popup,
+            fg_color="transparent",
             scrollbar_button_color=theme.COLORS["separator"],
             height=popup_h - 50,
         )
@@ -636,7 +677,8 @@ class App(ctk.CTk):
 
         if not self._notification_history:
             ctk.CTkLabel(
-                scroll, text="No notifications yet",
+                scroll,
+                text="No notifications yet",
                 font=ctk.CTkFont(*theme.FONT_SMALL),
                 text_color=theme.COLORS["text_muted"],
             ).pack(pady=10)
@@ -650,13 +692,16 @@ class App(ctk.CTk):
                 row.pack_propagate(False)
 
                 ctk.CTkLabel(
-                    row, text=s["icon"],
+                    row,
+                    text=s["icon"],
                     font=ctk.CTkFont(size=10, weight="bold"),
-                    text_color=s["text"], width=16,
+                    text_color=s["text"],
+                    width=16,
                 ).pack(side="left", padx=(8, 2))
 
                 ctk.CTkLabel(
-                    row, text=msg,
+                    row,
+                    text=msg,
                     font=ctk.CTkFont(size=10),
                     text_color=s["text"],
                     anchor="w",
@@ -671,7 +716,8 @@ class App(ctk.CTk):
                     time_str = f"{elapsed // 3600}h ago"
 
                 ctk.CTkLabel(
-                    row, text=time_str,
+                    row,
+                    text=time_str,
                     font=ctk.CTkFont(size=9),
                     text_color=theme.COLORS["text_dim"],
                     width=50,
@@ -741,10 +787,7 @@ class App(ctk.CTk):
 
             # Detect Steam
             steam_path_str = self.settings.steam_path
-            steam_path = (
-                _Path(steam_path_str) if steam_path_str
-                else detect_steam_path()
-            )
+            steam_path = _Path(steam_path_str) if steam_path_str else detect_steam_path()
             if not steam_path or not steam_path.is_dir():
                 return None
 

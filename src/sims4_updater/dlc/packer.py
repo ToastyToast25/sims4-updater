@@ -200,15 +200,14 @@ class DLCPacker:
         """Extract RAR using bundled unrar.exe."""
         unrar = get_tools_dir() / "unrar.exe"
         if not unrar.is_file():
-            raise FileNotFoundError(
-                "unrar.exe not found. Cannot extract RAR archives."
-            )
+            raise FileNotFoundError("unrar.exe not found. Cannot extract RAR archives.")
 
         result = subprocess.run(
             [
-                str(unrar), "x",
-                "-p-",          # no password
-                "-o+",          # overwrite existing
+                str(unrar),
+                "x",
+                "-p-",  # no password
+                "-o+",  # overwrite existing
                 str(archive_path),
                 str(dest_dir) + "\\",
             ],

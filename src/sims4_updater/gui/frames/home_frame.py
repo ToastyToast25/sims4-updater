@@ -25,7 +25,6 @@ if TYPE_CHECKING:
 
 
 class HomeFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -43,7 +42,8 @@ class HomeFrame(ctk.CTkFrame):
 
         # ── Scrollable content area ──
         self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color="transparent",
+            self,
+            fg_color="transparent",
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
@@ -52,12 +52,15 @@ class HomeFrame(ctk.CTkFrame):
 
         # ── App update banner (hidden by default) ──
         self._app_update_frame = ctk.CTkFrame(
-            self._scroll, corner_radius=8, fg_color=theme.COLORS["accent"],
+            self._scroll,
+            corner_radius=8,
+            fg_color=theme.COLORS["accent"],
         )
 
         # -- Info row: label + button (shown before download starts)
         self._app_update_inner = ctk.CTkFrame(
-            self._app_update_frame, fg_color="transparent",
+            self._app_update_frame,
+            fg_color="transparent",
         )
         self._app_update_inner.pack(fill="x", padx=16, pady=10)
 
@@ -86,7 +89,8 @@ class HomeFrame(ctk.CTkFrame):
 
         # -- Download progress row (hidden until download starts)
         self._dl_progress_frame = ctk.CTkFrame(
-            self._app_update_frame, fg_color="transparent",
+            self._app_update_frame,
+            fg_color="transparent",
         )
 
         # Top line: "Downloading v2.0.5..." left, "1.2 MB/s" right
@@ -181,8 +185,11 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(
-            row=0, column=0, padx=theme.CARD_PAD_X,
-            pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w",
+            row=0,
+            column=0,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD),
+            sticky="w",
         )
 
         self._game_dir_label = ctk.CTkLabel(
@@ -193,8 +200,11 @@ class HomeFrame(ctk.CTkFrame):
             cursor="hand2",
         )
         self._game_dir_label.grid(
-            row=0, column=1, padx=theme.CARD_PAD_X,
-            pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD), sticky="w",
+            row=0,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, theme.CARD_ROW_PAD),
+            sticky="w",
         )
         self._game_dir_label.bind("<Button-1>", self._open_game_dir)
 
@@ -213,8 +223,11 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._version_label.grid(
-            row=1, column=1, padx=theme.CARD_PAD_X,
-            pady=theme.CARD_ROW_PAD, sticky="w",
+            row=1,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
         )
 
         # Latest patchable version
@@ -232,8 +245,11 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._latest_label.grid(
-            row=2, column=1, padx=theme.CARD_PAD_X,
-            pady=theme.CARD_ROW_PAD, sticky="w",
+            row=2,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
         )
 
         # Game latest (actual EA release) — hidden until check
@@ -265,8 +281,11 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._install_type_label.grid(
-            row=4, column=1, padx=theme.CARD_PAD_X,
-            pady=theme.CARD_ROW_PAD, sticky="w",
+            row=4,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
         )
 
         # DLC summary
@@ -284,13 +303,18 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._dlc_label.grid(
-            row=5, column=1, padx=theme.CARD_PAD_X,
-            pady=theme.CARD_ROW_PAD, sticky="w",
+            row=5,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
         )
 
         # Separator
         ctk.CTkFrame(
-            self._card, height=1, fg_color=theme.COLORS["separator"],
+            self._card,
+            height=1,
+            fg_color=theme.COLORS["separator"],
         ).grid(row=6, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=4, sticky="ew")
 
         # Unlocker status
@@ -308,8 +332,11 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._unlocker_label.grid(
-            row=7, column=1, padx=theme.CARD_PAD_X,
-            pady=theme.CARD_ROW_PAD, sticky="w",
+            row=7,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
         )
 
         # GreenLuma status
@@ -327,8 +354,11 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._greenluma_label.grid(
-            row=8, column=1, padx=theme.CARD_PAD_X,
-            pady=theme.CARD_ROW_PAD, sticky="w",
+            row=8,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
         )
 
         # CDN status
@@ -338,8 +368,11 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(
-            row=9, column=0, padx=theme.CARD_PAD_X,
-            pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w",
+            row=9,
+            column=0,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y),
+            sticky="w",
         )
 
         self._cdn_label = ctk.CTkLabel(
@@ -349,8 +382,11 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._cdn_label.grid(
-            row=9, column=1, padx=theme.CARD_PAD_X,
-            pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y), sticky="w",
+            row=9,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y),
+            sticky="w",
         )
 
         # ── Pricing Summary Card (hidden until prices load) ──
@@ -364,79 +400,104 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=theme.COLORS["accent"],
         ).grid(
-            row=0, column=0, columnspan=2, padx=theme.CARD_PAD_X,
-            pady=(theme.CARD_PAD_Y, 6), sticky="w",
+            row=0,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(theme.CARD_PAD_Y, 6),
+            sticky="w",
         )
 
         self._price_total_label_key = ctk.CTkLabel(
-            self._pricing_card, text="Total DLCs:",
+            self._pricing_card,
+            text="Total DLCs:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
         self._price_total_label_key.grid(row=1, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
         self._price_total_label = ctk.CTkLabel(
-            self._pricing_card, text="...",
-            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+            self._pricing_card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
         )
         self._price_total_label.grid(row=1, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
 
         self._price_patchable_key = ctk.CTkLabel(
-            self._pricing_card, text="On CDN:",
+            self._pricing_card,
+            text="On CDN:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         )
         self._price_patchable_label = ctk.CTkLabel(
-            self._pricing_card, text="...",
-            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+            self._pricing_card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
         )
 
         ctk.CTkLabel(
-            self._pricing_card, text="Total Original:",
+            self._pricing_card,
+            text="Total Original:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=3, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
         self._price_original_label = ctk.CTkLabel(
-            self._pricing_card, text="...",
-            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+            self._pricing_card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
         )
         self._price_original_label.grid(row=3, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
 
         ctk.CTkLabel(
-            self._pricing_card, text="Current Total:",
+            self._pricing_card,
+            text="Current Total:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=4, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
         self._price_current_label = ctk.CTkLabel(
-            self._pricing_card, text="...",
-            font=ctk.CTkFont(*theme.FONT_BODY), anchor="w",
+            self._pricing_card,
+            text="...",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            anchor="w",
         )
         self._price_current_label.grid(row=4, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
 
         ctk.CTkLabel(
-            self._pricing_card, text="You Save:",
+            self._pricing_card,
+            text="You Save:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=5, column=0, padx=theme.CARD_PAD_X, pady=2, sticky="w")
         self._price_savings_label = ctk.CTkLabel(
-            self._pricing_card, text="...",
+            self._pricing_card,
+            text="...",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-            text_color=theme.COLORS["success"], anchor="w",
+            text_color=theme.COLORS["success"],
+            anchor="w",
         )
         self._price_savings_label.grid(row=5, column=1, padx=theme.CARD_PAD_X, pady=2, sticky="w")
 
         ctk.CTkLabel(
-            self._pricing_card, text="DLCs On Sale:",
+            self._pricing_card,
+            text="DLCs On Sale:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(row=6, column=0, padx=theme.CARD_PAD_X, pady=(2, theme.CARD_PAD_Y), sticky="w")
         self._price_on_sale_label = ctk.CTkLabel(
-            self._pricing_card, text="...",
+            self._pricing_card,
+            text="...",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
-            text_color=theme.COLORS["success"], anchor="w",
+            text_color=theme.COLORS["success"],
+            anchor="w",
         )
         self._price_on_sale_label.grid(
-            row=6, column=1, padx=theme.CARD_PAD_X,
-            pady=(2, theme.CARD_PAD_Y), sticky="w",
+            row=6,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=(2, theme.CARD_PAD_Y),
+            sticky="w",
         )
 
         # ── Banner area (patch pending / new DLC notices) ──
@@ -532,7 +593,9 @@ class HomeFrame(ctk.CTkFrame):
 
         # ── Play time display (hidden by default) ──
         self._play_time_frame = ctk.CTkFrame(
-            self, fg_color=theme.COLORS["bg_surface"], corner_radius=8,
+            self,
+            fg_color=theme.COLORS["bg_surface"],
+            corner_radius=8,
         )
         # row=3 of self — below launch buttons
         self._play_time_frame.grid(row=3, column=0, padx=30, pady=(0, 6), sticky="ew")
@@ -588,17 +651,26 @@ class HomeFrame(ctk.CTkFrame):
         animator = get_animator()
         # Fade title
         animator.animate_color(
-            self._title, "text_color",
-            theme.COLORS["bg_dark"], theme.COLORS["text"],
-            theme.ANIM_SLOW, tag="entrance",
+            self._title,
+            "text_color",
+            theme.COLORS["bg_dark"],
+            theme.COLORS["text"],
+            theme.ANIM_SLOW,
+            tag="entrance",
         )
         # Fade subtitle with slight delay
         self._subtitle.configure(text_color=theme.COLORS["bg_dark"])
-        self.after(theme.ANIM_STAGGER, lambda: animator.animate_color(
-            self._subtitle, "text_color",
-            theme.COLORS["bg_dark"], theme.COLORS["text_muted"],
-            theme.ANIM_SLOW, tag="entrance",
-        ))
+        self.after(
+            theme.ANIM_STAGGER,
+            lambda: animator.animate_color(
+                self._subtitle,
+                "text_color",
+                theme.COLORS["bg_dark"],
+                theme.COLORS["text_muted"],
+                theme.ANIM_SLOW,
+                tag="entrance",
+            ),
+        )
 
     def update_pricing_card(self):
         """Update the pricing summary card from the shared price cache."""
@@ -671,13 +743,21 @@ class HomeFrame(ctk.CTkFrame):
             total_cat = len(self.app.updater._dlc_manager.catalog.dlcs)
             px = theme.CARD_PAD_X
             self._price_patchable_key.grid(
-                row=2, column=0, padx=px, pady=2, sticky="w",
+                row=2,
+                column=0,
+                padx=px,
+                pady=2,
+                sticky="w",
             )
             self._price_patchable_label.configure(
                 text=f"{on_cdn} / {total_cat}",
             )
             self._price_patchable_label.grid(
-                row=2, column=1, padx=px, pady=2, sticky="w",
+                row=2,
+                column=1,
+                padx=px,
+                pady=2,
+                sticky="w",
             )
         else:
             self._price_patchable_key.grid_forget()
@@ -715,6 +795,7 @@ class HomeFrame(ctk.CTkFrame):
         if game_dir:
             try:
                 from ...dlc.formats import detect_format
+
                 adapter = detect_format(game_dir)
                 has_legit = any(
                     (Path(game_dir) / d / exe).is_file()
@@ -745,6 +826,7 @@ class HomeFrame(ctk.CTkFrame):
         unlocker_status = "Not Installed"
         try:
             from ...core.unlocker import get_status as get_unlocker_status
+
             status = get_unlocker_status()
             unlocker_status = "Installed" if status.dll_installed else "Not Installed"
         except RuntimeError:
@@ -756,10 +838,9 @@ class HomeFrame(ctk.CTkFrame):
         gl_status = "Not Detected"
         try:
             from ...greenluma.steam import detect_steam_path, get_steam_info
+
             steam_path_str = self.app.settings.steam_path
-            steam_path = (
-                Path(steam_path_str) if steam_path_str else detect_steam_path()
-            )
+            steam_path = Path(steam_path_str) if steam_path_str else detect_steam_path()
             if steam_path and steam_path.is_dir():
                 steam_info = get_steam_info(steam_path)
                 if steam_info.greenluma_installed:
@@ -780,6 +861,7 @@ class HomeFrame(ctk.CTkFrame):
             cdn_status = "Unreachable"
             try:
                 import requests
+
                 resp = requests.head(manifest_url, timeout=5)
                 if resp.status_code < 400:
                     cdn_status = "Reachable"
@@ -833,8 +915,10 @@ class HomeFrame(ctk.CTkFrame):
         # Unlocker status
         unlocker = info.get("unlocker_status", "Unknown")
         unlocker_color = (
-            theme.COLORS["success"] if unlocker == "Installed"
-            else theme.COLORS["warning"] if unlocker == "Not Installed"
+            theme.COLORS["success"]
+            if unlocker == "Installed"
+            else theme.COLORS["warning"]
+            if unlocker == "Not Installed"
             else theme.COLORS["text_muted"]
         )
         self._unlocker_label.configure(text=unlocker, text_color=unlocker_color)
@@ -842,8 +926,10 @@ class HomeFrame(ctk.CTkFrame):
         # GreenLuma status
         gl = info.get("gl_status", "Unknown")
         gl_color = (
-            theme.COLORS["success"] if gl.startswith("Installed")
-            else theme.COLORS["warning"] if gl == "Not Installed"
+            theme.COLORS["success"]
+            if gl.startswith("Installed")
+            else theme.COLORS["warning"]
+            if gl == "Not Installed"
             else theme.COLORS["text_muted"]
         )
         self._greenluma_label.configure(text=gl, text_color=gl_color)
@@ -851,8 +937,10 @@ class HomeFrame(ctk.CTkFrame):
         # CDN status
         cdn = info.get("cdn_status", "Unknown")
         cdn_color = (
-            theme.COLORS["success"] if cdn == "Reachable"
-            else theme.COLORS["warning"] if cdn == "Not Configured"
+            theme.COLORS["success"]
+            if cdn == "Reachable"
+            else theme.COLORS["warning"]
+            if cdn == "Not Configured"
             else theme.COLORS["error"]
         )
         self._cdn_label.configure(text=cdn, text_color=cdn_color)
@@ -912,14 +1000,22 @@ class HomeFrame(ctk.CTkFrame):
             if info.game_latest_date:
                 date_str = f"  ({info.game_latest_date})"
             self._game_latest_row_label.grid(
-                row=3, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w",
+                row=3,
+                column=0,
+                padx=theme.CARD_PAD_X,
+                pady=theme.CARD_ROW_PAD,
+                sticky="w",
             )
             self._game_latest_label.configure(
                 text=f"{game_latest}{date_str}",
                 text_color=theme.COLORS["warning"],
             )
             self._game_latest_label.grid(
-                row=3, column=1, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w",
+                row=3,
+                column=1,
+                padx=theme.CARD_PAD_X,
+                pady=theme.CARD_ROW_PAD,
+                sticky="w",
             )
         else:
             self._game_latest_row_label.grid_forget()
@@ -971,8 +1067,7 @@ class HomeFrame(ctk.CTkFrame):
             # At latest patchable, but a newer game version exists
             self._set_status("You have the latest available patch.", "success")
             self._add_banner(
-                f"New game version {game_latest} has been released "
-                f"-- patch coming soon!",
+                f"New game version {game_latest} has been released -- patch coming soon!",
                 color=theme.COLORS["warning"],
             )
             # Disable update button — nothing to update to
@@ -1016,6 +1111,7 @@ class HomeFrame(ctk.CTkFrame):
     def _check_app_update_bg(self):
         """Background: check GitHub for a new updater version."""
         from ...core.self_update import check_for_app_update
+
         manifest = self.app.updater.patch_client._manifest
         return check_for_app_update(manifest=manifest)
 
@@ -1024,12 +1120,17 @@ class HomeFrame(ctk.CTkFrame):
         self._app_update_info = info
         if info and info.update_available:
             from ...patch.client import format_size
+
             size = format_size(info.download_size) if info.download_size else "?"
             self._app_update_label.configure(
                 text=f"Updater v{info.latest_version} available ({size})",
             )
             self._app_update_frame.grid(
-                row=0, column=0, padx=30, pady=(5, 0), sticky="ew",
+                row=0,
+                column=0,
+                padx=30,
+                pady=(5, 0),
+                sticky="ew",
             )
             # Shift title down — re-grid it at row 1 is not needed since
             # we use grid_rowconfigure weight; just show the banner above
@@ -1066,6 +1167,7 @@ class HomeFrame(ctk.CTkFrame):
     def _download_self_update_bg(self):
         """Background: download the new updater exe with progress reporting."""
         from ...core.self_update import download_app_update
+
         return download_app_update(
             self._app_update_info,
             progress=self._on_dl_progress,
@@ -1165,6 +1267,7 @@ class HomeFrame(ctk.CTkFrame):
         game_dir = self.app.updater.find_game_dir()
         if game_dir and Path(game_dir).is_dir():
             import os
+
             os.startfile(str(game_dir))
         else:
             self.app.show_toast("Game directory not found.", "warning")
@@ -1215,6 +1318,7 @@ class HomeFrame(ctk.CTkFrame):
         if not self._game_running and not self._game_launching:
             try:
                 from ...core.process import is_game_running
+
                 if is_game_running():
                     self._set_game_running_state()
                     self._start_play_timer()
@@ -1244,6 +1348,7 @@ class HomeFrame(ctk.CTkFrame):
     def _ask_stop_game(self):
         """Ask user if they want to stop the running game."""
         import tkinter.messagebox
+
         stop = tkinter.messagebox.askyesno(
             "Game Running",
             "The Sims 4 is already running.\n\nWould you like to close it?",
@@ -1251,6 +1356,7 @@ class HomeFrame(ctk.CTkFrame):
         )
         if stop:
             from ...core.process import kill_game_process
+
             kill_game_process()
             self.app.show_toast("Game process terminated.", "info")
             self._game_running = False
@@ -1271,9 +1377,7 @@ class HomeFrame(ctk.CTkFrame):
         )
         # Disable the other button too
         other = (
-            self._cracked_launch_btn
-            if btn == self._legit_launch_btn
-            else self._legit_launch_btn
+            self._cracked_launch_btn if btn == self._legit_launch_btn else self._legit_launch_btn
         )
         other.configure(state="disabled")
 
@@ -1282,9 +1386,7 @@ class HomeFrame(ctk.CTkFrame):
             subprocess.Popen(
                 [str(exe_path)],
                 cwd=str(exe_path.parent),
-                creationflags=(
-                    subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-                ),
+                creationflags=(subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP),
             )
             self.app.show_toast(f"{label} game launched!", "success")
         except OSError as e:
@@ -1359,6 +1461,7 @@ class HomeFrame(ctk.CTkFrame):
 
         try:
             from ...core.process import is_game_running
+
             running = is_game_running()
         except Exception:
             running = False

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sims4-updater"
-version = "2.0.0"
+dynamic = ["version"]
 requires-python = ">=3.12"
 dependencies = [
     "customtkinter>=5.2.0",
@@ -22,10 +22,12 @@ dev = [
 
 [project.scripts]
 sims4-updater = "sims4_updater.__main__:main"
-patch-maker = "patch_maker.cli:main"
+
+[tool.hatch.version]
+path = "src/sims4_updater/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sims4_updater", "src/patch_maker"]
+packages = ["src/sims4_updater"]
 
 [tool.ruff]
 target-version = "py312"

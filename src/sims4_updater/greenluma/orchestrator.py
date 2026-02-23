@@ -99,14 +99,16 @@ class GreenLumaOrchestrator:
                 continue
 
             app_id_str = str(dlc.steam_app_id)
-            results.append(DLCReadiness(
-                dlc_id=dlc.id,
-                name=dlc.name_en,
-                steam_app_id=dlc.steam_app_id,
-                in_applist=app_id_str in al_state.unique_ids,
-                has_key=app_id_str in vdf_state.keys,
-                has_manifest=app_id_str in mc_state.depot_ids,
-            ))
+            results.append(
+                DLCReadiness(
+                    dlc_id=dlc.id,
+                    name=dlc.name_en,
+                    steam_app_id=dlc.steam_app_id,
+                    in_applist=app_id_str in al_state.unique_ids,
+                    has_key=app_id_str in vdf_state.keys,
+                    has_manifest=app_id_str in mc_state.depot_ids,
+                )
+            )
 
         return results
 
@@ -140,9 +142,7 @@ class GreenLumaOrchestrator:
 
         # Step 0: Check Steam is not running
         if is_steam_running():
-            result.errors.append(
-                "Steam is running. Close Steam before applying LUA changes."
-            )
+            result.errors.append("Steam is running. Close Steam before applying LUA changes.")
             return result
 
         # Step 1: Parse LUA
@@ -287,9 +287,7 @@ class GreenLumaOrchestrator:
             result.keys_expected = len(expected_keys)
 
             if expected_keys and self.steam.config_vdf_path.is_file():
-                kv = config_vdf.verify_keys(
-                    self.steam.config_vdf_path, expected_keys
-                )
+                kv = config_vdf.verify_keys(self.steam.config_vdf_path, expected_keys)
                 result.keys_matching = kv["matching"]
                 result.keys_mismatched = kv["mismatched"]
                 result.keys_missing = kv["missing"]
@@ -365,9 +363,7 @@ class GreenLumaOrchestrator:
 
             # Download manifest if missing
             if depot_id not in mc_state.depot_ids and entry.manifest_url:
-                filename = manifest_cache.get_manifest_filename(
-                    depot_id, entry.manifest_id
-                )
+                filename = manifest_cache.get_manifest_filename(depot_id, entry.manifest_id)
                 dest = self.steam.depotcache_dir / filename
                 try:
                     _log(f"Downloading manifest: {filename}")
@@ -407,9 +403,7 @@ class GreenLumaOrchestrator:
         if new_applist_ids:
             _log(f"Adding {len(new_applist_ids)} AppList entries...")
             try:
-                applist_added = applist.add_ids(
-                    self.steam.applist_dir, new_applist_ids
-                )
+                applist_added = applist.add_ids(self.steam.applist_dir, new_applist_ids)
                 _log(f"AppList: {applist_added} entries added")
             except ValueError as e:
                 _log(f"ERROR updating AppList: {e}")

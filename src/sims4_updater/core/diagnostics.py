@@ -142,10 +142,7 @@ def _check_vc_redist() -> DiagnosticResult:
             name="VC++ Redistributable",
             status=CheckStatus.FAIL,
             message="VC++ 2015-2022 x64 not detected.",
-            fix=(
-                "Download and install from: "
-                "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-            ),
+            fix=("Download and install from: https://aka.ms/vs/17/release/vc_redist.x64.exe"),
         )
     except Exception as e:
         return DiagnosticResult(
@@ -394,7 +391,9 @@ def _check_controlled_folder_access() -> DiagnosticResult:
         # Query via PowerShell (requires admin for full info, but we can try)
         result = subprocess.run(
             [
-                "powershell", "-NoProfile", "-Command",
+                "powershell",
+                "-NoProfile",
+                "-Command",
                 "Get-MpPreference | Select-Object -ExpandProperty EnableControlledFolderAccess",
             ],
             capture_output=True,

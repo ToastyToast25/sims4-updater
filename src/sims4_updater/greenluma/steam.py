@@ -35,12 +35,12 @@ class SteamInfo:
     """Describes a Steam installation and its GreenLuma state."""
 
     steam_path: Path
-    applist_dir: Path             # steam_path / "AppList"
-    config_vdf_path: Path         # steam_path / "config" / "config.vdf"
-    depotcache_dir: Path          # steam_path / "depotcache"
-    steamapps_dir: Path           # steam_path / "steamapps"
+    applist_dir: Path  # steam_path / "AppList"
+    config_vdf_path: Path  # steam_path / "config" / "config.vdf"
+    depotcache_dir: Path  # steam_path / "depotcache"
+    steamapps_dir: Path  # steam_path / "steamapps"
     greenluma_installed: bool
-    greenluma_mode: str           # "normal" | "stealth" | "none"
+    greenluma_mode: str  # "normal" | "stealth" | "none"
 
 
 # ── Steam Path Detection ────────────────────────────────────────────
@@ -83,7 +83,10 @@ def _read_steam_path_from_registry() -> Path | None:
     ):
         try:
             with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE, _STEAM_REGISTRY_KEY, 0, view,
+                winreg.HKEY_LOCAL_MACHINE,
+                _STEAM_REGISTRY_KEY,
+                0,
+                view,
             ) as key:
                 value, _ = winreg.QueryValueEx(key, _STEAM_REGISTRY_VALUE)
                 if value:
@@ -164,9 +167,7 @@ def _detect_greenluma(steam_path: Path) -> tuple[bool, str]:
         ``"normal"``, ``"stealth"``, or ``"none"``.
     """
     # Normal mode: GreenLuma DLLs live directly in the Steam directory
-    has_dlls = all(
-        (steam_path / dll).is_file() for dll in _GREENLUMA_DLLS
-    )
+    has_dlls = all((steam_path / dll).is_file() for dll in _GREENLUMA_DLLS)
     if has_dlls:
         return True, "normal"
 

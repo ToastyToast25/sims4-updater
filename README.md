@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-see%20LICENSE-lightgrey)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/ToastyToast25/sims4-updater?label=download&logo=github)](https://github.com/ToastyToast25/sims4-updater/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/ToastyToast25/sims4-updater/build.yml?branch=master&logo=github-actions&logoColor=white)](https://github.com/ToastyToast25/sims4-updater/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/ToastyToast25/sims4-updater/ci.yml?branch=main&logo=github-actions&logoColor=white)](https://github.com/ToastyToast25/sims4-updater/actions)
 
 ---
 
@@ -449,7 +449,7 @@ This installs runtime dependencies (`customtkinter`, `requests`, `pywin32`) plus
 ### Build
 
 ```bash
-pyinstaller --clean --noconfirm Sims4Updater.spec
+pyinstaller --clean --noconfirm sims4_updater.spec
 ```
 
 Output: `dist/Sims4Updater.exe` — a single-file portable executable bundling:
@@ -460,12 +460,6 @@ Output: `dist/Sims4Updater.exe` — a single-file portable executable bundling:
 - `data/version_hashes.json` — 135+ version fingerprints
 - `data/dlc_catalog.json` — 109 DLC entries with 18-language names
 - `mods/` — bundled mod resources
-
-A convenience batch file is also available:
-
-```bat
-build.bat
-```
 
 ### Lint and Tests
 
@@ -480,12 +474,18 @@ pytest tests/ -v --tb=short
 
 ### CI/CD
 
-GitHub Actions workflow (`.github/workflows/build.yml`):
+**Lint & Test** (`.github/workflows/ci.yml`) — runs on every push to `main` and all PRs:
 
-- **Trigger**: push to `master` (build + test), or any `v*` tag (build + release)
-- **Build environment**: `windows-latest`, Python 3.12
-- **Patcher dependency**: checked out from `ToastyToast25/patcher` as a sibling directory
-- **Release**: tagged pushes create a GitHub Release automatically via `softprops/action-gh-release` with generated release notes
+- `ruff check` + `ruff format --check` (Linux)
+- `pytest` test suite (Windows)
+- PyInstaller build verification on PRs
+
+**Release** (`.github/workflows/release.yml`) — runs on `v*` tags:
+
+- Builds `Sims4Updater.exe` and `CDNManager.exe` in parallel (Windows, Python 3.12)
+- Validates tag version matches `VERSION` in `src/sims4_updater/__init__.py`
+- Creates GitHub Release with both executables via `softprops/action-gh-release`
+- Patcher dependency checked out from `ToastyToast25/patcher`
 
 ---
 
@@ -570,16 +570,16 @@ sims4-updater/
 │   ├── worker.js                    # CDN proxy worker (KV route lookup -> seedbox fetch)
 │   ├── api-worker.js                # Fingerprint API worker (report + validate hashes)
 │   ├── wrangler.toml                # Wrangler deployment config
-│   ├── cdn_upload.py                # Upload patch files and update KV routes
-│   ├── cdn_pack_upload.py           # Upload packed DLC ZIPs to CDN
+│   ├── cdn_manager/                 # CDN Manager GUI application
+│   ├── cdn_manager.spec             # PyInstaller spec for CDNManager.exe
 │   └── SETUP.md                     # Step-by-step CDN infrastructure setup guide
 ├── mods/                            # Bundled mod resources
 ├── tools/                           # Runtime tools: xdelta3, unrar, EA DLC Unlocker DLL
-├── Sims4Updater.spec                # PyInstaller build config (active)
+├── sims4_updater.spec               # PyInstaller build config (production)
 ├── pyproject.toml                   # Hatchling build backend, ruff config, pytest config
-├── requirements.txt                 # Runtime dependencies
-├── requirements-dev.txt             # Dev/build dependencies
-└── .github/workflows/build.yml      # CI/CD pipeline
+└── .github/workflows/
+    ├── ci.yml                       # Lint, test, build verification
+    └── release.yml                  # Build exes + create GitHub Release
 ```
 
 ---

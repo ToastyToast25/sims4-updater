@@ -66,7 +66,6 @@ _TYPE_LABELS = {
 
 
 class DLCFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -233,7 +232,9 @@ class DLCFrame(ctk.CTkFrame):
 
         # Separator
         ctk.CTkFrame(
-            legend_frame, width=1, height=18,
+            legend_frame,
+            width=1,
+            height=18,
             fg_color=theme.COLORS["border"],
         ).grid(row=0, column=col, padx=8)
         col += 1
@@ -272,7 +273,8 @@ class DLCFrame(ctk.CTkFrame):
 
         # ── Scrollable DLC list ──
         self._scroll_frame = ctk.CTkScrollableFrame(
-            self, corner_radius=8,
+            self,
+            corner_radius=8,
             scrollbar_button_color=theme.COLORS["separator"],
             scrollbar_button_hover_color=theme.COLORS["accent"],
         )
@@ -371,9 +373,7 @@ class DLCFrame(ctk.CTkFrame):
             from ...greenluma.steam import detect_steam_path, get_steam_info
 
             steam_path_str = self.app.settings.steam_path
-            steam_path = (
-                Path(steam_path_str) if steam_path_str else detect_steam_path()
-            )
+            steam_path = Path(steam_path_str) if steam_path_str else detect_steam_path()
             if steam_path and steam_path.is_dir():
                 info = get_steam_info(steam_path)
                 gl_installed = info.greenluma_installed
@@ -445,16 +445,25 @@ class DLCFrame(ctk.CTkFrame):
             skel.grid(row=i, column=0, padx=5, pady=3, sticky="ew")
             skel.grid_propagate(False)
             ctk.CTkFrame(
-                skel, fg_color=theme.COLORS["separator"],
-                corner_radius=4, width=20, height=20,
+                skel,
+                fg_color=theme.COLORS["separator"],
+                corner_radius=4,
+                width=20,
+                height=20,
             ).place(x=12, rely=0.5, anchor="w")
             ctk.CTkFrame(
-                skel, fg_color=theme.COLORS["separator"],
-                corner_radius=4, width=180, height=14,
+                skel,
+                fg_color=theme.COLORS["separator"],
+                corner_radius=4,
+                width=180,
+                height=14,
             ).place(x=44, rely=0.5, anchor="w")
             ctk.CTkFrame(
-                skel, fg_color=theme.COLORS["separator"],
-                corner_radius=4, width=50, height=14,
+                skel,
+                fg_color=theme.COLORS["separator"],
+                corner_radius=4,
+                width=50,
+                height=14,
             ).place(relx=0.85, rely=0.5, anchor="e")
             self._skeleton_widgets.append(skel)
 
@@ -489,10 +498,7 @@ class DLCFrame(ctk.CTkFrame):
     # ── Steam Price Fetching ───────────────────────────────────
 
     def _fetch_steam_prices(self):
-        app_ids = [
-            s.dlc.steam_app_id for s in self._all_states
-            if s.dlc.steam_app_id is not None
-        ]
+        app_ids = [s.dlc.steam_app_id for s in self._all_states if s.dlc.steam_app_id is not None]
         if not app_ids:
             return
 
@@ -533,6 +539,7 @@ class DLCFrame(ctk.CTkFrame):
     def _on_prices_error(self, error):
         self.app.price_cache.is_fetching = False
         import logging
+
         logging.warning("Steam price fetch failed: %s", error)
 
     # ── Search & Filter ────────────────────────────────────────
@@ -555,12 +562,14 @@ class DLCFrame(ctk.CTkFrame):
         query = self._search_var.get().strip().lower()
         if query:
             filtered = [
-                s for s in filtered
+                s
+                for s in filtered
                 if query in s.dlc.get_name().lower() or query in s.dlc.id.lower()
             ]
 
         # Chip filters (OR logic)
         if self._active_filters:
+
             def matches(state: DLCStatus) -> bool:
                 for f in self._active_filters:
                     if f == "owned" and state.owned:
@@ -584,6 +593,7 @@ class DLCFrame(ctk.CTkFrame):
                     if f == "on_sale" and self._is_on_sale(state.dlc):
                         return True
                 return False
+
             filtered = [s for s in filtered if matches(s)]
 
         filtered_ids = {s.dlc.id for s in filtered}
@@ -652,8 +662,10 @@ class DLCFrame(ctk.CTkFrame):
                 if rw.get("desc_frame"):
                     if self._desc_expanded.get(dlc_id, False):
                         rw["desc_frame"].grid(
-                            row=cb_row, column=0,
-                            padx=(35, 10), pady=(0, 2),
+                            row=cb_row,
+                            column=0,
+                            padx=(35, 10),
+                            pady=(0, 2),
                             sticky="ew",
                         )
                     else:
@@ -686,7 +698,7 @@ class DLCFrame(ctk.CTkFrame):
         total_enabled = sum(1 for s in self._all_states if s.enabled is True)
         self._status_label.configure(
             text=f"{total_owned} owned, {total_patched} patched, "
-                 f"{total_missing} missing  |  {total_enabled} enabled",
+            f"{total_missing} missing  |  {total_enabled} enabled",
             text_color=theme.COLORS["text_muted"],
         )
 
@@ -731,7 +743,8 @@ class DLCFrame(ctk.CTkFrame):
 
             # Section separator
             sep = ctk.CTkFrame(
-                self._scroll_frame, height=1,
+                self._scroll_frame,
+                height=1,
                 fg_color=theme.COLORS["separator"],
             )
 
@@ -772,17 +785,22 @@ class DLCFrame(ctk.CTkFrame):
                 text_color=theme.COLORS["text_muted"],
                 fg_color=theme.COLORS["bg_dark"],
                 corner_radius=10,
-                width=50, height=22,
+                width=50,
+                height=22,
             )
             count_label.grid(row=0, column=2, padx=(4, 12), pady=8)
 
             # Click bindings for collapse
             for widget in (header_frame, arrow_label, title_label, count_label):
                 widget.bind("<Button-1>", lambda e, pt=pack_type: self._toggle_section(pt))
-                widget.bind("<Enter>", lambda e, hf=header_frame: hf.configure(
-                    fg_color=theme.COLORS["sidebar_hover"]))
-                widget.bind("<Leave>", lambda e, hf=header_frame: hf.configure(
-                    fg_color=theme.COLORS["separator"]))
+                widget.bind(
+                    "<Enter>",
+                    lambda e, hf=header_frame: hf.configure(fg_color=theme.COLORS["sidebar_hover"]),
+                )
+                widget.bind(
+                    "<Leave>",
+                    lambda e, hf=header_frame: hf.configure(fg_color=theme.COLORS["separator"]),
+                )
 
             # Content frame
             content_frame = ctk.CTkFrame(self._scroll_frame, fg_color="transparent")
@@ -837,7 +855,8 @@ class DLCFrame(ctk.CTkFrame):
             info_btn = ctk.CTkButton(
                 row_frame,
                 text=arr,
-                width=24, height=24,
+                width=24,
+                height=24,
                 font=ctk.CTkFont(size=11),
                 fg_color="transparent",
                 hover_color=theme.COLORS["separator"],
@@ -852,15 +871,20 @@ class DLCFrame(ctk.CTkFrame):
         if state.owned:
             var = ctk.BooleanVar(value=True)
             cb = ctk.CTkCheckBox(
-                row_frame, text=name, variable=var,
+                row_frame,
+                text=name,
+                variable=var,
                 font=ctk.CTkFont(size=12),
                 height=theme.BUTTON_HEIGHT_SMALL,
-                corner_radius=4, state="disabled",
+                corner_radius=4,
+                state="disabled",
             )
         elif state.installed and state.registered:
             var = ctk.BooleanVar(value=state.enabled is True)
             cb = ctk.CTkCheckBox(
-                row_frame, text=name, variable=var,
+                row_frame,
+                text=name,
+                variable=var,
                 font=ctk.CTkFont(size=12),
                 height=theme.BUTTON_HEIGHT_SMALL,
                 corner_radius=4,
@@ -868,7 +892,9 @@ class DLCFrame(ctk.CTkFrame):
         else:
             var = ctk.BooleanVar(value=False)
             cb = ctk.CTkCheckBox(
-                row_frame, text=name, variable=var,
+                row_frame,
+                text=name,
+                variable=var,
                 font=ctk.CTkFont(size=12),
                 height=theme.BUTTON_HEIGHT_SMALL,
                 corner_radius=4,
@@ -893,7 +919,8 @@ class DLCFrame(ctk.CTkFrame):
                     text_color="#1a1a2e",
                     fg_color=theme.COLORS["success"],
                     corner_radius=4,
-                    width=42, height=22,
+                    width=42,
+                    height=22,
                 ).pack(side="left", padx=(0, 6))
 
                 ctk.CTkLabel(
@@ -923,7 +950,8 @@ class DLCFrame(ctk.CTkFrame):
             steam_btn = ctk.CTkButton(
                 row_frame,
                 text="Steam \u2197",
-                width=56, height=24,
+                width=56,
+                height=24,
                 font=ctk.CTkFont(size=10),
                 fg_color="transparent",
                 hover_color=theme.COLORS["separator"],
@@ -951,14 +979,8 @@ class DLCFrame(ctk.CTkFrame):
         # GreenLuma readiness indicator
         gl_r = self._gl_readiness.get(dlc.id)
         if gl_r is not None:
-            gl_color = (
-                theme.COLORS["success"] if gl_r.ready
-                else theme.COLORS["warning"]
-            )
-            gl_bg = (
-                theme.COLORS["toast_success"] if gl_r.ready
-                else theme.COLORS["toast_warning"]
-            )
+            gl_color = theme.COLORS["success"] if gl_r.ready else theme.COLORS["warning"]
+            gl_bg = theme.COLORS["toast_success"] if gl_r.ready else theme.COLORS["toast_warning"]
             gl_pill = ctk.CTkLabel(
                 row_frame,
                 text="  GL  ",
@@ -969,7 +991,11 @@ class DLCFrame(ctk.CTkFrame):
                 height=22,
             )
             gl_pill.grid(
-                row=0, column=next_col, padx=(4, 0), pady=6, sticky="e",
+                row=0,
+                column=next_col,
+                padx=(4, 0),
+                pady=6,
+                sticky="e",
             )
 
             # Tooltip-style detail on hover
@@ -1025,7 +1051,8 @@ class DLCFrame(ctk.CTkFrame):
             uninstall_btn = ctk.CTkButton(
                 row_frame,
                 text="\u2716",
-                width=28, height=24,
+                width=28,
+                height=24,
                 font=ctk.CTkFont(size=12),
                 fg_color=theme.COLORS["error"],
                 hover_color="#ff6b6b",
@@ -1034,7 +1061,11 @@ class DLCFrame(ctk.CTkFrame):
                 command=lambda did=dlc.id, dn=name: self._on_uninstall_single(did, dn),
             )
             uninstall_btn.grid(
-                row=0, column=next_col, padx=(4, 4), pady=6, sticky="e",
+                row=0,
+                column=next_col,
+                padx=(4, 4),
+                pady=6,
+                sticky="e",
             )
             next_col += 1
 
@@ -1042,17 +1073,23 @@ class DLCFrame(ctk.CTkFrame):
         def on_enter(e, rf=row_frame):
             self._animator.cancel_all(rf, tag="row_hover")
             self._animator.animate_color(
-                rf, "border_color",
-                theme.COLORS["border"], theme.COLORS["accent"],
-                theme.ANIM_FAST, tag="row_hover",
+                rf,
+                "border_color",
+                theme.COLORS["border"],
+                theme.COLORS["accent"],
+                theme.ANIM_FAST,
+                tag="row_hover",
             )
 
         def on_leave(e, rf=row_frame, rw_ref=dlc.id):
             self._animator.cancel_all(rf, tag="row_hover")
             self._animator.animate_color(
-                rf, "border_color",
-                theme.COLORS["accent"], theme.COLORS["border"],
-                theme.ANIM_NORMAL, tag="row_hover",
+                rf,
+                "border_color",
+                theme.COLORS["accent"],
+                theme.COLORS["border"],
+                theme.ANIM_NORMAL,
+                tag="row_hover",
             )
 
         row_frame.bind("<Enter>", on_enter)
@@ -1124,7 +1161,8 @@ class DLCFrame(ctk.CTkFrame):
         # These are lightweight — recreated each filter pass since they're few
         row = start_row
         ctk.CTkFrame(
-            self._scroll_frame, height=1,
+            self._scroll_frame,
+            height=1,
             fg_color=theme.COLORS["separator"],
         ).grid(row=row, column=0, padx=5, pady=(8, 0), sticky="ew")
         row += 1
@@ -1156,9 +1194,7 @@ class DLCFrame(ctk.CTkFrame):
 
         btn = rw.get("info_btn")
         if btn:
-            btn.configure(
-                text="\u25bc" if self._desc_expanded[dlc_id] else "\u25b8"
-            )
+            btn.configure(text="\u25bc" if self._desc_expanded[dlc_id] else "\u25b8")
 
         # Re-run filter layout — it knows the correct grid positions
         self._apply_filter()
@@ -1209,9 +1245,7 @@ class DLCFrame(ctk.CTkFrame):
         self._apply_btn.configure(state="disabled")
         self._status_label.configure(text="Applying changes...")
 
-        enabled_set = {
-            dlc_id for dlc_id, var in self._checkbox_vars.items() if var.get()
-        }
+        enabled_set = {dlc_id for dlc_id, var in self._checkbox_vars.items() if var.get()}
         self.app.run_async(
             self._apply_bg,
             enabled_set,
@@ -1235,6 +1269,7 @@ class DLCFrame(ctk.CTkFrame):
     def _on_dlc_error(self, error):
         import logging
         import traceback
+
         logging.error("DLC error: %s\n%s", error, traceback.format_exc())
         self._auto_btn.configure(state="normal")
         self._apply_btn.configure(state="normal")
@@ -1266,7 +1301,8 @@ class DLCFrame(ctk.CTkFrame):
 
         # Update Downloadable chip label with count
         downloadable_count = sum(
-            1 for s in self._all_states
+            1
+            for s in self._all_states
             if s.dlc.id in dlc_downloads and s.status_label in _DOWNLOADABLE_STATUSES
         )
         btn = self._filter_buttons.get("downloadable")
@@ -1289,6 +1325,7 @@ class DLCFrame(ctk.CTkFrame):
 
     def _on_dlc_downloads_error(self, error):
         import logging
+
         logging.warning("Could not load DLC downloads from manifest: %s", error)
         # Hide the button since we have no download data
         self._go_to_downloader_btn.grid_remove()

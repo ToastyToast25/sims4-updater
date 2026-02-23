@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 
 
 class GreenLumaFrame(ctk.CTkFrame):
-
     def __init__(self, parent, app: App):
         super().__init__(parent, fg_color="transparent")
         self.app = app
@@ -59,57 +58,47 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         # Row 0: Steam Path
         ctk.CTkLabel(
-            self._card, text="Steam Path",
+            self._card,
+            text="Steam Path",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
-        ).grid(row=0, column=0, padx=(theme.CARD_PAD_X, 8),
-               pady=(theme.CARD_PAD_Y, 4), sticky="w")
+        ).grid(row=0, column=0, padx=(theme.CARD_PAD_X, 8), pady=(theme.CARD_PAD_Y, 4), sticky="w")
 
-        self._steam_path_badge = StatusBadge(
-            self._card, text="Detecting...", style="muted"
-        )
-        self._steam_path_badge.grid(
-            row=0, column=1, padx=0, pady=(theme.CARD_PAD_Y, 4), sticky="w"
-        )
+        self._steam_path_badge = StatusBadge(self._card, text="Detecting...", style="muted")
+        self._steam_path_badge.grid(row=0, column=1, padx=0, pady=(theme.CARD_PAD_Y, 4), sticky="w")
 
         # Row 1: GreenLuma Status + Version
         ctk.CTkLabel(
-            self._card, text="GreenLuma",
+            self._card,
+            text="GreenLuma",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=1, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
 
-        self._gl_badge = StatusBadge(
-            self._card, text="Unknown", style="muted"
-        )
+        self._gl_badge = StatusBadge(self._card, text="Unknown", style="muted")
         self._gl_badge.grid(row=1, column=1, padx=0, pady=4, sticky="w")
 
         # Row 2: Steam Running
         ctk.CTkLabel(
-            self._card, text="Steam",
+            self._card,
+            text="Steam",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
         ).grid(row=2, column=0, padx=(theme.CARD_PAD_X, 8), pady=4, sticky="w")
 
-        self._steam_status_badge = StatusBadge(
-            self._card, text="Checking...", style="muted"
-        )
+        self._steam_status_badge = StatusBadge(self._card, text="Checking...", style="muted")
         self._steam_status_badge.grid(row=2, column=1, padx=0, pady=4, sticky="w")
 
         # Row 3: Summary counts
         ctk.CTkLabel(
-            self._card, text="Summary",
+            self._card,
+            text="Summary",
             font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
             text_color=theme.COLORS["text"],
-        ).grid(row=3, column=0, padx=(theme.CARD_PAD_X, 8),
-               pady=(4, theme.CARD_PAD_Y), sticky="w")
+        ).grid(row=3, column=0, padx=(theme.CARD_PAD_X, 8), pady=(4, theme.CARD_PAD_Y), sticky="w")
 
-        self._summary_badge = StatusBadge(
-            self._card, text="...", style="muted"
-        )
-        self._summary_badge.grid(
-            row=3, column=1, padx=0, pady=(4, theme.CARD_PAD_Y), sticky="w"
-        )
+        self._summary_badge = StatusBadge(self._card, text="...", style="muted")
+        self._summary_badge.grid(row=3, column=1, padx=0, pady=(4, theme.CARD_PAD_Y), sticky="w")
 
         # ── Action Buttons ───────────────────────────────────────
         btn_frame = ctk.CTkFrame(top, fg_color="transparent")
@@ -199,8 +188,9 @@ class GreenLumaFrame(ctk.CTkFrame):
             hover_color=theme.COLORS["accent_hover"],
             command=self._on_apply_cdn_keys,
         )
-        self._apply_cdn_btn.grid(row=1, column=0, columnspan=3, padx=(0, 5),
-                                 pady=(6, 0), sticky="ew")
+        self._apply_cdn_btn.grid(
+            row=1, column=0, columnspan=3, padx=(0, 5), pady=(6, 0), sticky="ew"
+        )
 
         self._contribute_btn = ctk.CTkButton(
             btn_frame,
@@ -212,8 +202,9 @@ class GreenLumaFrame(ctk.CTkFrame):
             hover_color=theme.COLORS["card_hover"],
             command=self._on_contribute_keys,
         )
-        self._contribute_btn.grid(row=1, column=3, columnspan=3, padx=(5, 0),
-                                  pady=(6, 0), sticky="ew")
+        self._contribute_btn.grid(
+            row=1, column=3, columnspan=3, padx=(5, 0), pady=(6, 0), sticky="ew"
+        )
 
         # ── Scrollable body (DLC readiness + log) ────────────────
         body = ctk.CTkFrame(self, fg_color="transparent")
@@ -252,8 +243,7 @@ class GreenLumaFrame(ctk.CTkFrame):
                 height=24,
                 width=70,
                 corner_radius=4,
-                fg_color=theme.COLORS["accent"] if label == "All"
-                else theme.COLORS["bg_card_alt"],
+                fg_color=theme.COLORS["accent"] if label == "All" else theme.COLORS["bg_card_alt"],
                 hover_color=theme.COLORS["card_hover"],
                 command=lambda lbl=label: self._set_filter(lbl),
             )
@@ -365,11 +355,13 @@ class GreenLumaFrame(ctk.CTkFrame):
             try:
                 from ...dlc.catalog import DLCCatalog
                 from ...greenluma.orchestrator import GreenLumaOrchestrator
+
                 catalog = DLCCatalog()
                 orch = GreenLumaOrchestrator(info)
                 readiness = orch.check_readiness(catalog)
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).debug("DLC readiness check failed: %s", e)
 
             return info, gl_status, running, readiness, steam_path
@@ -386,9 +378,7 @@ class GreenLumaFrame(ctk.CTkFrame):
                 self._steam_path_badge.set_status("Not Found", "error")
                 self._gl_badge.set_status("N/A", "muted")
                 self._steam_status_badge.set_status("N/A", "muted")
-                self._summary_badge.set_status(
-                    "Set Steam path in Settings", "warning"
-                )
+                self._summary_badge.set_status("Set Steam path in Settings", "warning")
                 return
 
             self._steam_info = info
@@ -403,9 +393,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             if gl_status and gl_status.installed:
                 mode = gl_status.mode.title()
                 ver = gl_status.version
-                self._gl_badge.set_status(
-                    f"v{ver} ({mode})", "success"
-                )
+                self._gl_badge.set_status(f"v{ver} ({mode})", "success")
             else:
                 self._gl_badge.set_status("Not Installed", "warning")
 
@@ -419,13 +407,9 @@ class GreenLumaFrame(ctk.CTkFrame):
                 ready_count = sum(1 for r in readiness if r.ready)
                 total = len(readiness)
                 if ready_count == total:
-                    self._summary_badge.set_status(
-                        f"All {total} DLCs ready", "success"
-                    )
+                    self._summary_badge.set_status(f"All {total} DLCs ready", "success")
                 else:
-                    self._summary_badge.set_status(
-                        f"{ready_count}/{total} DLCs ready", "warning"
-                    )
+                    self._summary_badge.set_status(f"{ready_count}/{total} DLCs ready", "warning")
             else:
                 self._summary_badge.set_status("No DLC data", "muted")
 
@@ -466,9 +450,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             return
 
         # Header
-        header = (
-            f"{'DLC':<8} {'Name':<32} {'App':>3} {'Key':>3} {'Man':>3}  Status\n"
-        )
+        header = f"{'DLC':<8} {'Name':<32} {'App':>3} {'Key':>3} {'Man':>3}  Status\n"
         header += "-" * 70 + "\n"
         self._readiness_box.insert("end", header)
 
@@ -479,10 +461,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             status = "Ready" if r.ready else "Incomplete"
 
             name = r.name[:30] if len(r.name) > 30 else r.name
-            line = (
-                f"{r.dlc_id:<8} {name:<32} "
-                f"{app_mark:>3} {key_mark:>3} {man_mark:>3}  {status}\n"
-            )
+            line = f"{r.dlc_id:<8} {name:<32} {app_mark:>3} {key_mark:>3} {man_mark:>3}  {status}\n"
             self._readiness_box.insert("end", line)
 
         self._readiness_box.configure(state="disabled")
@@ -530,9 +509,8 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _bg():
             from ...greenluma.installer import install_greenluma
-            return install_greenluma(
-                Path(archive), steam_path, stealth=stealth
-            )
+
+            return install_greenluma(Path(archive), steam_path, stealth=stealth)
 
         def _done(status):
             self._set_busy(False)
@@ -540,12 +518,8 @@ class GreenLumaFrame(ctk.CTkFrame):
             if status.installed:
                 mode = status.mode.title()
                 ver = status.version
-                self.app.show_toast(
-                    f"GreenLuma v{ver} installed ({mode})!", "success"
-                )
-                self._log(
-                    f"GreenLuma installed: v{ver} ({mode})"
-                )
+                self.app.show_toast(f"GreenLuma v{ver} installed ({mode})!", "success")
+                self._log(f"GreenLuma installed: v{ver} ({mode})")
                 self._gl_badge.set_status(f"v{ver} ({mode})", "success")
             else:
                 self.app.show_toast("Installation may have failed.", "warning")
@@ -586,6 +560,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _bg():
             from ...greenluma.installer import uninstall_greenluma
+
             return uninstall_greenluma(steam_path)
 
         def _done(result):
@@ -616,9 +591,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         gl = self._gl_status
         if not gl or not gl.installed or not gl.dll_injector_path:
-            self.app.show_toast(
-                "GreenLuma not installed or injector not found.", "warning"
-            )
+            self.app.show_toast("GreenLuma not installed or injector not found.", "warning")
             return
 
         # Check if Steam is running before launching
@@ -645,6 +618,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _kill_bg():
             from ...greenluma.installer import kill_steam
+
             return kill_steam()
 
         def _kill_done(success):
@@ -671,6 +645,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _bg():
             from ...greenluma.installer import launch_steam_via_greenluma
+
             return launch_steam_via_greenluma(injector_path, force=True)
 
         def _done(success):
@@ -748,6 +723,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _bg():
             from ...greenluma.orchestrator import GreenLumaOrchestrator
+
             orch = GreenLumaOrchestrator(steam_info)
             return orch.apply_lua(
                 lua_path=Path(lua_path),
@@ -767,9 +743,7 @@ class GreenLumaFrame(ctk.CTkFrame):
                     f"{result.applist_entries_added} AppList entries"
                 )
             else:
-                self.app.show_toast(
-                    f"LUA applied with {len(result.errors)} error(s)", "warning"
-                )
+                self.app.show_toast(f"LUA applied with {len(result.errors)} error(s)", "warning")
                 for err in result.errors:
                     self._log(f"ERROR: {err}")
 
@@ -811,18 +785,14 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _bg():
             from ...greenluma.orchestrator import GreenLumaOrchestrator
+
             orch = GreenLumaOrchestrator(steam_info)
-            return orch.apply_cdn_keys(
-                gl_entries, progress=self._enqueue_log
-            )
+            return orch.apply_cdn_keys(gl_entries, progress=self._enqueue_log)
 
         def _done(result):
             self._set_busy(False)
             keys, manifests, applist_count = result
-            msg = (
-                f"Applied: {keys} keys, {manifests} manifests, "
-                f"{applist_count} AppList entries"
-            )
+            msg = f"Applied: {keys} keys, {manifests} manifests, {applist_count} AppList entries"
             self._log(msg)
             self.app.show_toast(msg, "success")
             self._refresh_status()
@@ -859,9 +829,8 @@ class GreenLumaFrame(ctk.CTkFrame):
 
         def _bg():
             from ...greenluma.contribute import scan_gl_contributions
-            result = scan_gl_contributions(
-                steam_info, readiness, progress=self._enqueue_log
-            )
+
+            result = scan_gl_contributions(steam_info, readiness, progress=self._enqueue_log)
             return result
 
         def _scan_done(scan_result):
@@ -898,6 +867,7 @@ class GreenLumaFrame(ctk.CTkFrame):
 
             def _submit_bg():
                 from ...greenluma.contribute import submit_gl_contribution
+
                 return submit_gl_contribution(contributions)
 
             def _submit_done(resp):
@@ -943,6 +913,7 @@ class GreenLumaFrame(ctk.CTkFrame):
         def _bg():
             from ...dlc.catalog import DLCCatalog
             from ...greenluma.orchestrator import GreenLumaOrchestrator
+
             catalog = DLCCatalog()
             orch = GreenLumaOrchestrator(steam_info)
             return orch.fix_applist(catalog)

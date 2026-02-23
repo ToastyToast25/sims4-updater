@@ -116,7 +116,7 @@ _z._get_compressor = _get_compressor
 
 
 (_EXTRA_BYTES_HEADER_ID,) = struct.unpack("<H", b"an")  # 28257
-(_EXTRA_MAX_SIZE,) = struct.unpack("<H", b"\xFF\xFF")  # 65535
+(_EXTRA_MAX_SIZE,) = struct.unpack("<H", b"\xff\xff")  # 65535
 _ZIP64_MAX_EXTRA_SIZE = struct.calcsize("<HHQQQ")  # 28
 
 
@@ -257,9 +257,7 @@ class ZipFile(_z.ZipFile):
 
         self._didModify = True
 
-        while bytes_to_copy > 0 and (
-            chunk := zfile.fp.read(min(bytes_to_copy, COPY_BUFSIZE))
-        ):
+        while bytes_to_copy > 0 and (chunk := zfile.fp.read(min(bytes_to_copy, COPY_BUFSIZE))):
             self.fp.write(chunk)
             bytes_to_copy -= len(chunk)
 

@@ -424,9 +424,7 @@ class LanguageFrame(ctk.CTkFrame):
                     self._languages[lang_code] = lang_code  # Use code as display name
 
             # Update language dropdown with merged list
-            lang_values = [
-                f"{n}  ({c})" for c, n in self._languages.items()
-            ]
+            lang_values = [f"{n}  ({c})" for c, n in self._languages.items()]
             self._lang_dropdown.configure(values=lang_values)
 
             # Update version dropdown
@@ -1212,7 +1210,8 @@ class LanguageFrame(ctk.CTkFrame):
         game_dir = self.app.settings.game_path
         if not game_dir:
             self.app.show_toast(
-                "Set game directory in Settings first.", "warning",
+                "Set game directory in Settings first.",
+                "warning",
             )
             return
 
@@ -1222,7 +1221,8 @@ class LanguageFrame(ctk.CTkFrame):
 
         if not lang_dir.is_dir():
             self.app.show_toast(
-                "Language folder not found on disk.", "warning",
+                "Language folder not found on disk.",
+                "warning",
             )
             return
 

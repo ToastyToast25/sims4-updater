@@ -248,9 +248,7 @@ def copy_matching_manifests(
             logger.warning("Failed to copy %s: %s", entry.name, exc)
             skipped += 1
 
-    logger.info(
-        "Matching manifest copy complete: %d copied, %d skipped", copied, skipped
-    )
+    logger.info("Matching manifest copy complete: %d copied, %d skipped", copied, skipped)
     return copied, skipped
 
 

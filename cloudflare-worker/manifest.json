@@ -1,5 +1,12 @@
 {
-  "latest": "",
+  "latest": "1.121.372.1020",
+  "game_latest": "1.121.372.1020",
+  "game_latest_date": "2026-02-22",
+  "patches": [],
+  "fingerprints": {},
+  "fingerprints_url": "",
+  "report_url": "https://api.hyperabyss.com/report",
+  "versions": {},
   "entitlements_url": "https://cdn.hyperabyss.com/entitlements.ini",
   "self_update_url": "https://api.github.com/repos/ToastyToast25/sims4-updater/releases/latest",
   "contribute_url": "https://api.hyperabyss.com/contribute",
@@ -133,8 +140,8 @@
     },
     "FP01": {
       "url": "https://cdn.hyperabyss.com/dlc/FP01.zip",
-      "size": 0,
-      "md5": "",
+      "size": 30228998,
+      "md5": "7FC8AAA5280EAED36DE9885CC613C862",
       "filename": "FP01.zip"
     },
     "GP01": {

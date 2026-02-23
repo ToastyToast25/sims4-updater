@@ -105,8 +105,7 @@ def get_files_dict(folder_path, all_folders=None):
                 continue
 
             raise WritePermissionError(
-                f'Can\'t read files from "{path}". '
-                "Try copying it somewhere else."
+                f'Can\'t read files from "{path}". Try copying it somewhere else.'
             ) from None
 
     return result

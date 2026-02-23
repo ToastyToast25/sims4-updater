@@ -45,7 +45,8 @@ class LanguagePacker:
     """Packs language Strings files into distributable ZIP archives."""
 
     def get_installed_packs(
-        self, game_dir: Path,
+        self,
+        game_dir: Path,
     ) -> list[tuple[str, str, str, int]]:
         """Scan game dir for installed Strings_*.package files.
 
@@ -68,7 +69,7 @@ class LanguagePacker:
                     continue
 
                 # Extract the suffix like "ENG_US" from "Strings_ENG_US.package"
-                suffix = name[len("Strings_"):-len(".package")]
+                suffix = name[len("Strings_") : -len(".package")]
                 locale_code = _STRINGS_TO_LOCALE.get(suffix)
                 if not locale_code or locale_code in seen_codes:
                     continue
@@ -98,7 +99,9 @@ class LanguagePacker:
         return output_dir / self.get_zip_filename(locale_code)
 
     def _find_strings_file(
-        self, game_dir: Path, locale_code: str,
+        self,
+        game_dir: Path,
+        locale_code: str,
     ) -> Path | None:
         """Find the Strings_XXX_XX.package for a locale code."""
         suffix = LOCALE_TO_STRINGS.get(locale_code)
@@ -125,9 +128,7 @@ class LanguagePacker:
         """
         strings_file = self._find_strings_file(game_dir, locale_code)
         if strings_file is None:
-            raise FileNotFoundError(
-                f"Strings file not found for {locale_code}"
-            )
+            raise FileNotFoundError(f"Strings file not found for {locale_code}")
 
         output_dir.mkdir(parents=True, exist_ok=True)
 

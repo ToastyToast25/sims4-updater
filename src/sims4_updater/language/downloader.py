@@ -60,6 +60,7 @@ class LanguagePackDownloader:
         Returns True on success.
         """
         if log is None:
+
             def log(_msg):
                 pass
 
@@ -114,13 +115,13 @@ class LanguagePackDownloader:
             Dict of locale_code -> success bool for each attempted download.
         """
         if log is None:
+
             def log(_msg):
                 pass
 
         results = {}
         missing = [
-            (code, entry) for code, entry in entries.items()
-            if not installed_langs.get(code, False)
+            (code, entry) for code, entry in entries.items() if not installed_langs.get(code, False)
         ]
 
         if not missing:
@@ -155,13 +156,13 @@ class LanguagePackDownloader:
         elif filename.endswith(".package"):
             # Direct .package file — just copy it
             import shutil
+
             dest = self._strings_dir / archive_path.name
             shutil.copy2(archive_path, dest)
             log(f"  Copied {archive_path.name} to Data/Client/")
         else:
             raise DownloadError(
-                f"Unknown archive format: {archive_path.name} "
-                f"(expected .zip or .package)"
+                f"Unknown archive format: {archive_path.name} (expected .zip or .package)"
             )
 
     def _extract_zip(
@@ -198,18 +199,12 @@ class LanguagePackDownloader:
                     extracted += 1
 
                 if extracted == 0:
-                    raise DownloadError(
-                        f"No Strings_*.package files found in {archive_path.name}"
-                    )
+                    raise DownloadError(f"No Strings_*.package files found in {archive_path.name}")
 
         except zipfile.BadZipFile as e:
-            raise DownloadError(
-                f"Corrupt archive for {locale_code}: {e}"
-            ) from e
+            raise DownloadError(f"Corrupt archive for {locale_code}: {e}") from e
         except OSError as e:
-            raise DownloadError(
-                f"Extraction failed for {locale_code}: {e}"
-            ) from e
+            raise DownloadError(f"Extraction failed for {locale_code}: {e}") from e
 
     def close(self):
         self._downloader.close()

@@ -37,6 +37,7 @@ _INSTALL_MANIFEST_NAME = "greenluma_install.json"
 
 def _get_manifest_path() -> Path:
     from ..config import get_app_dir
+
     return get_app_dir() / _INSTALL_MANIFEST_NAME
 
 
@@ -156,9 +157,7 @@ def _validate_archive_paths(names: list[str], target_dir: Path) -> None:
     for name in names:
         entry_path = (target_dir / name).resolve()
         if not str(entry_path).startswith(str(resolved_target)):
-            raise ValueError(
-                f"Archive contains path traversal entry: {name!r}"
-            )
+            raise ValueError(f"Archive contains path traversal entry: {name!r}")
 
 
 def _move_gl_files_up(subdir: Path, target_dir: Path) -> None:
@@ -243,10 +242,7 @@ def install_greenluma(
         prefix = ""
         if names and "/" in names[0]:
             first_dir = names[0].split("/")[0]
-            if all(
-                n.startswith(first_dir + "/") or n == first_dir
-                for n in names
-            ):
+            if all(n.startswith(first_dir + "/") or n == first_dir for n in names):
                 prefix = first_dir + "/"
 
         z.extractall(path=target_dir)
@@ -389,6 +385,7 @@ def launch_steam_via_greenluma(
 
     if not force:
         from .steam import is_steam_running
+
         if is_steam_running():
             log.warning("Steam is already running — close it before launching via GreenLuma")
             return False
@@ -452,9 +449,7 @@ def _get_file_version(file_path: Path) -> str | None:
         # Query the root block for VS_FIXEDFILEINFO
         p_fixed = ctypes.c_void_p()
         buf_len = wintypes.UINT()
-        if not version_dll.VerQueryValueW(
-            data, "\\", ctypes.byref(p_fixed), ctypes.byref(buf_len)
-        ):
+        if not version_dll.VerQueryValueW(data, "\\", ctypes.byref(p_fixed), ctypes.byref(buf_len)):
             return None
 
         class VS_FIXEDFILEINFO(ctypes.Structure):
@@ -467,9 +462,7 @@ def _get_file_version(file_path: Path) -> str | None:
                 ("dwProductVersionLS", wintypes.DWORD),
             ]
 
-        info = ctypes.cast(
-            p_fixed, ctypes.POINTER(VS_FIXEDFILEINFO)
-        ).contents
+        info = ctypes.cast(p_fixed, ctypes.POINTER(VS_FIXEDFILEINFO)).contents
         major = (info.dwProductVersionMS >> 16) & 0xFFFF
         minor = info.dwProductVersionMS & 0xFFFF
         patch = (info.dwProductVersionLS >> 16) & 0xFFFF

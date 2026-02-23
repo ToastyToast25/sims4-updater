@@ -37,7 +37,9 @@ class BackupManager:
         self.max_count = max(1, max_count)
 
     def estimate_backup_size(
-        self, game_dir: Path, files_to_patch: list[str],
+        self,
+        game_dir: Path,
+        files_to_patch: list[str],
     ) -> int:
         """Sum file sizes of all files that will be modified by the patch.
 
@@ -112,12 +114,14 @@ class BackupManager:
                     with contextlib.suppress(OSError):
                         total_size += (Path(root) / f).stat().st_size
 
-            results.append(BackupInfo(
-                path=entry,
-                timestamp=ts,
-                version=version,
-                size=total_size,
-            ))
+            results.append(
+                BackupInfo(
+                    path=entry,
+                    timestamp=ts,
+                    version=version,
+                    size=total_size,
+                )
+            )
 
         results.sort(key=lambda b: b.timestamp, reverse=True)
         return results
@@ -172,7 +176,7 @@ class BackupManager:
         backups = self.list_backups()
         if len(backups) <= self.max_count:
             return
-        for old in backups[self.max_count:]:
+        for old in backups[self.max_count :]:
             self.delete_backup(old.path)
 
     def get_total_size(self) -> int:

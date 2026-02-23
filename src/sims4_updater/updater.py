@@ -180,6 +180,7 @@ class Sims4Updater(BasePatcher):
 
         # Also include sentinel files
         from .constants import SENTINEL_FILES
+
         for sentinel in SENTINEL_FILES:
             full = game_path / sentinel.replace("/", os.sep)
             if full.is_file():
@@ -189,9 +190,7 @@ class Sims4Updater(BasePatcher):
 
         return result
 
-    def detect_version(
-        self, game_dir: str | None = None, progress=None
-    ) -> DetectionResult:
+    def detect_version(self, game_dir: str | None = None, progress=None) -> DetectionResult:
         """Detect the installed game version."""
         self._state = UpdateState.DETECTING
         game_dir = game_dir or self.find_game_dir()
@@ -208,9 +207,7 @@ class Sims4Updater(BasePatcher):
 
     # ── Update Checking ────────────────────────────────────────────
 
-    def check_for_updates(
-        self, current_version: str | None = None
-    ) -> UpdateInfo:
+    def check_for_updates(self, current_version: str | None = None) -> UpdateInfo:
         """Check if updates are available.
 
         Args:
@@ -227,8 +224,7 @@ class Sims4Updater(BasePatcher):
             version = result.version
             if not version:
                 raise VersionDetectionError(
-                    "Could not detect installed version. "
-                    "Cannot check for updates."
+                    "Could not detect installed version. Cannot check for updates."
                 )
 
         return self.patch_client.check_update(version)
@@ -256,8 +252,7 @@ class Sims4Updater(BasePatcher):
         self.callback(CallbackType.HEADER, "Downloading patches")
         self.callback(
             CallbackType.INFO,
-            f"Update: {plan.current_version} -> {plan.target_version} "
-            f"({plan.step_count} step(s))",
+            f"Update: {plan.current_version} -> {plan.target_version} ({plan.step_count} step(s))",
         )
 
         def download_progress(downloaded, total, filename):
@@ -414,9 +409,7 @@ class Sims4Updater(BasePatcher):
 
             detection = self.detect_version(game_dir)
             if not detection.version:
-                raise VersionDetectionError(
-                    "Could not detect installed version."
-                )
+                raise VersionDetectionError("Could not detect installed version.")
 
             if status:
                 status(f"Detected version: {detection.version}")
