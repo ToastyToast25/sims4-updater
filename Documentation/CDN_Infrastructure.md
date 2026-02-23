@@ -23,8 +23,9 @@
 6. [Manifest Format](#6-manifest-format)
 7. [App Download Flow](#7-app-download-flow)
 8. [Deployment Guide](#8-deployment-guide)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Cost Breakdown](#10-cost-breakdown)
+9. [CDN Access Control & Authentication](#9-cdn-access-control--authentication)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Cost Breakdown](#11-cost-breakdown)
 
 ---
 
@@ -822,7 +823,160 @@ access-control-allow-origin: *
 
 ---
 
-## 9. Troubleshooting
+## 9. CDN Access Control & Authentication
+
+The CDN implements server-side access control using JWT session tokens, a ban system, and optional private CDN mode with access request workflows.
+
+### Authentication Flow
+
+```
+Client                          API Worker                      CDN Worker
+  │                                 │                               │
+  ├─ POST /auth/token ─────────────>│                               │
+  │  {machine_id, uid, app_version} │                               │
+  │                                 ├─ Check bans (IP/machine/UID)  │
+  │                                 ├─ Check allowlist (private CDN) │
+  │                                 ├─ Generate JWT (1hr, HS256)    │
+  │<─────────── {token, expires_in} │                               │
+  │                                 │                               │
+  ├─ GET /dlc/EP01.zip ──────────────────────────────────────────────>│
+  │  Authorization: Bearer {jwt}    │                               ├─ Verify JWT signature
+  │  X-Machine-Id: {machine_id}     │                               ├─ Check ban list
+  │                                 │                               ├─ Proxy to seedbox
+  │<─────────────────── file stream │                               │
+```
+
+### JWT Token Format
+
+Tokens use HMAC-SHA256 with a shared secret (`JWT_SECRET` env var on both workers).
+
+**Payload:**
+
+```json
+{
+  "machine_id": "a1b2c3d4e5f6...",
+  "uid": "user-123",
+  "ip": "1.2.3.4",
+  "iat": 1708700000,
+  "exp": 1708703600
+}
+```
+
+Tokens expire after 1 hour. The client's `CDNTokenAuth` adapter auto-refreshes when < 60 seconds remain before each HTTP request.
+
+### Client-Side Modules
+
+| Module | Purpose |
+| --- | --- |
+| `core/machine_id.py` | Generates deterministic machine fingerprint: `SHA256("sims4updater-v1:" + MachineGuid)[:32]` from Windows registry |
+| `core/identity.py` | Configures `X-Machine-Id` and `X-UID` headers, injected into all CDN HTTP requests |
+| `core/cdn_auth.py` | `CDNAuth` manages token lifecycle; `CDNTokenAuth(AuthBase)` auto-refreshes per HTTP request |
+
+### Ban System
+
+Bans can target IP addresses, machine IDs, or UIDs. Both permanent and temporary (with expiry) bans are supported.
+
+**Supabase tables:**
+
+- `bans` — All bans with type, value, reason, permanent flag, expiry
+- `active_bans` view — Filters out expired temporary bans
+- `bans_summary` view — Aggregated stats (active, permanent, temp, expired, unbanned)
+
+**Ban check order:** IP → Machine ID → UID. First match blocks the request.
+
+### Private CDN Mode
+
+When `cdn_access` is set to `"private"` (via admin dashboard or Supabase `cdn_settings` table):
+
+1. Token requests from unknown machines return `403 access_required`
+2. Client shows an access request dialog with a reason field
+3. Request stored in `access_requests` table (status: pending)
+4. Admin reviews via `/admin/access` dashboard — approve or deny (single or bulk)
+5. Approved machines added to `cdn_allowlist` table
+6. On next token request, the machine gets a valid JWT
+
+### Admin Dashboards
+
+Four password-protected dashboards (`?pw=ADMIN_PASSWORD`):
+
+| Dashboard | Route | Features |
+| --- | --- | --- |
+| Analytics | `/admin/stats` | Online users, version stats, crack formats, DLC popularity, download volume |
+| Contributions | `/admin` | DLC + GreenLuma contribution review and approval |
+| Bans | `/admin/bans` | Create/remove bans, connected clients table, CDN access mode toggle, ban from client list |
+| Access | `/admin/access` | Access request review with status filters, search, bulk approve/deny with checkboxes |
+
+All dashboards share a navigation bar and auto-refresh every 30 seconds.
+
+### Token Logging
+
+Every token request is logged to the `token_log` table with an upsert trigger:
+
+- Tracks: machine_id, uid, ip, app_version, request_count, first_seen, last_seen
+- Visible in the Bans dashboard "Connected Clients" section
+- Admins can ban directly from the client list
+
+### Supabase Schema
+
+| Table | Primary Key | Purpose |
+| --- | --- | --- |
+| `bans` | `id` (auto) | Ban records (type, value, reason, permanent, expires_at, active) |
+| `access_requests` | `id` (auto) | Access request queue (machine_id, uid, reason, status, reviewed_at) |
+| `cdn_allowlist` | `machine_id` | Approved machines for private CDNs |
+| `cdn_settings` | `key` | Dynamic config key-value store (e.g., cdn_access: public/private) |
+| `token_log` | `machine_id` | Client connection tracking with upsert trigger for request counting |
+
+### Worker Environment Variables
+
+**CDN Worker (`worker.js`):**
+
+| Variable | Type | Purpose |
+| --- | --- | --- |
+| `SUPABASE_URL` | Secret | Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | Secret | Supabase service_role key |
+| `JWT_SECRET` | Secret | Shared HMAC-SHA256 signing key |
+
+**API Worker (`api-worker.js`):**
+
+| Variable | Type | Purpose |
+| --- | --- | --- |
+| `JWT_SECRET` | Secret | Same shared signing key as CDN worker |
+| `ADMIN_PASSWORD` | Secret | Password for admin dashboards |
+| `DISCORD_WEBHOOK` | Secret | Discord webhook for ban/access notifications |
+| `SUPABASE_URL` | Secret | Supabase project URL |
+| `SUPABASE_SERVICE_KEY` | Secret | Supabase service_role key |
+| `CDN_ACCESS` | Var | Default access mode ("public" or "private") |
+| `CDN_NAME` | Var | CDN display name |
+
+### API Endpoints
+
+**Public (no auth):**
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/auth/token` | Request JWT session token |
+| POST | `/access/request` | Submit access request (private CDNs) |
+
+**Admin (password-protected):**
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/admin/bans` | Ban management dashboard |
+| GET | `/admin/bans/api` | List all bans + summary |
+| POST | `/admin/bans/create` | Create a ban |
+| POST | `/admin/bans/remove/:id` | Remove a ban |
+| GET | `/admin/access` | Access request dashboard |
+| GET | `/admin/access/api` | List all access requests |
+| POST | `/admin/access/approve/:id` | Approve single request |
+| POST | `/admin/access/deny/:id` | Deny single request |
+| POST | `/admin/access/bulk` | Bulk approve/deny `{action, ids}` |
+| GET | `/admin/settings/api` | Get CDN settings |
+| POST | `/admin/settings/update` | Update a CDN setting |
+| GET | `/admin/clients/api` | List connected clients |
+
+---
+
+## 10. Troubleshooting
 
 ### 502 Bad Gateway
 
@@ -905,7 +1059,7 @@ This setting is already applied in the CDN Manager's backend (`connection.py`). 
 
 ---
 
-## 10. Cost Breakdown
+## 11. Cost Breakdown
 
 The CDN architecture is designed to operate within Cloudflare's free tier for typical usage volumes. The only non-free component is the seedbox.
 

@@ -91,6 +91,8 @@
     - 15.6 [Downloads Failing or Stalling](#156-downloads-failing-or-stalling)
     - 15.7 [Settings Not Saving](#157-settings-not-saving)
     - 15.8 [GreenLuma Not Detected](#158-greenluma-not-detected)
+    - 15.9 ["Access Denied" or "Banned" Error](#159-access-denied-or-banned-error)
+    - 15.10 ["Access Requires Approval" Message](#1510-access-requires-approval-message)
 16. [Frequently Asked Questions](#16-frequently-asked-questions)
 17. [Glossary](#17-glossary)
 18. [Disclaimer](#18-disclaimer)
@@ -516,6 +518,8 @@ During download, each DLC's download button is replaced by a progress label show
 - `Failed` in red — an error occurred; the download button reappears for retry
 
 Downloads support resumption. If a download is interrupted (network loss, application closed), the partial file is preserved. The next download attempt for the same DLC continues from where it left off.
+
+> **Note:** All CDN downloads are authenticated with a session token that refreshes automatically in the background. No user action is required -- authentication is handled transparently.
 
 Once all downloads complete, the DLC list automatically refreshes to reflect the newly installed content.
 
@@ -988,6 +992,8 @@ The application ships without a default manifest URL. You must obtain this URL f
 
 Leave this field empty if you do not have a patch server URL. The update check functionality will not work without it, but all other features (DLC management, DLC Packer, Unlocker, GreenLuma) operate independently of this URL.
 
+> **Note:** The manifest may include a `cdn` block that configures CDN authentication automatically. When present, the application handles session tokens and access control transparently -- no additional user configuration is required.
+
 **Language**
 A dropdown menu for selecting the game language. The selection applies in two ways:
 
@@ -1402,6 +1408,29 @@ The language setting updates the Windows registry `Locale` value under the Sims 
 - **DLLs present but not detected.** If GreenLuma files were placed in the Steam directory manually rather than through the installer, detection should still work as long as the expected DLL filenames are present. If detection continues to fail after manual placement, verify the filenames match `GreenLuma_2025_x64.dll` and `GreenLuma_2025_x86.dll` exactly in the root of the Steam directory.
 
 - **GL badges absent on DLC rows.** GL badges only appear for DLCs that have a known Steam App ID and when GreenLuma's Steam path is configured. If the Steam path is set and GreenLuma is detected as installed but badges are still absent, navigate away from the DLCs tab and back to force a refresh of the readiness data.
+
+### 15.9 "Access Denied" or "Banned" Error
+
+**Symptom:** You see a message such as "Access denied: your account has been suspended" when attempting to download patches, DLCs, or other content from the CDN.
+
+**Cause:** Your machine has been banned from the CDN by the administrator. Bans can be applied by IP address, machine ID, or user ID, and may be temporary (auto-expiring after a set duration) or permanent.
+
+**Solution:** Contact the CDN administrator for assistance. There is no way to resolve this within the application itself.
+
+### 15.10 "Access Requires Approval" Message
+
+**Symptom:** A dialog appears stating that access to the CDN requires approval, and you are prompted to enter a reason for requesting access.
+
+**Cause:** The CDN is operating in private mode, which requires explicit approval before you can download content.
+
+**Solution:**
+
+1. When the dialog appears, enter a brief reason explaining why you need access.
+2. Click **Request Access** to submit your request.
+3. Wait for the CDN administrator to review and approve your request.
+4. Once approved, restart the updater and try again.
+
+If your request is denied or you do not receive a response, contact the CDN administrator directly.
 
 ---
 

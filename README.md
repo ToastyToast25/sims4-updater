@@ -34,6 +34,17 @@ Toggle 109 DLCs across 5 auto-detected crack config formats (RldOrigin, Codex, R
 
 Download any DLC directly from [cdn.example.com](https://cdn.example.com) (Cloudflare Worker proxying a seedbox). Downloads run in parallel background threads with resume support and MD5 integrity verification. Progress is streamed live to the GUI.
 
+### CDN Access Control
+
+Server-side access control for CDN infrastructure. Every client authenticates with the CDN API to receive a JWT session token before downloading. Tokens are validated on every request with automatic refresh for long-running batch downloads. CDN owners can:
+
+- **Ban abusers** by IP, machine ID, or UID (permanent or temporary with auto-expiry)
+- **Toggle public/private mode** — private CDNs require explicit approval before granting access
+- **Monitor connected clients** — see machine IDs, IPs, app versions, and request counts in real time
+- **Bulk manage access requests** — approve or deny multiple requests at once
+
+Admin dashboards at `api.hyperabyss.com/admin/*` provide full management with real-time metrics, search/filter, and Discord webhook notifications for all actions.
+
 ### GreenLuma 2025 Integration
 
 Full management of [GreenLuma 2025](https://cs.rin.ru/forum/viewtopic.php?f=29&t=103825) for Steam DLC unlocking:
@@ -109,6 +120,19 @@ Real-time play time display on the homepage when the game is running. Shows elap
 ### Full CLI Support
 
 Every major operation is available headlessly for scripting and automation.
+
+### Admin Dashboards
+
+Four password-protected admin dashboards for CDN management:
+
+| Dashboard | URL | Purpose |
+| --- | --- | --- |
+| **Analytics** | `/admin/stats` | Real-time telemetry: online users, version distribution, crack formats, DLC popularity, download volume |
+| **Contributions** | `/admin` | Review and approve DLC and GreenLuma key contributions |
+| **Bans** | `/admin/bans` | Create/remove bans, view connected clients, toggle CDN public/private mode |
+| **Access** | `/admin/access` | Review access requests for private CDNs with bulk approve/deny |
+
+All dashboards share a navigation bar, auto-refresh every 30 seconds, and use the same dark-mode design language.
 
 ---
 
@@ -236,6 +260,12 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
 
 ```json
 {
+  "cdn": {
+    "name": "HyperAbyss CDN",
+    "api_url": "https://api.hyperabyss.com",
+    "telemetry_url": "https://api.hyperabyss.com/stats",
+    "access": "public"
+  },
   "latest": "1.121.372.1020",
   "game_latest": "1.122.100.1020",
   "game_latest_date": "2026-02-15",
@@ -291,6 +321,7 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
 
 | Field | Required | Description |
 | --- | --- | --- |
+| `cdn` | No | CDN configuration block (name, api_url, telemetry_url, access mode) |
 | `latest` | Yes | Newest version with patches available |
 | `game_latest` | No | Actual latest EA release (shown when ahead of `latest`) |
 | `game_latest_date` | No | Release date of `game_latest` (displayed in GUI) |
@@ -372,6 +403,8 @@ User app  ->  cdn.example.com/dlc/EP01.zip  ->  Cloudflare Worker  ->  Seedbox  
 ```
 
 The Worker reads a KV namespace (`CDN_ROUTES`) that maps clean paths (e.g., `dlc/EP01.zip`) to seedbox secure links. Adding a new file to the CDN is a three-step operation: upload to seedbox, generate a secure link, add a KV entry. Setup details and the complete Worker source are in the [`cloudflare-worker/`](cloudflare-worker/) directory.
+
+All download requests require a JWT session token obtained from the API worker (`POST /auth/token`). The CDN worker validates the token signature and expiry, and checks the client against an active ban list before proxying the file. CDN owners manage access through admin dashboards with ban management, access request review, and a connected clients monitor.
 
 **Any seedbox that supports SFTP upload and HTTP/HTTPS download can be used as the backend.** The CDN Manager tool connects via SFTP (paramiko) for uploads and the Cloudflare Worker proxies HTTP downloads. Compatible providers include Whatbox, RapidSeedbox, Ultraseedbox, Seedbox.io, or any VPS/dedicated server with SSH and a web server. Configure your seedbox credentials in `cdn_config.json`.
 
@@ -518,6 +551,9 @@ sims4-updater/
 │   │   │   ├── diagnostics.py       # System health checks (VC Redist, .NET, AV, permissions)
 │   │   │   ├── validator.py         # Game file validator — missing/corrupt/extra file scanner
 │   │   │   ├── contribute.py        # DLC contribution scanner — submit unknown DLC metadata to API
+│   │   │   ├── machine_id.py        # Machine fingerprint (SHA256 of Windows MachineGuid)
+│   │   │   ├── identity.py          # Shared identity headers for CDN requests
+│   │   │   ├── cdn_auth.py          # JWT session token lifecycle
 │   │   │   └── utils.py             # Size parsing utilities
 │   │   ├── patch/
 │   │   │   ├── manifest.py          # Manifest, PatchEntry, FileEntry, DLCDownloadEntry, GreenLumaEntry, parse_manifest()
@@ -569,9 +605,10 @@ sims4-updater/
 │   ├── version_hashes.json          # Bundled sentinel-file hash database (135+ versions)
 │   └── dlc_catalog.json             # All 109 DLCs with localized names, pack types, Steam App IDs
 ├── cloudflare-worker/               # Cloudflare Worker source + deployment scripts for cdn.example.com
-│   ├── worker.js                    # CDN proxy worker (KV route lookup -> seedbox fetch)
-│   ├── api-worker.js                # Fingerprint API worker (report + validate hashes)
+│   ├── worker.js                    # CDN proxy worker (JWT validation, ban check, KV route -> seedbox)
+│   ├── api-worker.js                # API worker (token issuance, ban management, admin dashboards, contributions)
 │   ├── wrangler.toml                # Wrangler deployment config
+│   ├── wrangler-api.toml            # Wrangler deployment config for API worker
 │   ├── cdn_manager/                 # CDN Manager GUI application
 │   ├── cdn_manager.spec             # PyInstaller spec for CDNManager.exe
 │   └── SETUP.md                     # Step-by-step CDN infrastructure setup guide
@@ -629,7 +666,7 @@ Full technical reference for all subsystems:
 | [DLC Management System](Documentation/DLC_Management_System.md) | DLC catalog design, all 5 crack config formats, download pipeline, EA Unlocker, Steam pricing, GL readiness |
 | [DLC Packer and Distribution](Documentation/DLC_Packer_and_Distribution.md) | Packer class internals, ZIP format specification, manifest generation, import flow, distribution workflow |
 | [GreenLuma Integration](Documentation/GreenLuma_Integration.md) | Steam detection, AppList management, config.vdf depot keys, LUA manifest parsing, depotcache, orchestrator |
-| [CDN Infrastructure](Documentation/CDN_Infrastructure.md) | Cloudflare Worker proxy, KV routing, seedbox integration, upload tools, deployment guide |
+| [CDN Infrastructure](Documentation/CDN_Infrastructure.md) | Cloudflare Worker proxy, KV routing, seedbox integration, JWT auth, ban system, admin dashboards |
 
 ---
 
