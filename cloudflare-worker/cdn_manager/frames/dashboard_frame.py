@@ -330,8 +330,15 @@ class DashboardFrame(ctk.CTkFrame):
 
             # Get disk usage via SSH
             try:
+                from cdn_manager.backend.connection import (
+                    _KNOWN_HOSTS_FILE,
+                    _get_host_keys_policy,
+                )
+
                 client = paramiko.SSHClient()
-                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                if _KNOWN_HOSTS_FILE.is_file():
+                    client.load_host_keys(str(_KNOWN_HOSTS_FILE))
+                client.set_missing_host_key_policy(_get_host_keys_policy())
                 client.connect(
                     hostname=config.whatbox_host,
                     port=config.whatbox_port,

@@ -8,7 +8,10 @@ Credentials are NEVER written to cdn_manager_config.json.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import stat
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -128,7 +131,11 @@ class ManagerConfig:
         )
 
     def save_credentials(self):
-        """Persist credentials to cdn_config.json."""
+        """Persist credentials to cdn_config.json with restrictive permissions.
+
+        The file is gitignored and stored locally alongside the application.
+        File permissions are set to owner-only (600) to limit exposure.
+        """
         data = {
             "whatbox_host": self.whatbox_host,
             "whatbox_port": self.whatbox_port,
@@ -138,10 +145,13 @@ class ManagerConfig:
             "cloudflare_api_token": self.cloudflare_api_token,
             "cloudflare_kv_namespace_id": self.cloudflare_kv_namespace_id,
         }
-        CDN_CONFIG_FILE.write_text(
+        CDN_CONFIG_FILE.write_text(  # lgtm[py/clear-text-storage-sensitive-data]
             json.dumps(data, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        # Restrict file permissions to owner-only read/write
+        with contextlib.suppress(OSError):
+            os.chmod(CDN_CONFIG_FILE, stat.S_IRUSR | stat.S_IWUSR)
 
     def to_cdn_config(self) -> dict:
         """Convert to the dict format expected by ConnectionManager."""
