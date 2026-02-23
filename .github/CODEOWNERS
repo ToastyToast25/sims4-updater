@@ -1,0 +1,17 @@
+# Default: all changes require maintainer review
+*                                       @ToastyToast25
+
+# Security-critical paths
+/src/sims4_updater/core/               @ToastyToast25
+/src/sims4_updater/patch/              @ToastyToast25
+/src/sims4_updater/greenluma/          @ToastyToast25
+/src/sims4_updater/constants.py        @ToastyToast25
+
+# CDN credentials and tools
+/cloudflare-worker/                    @ToastyToast25
+
+# CI/CD workflows
+/.github/workflows/                    @ToastyToast25
+
+# Build spec
+/sims4_updater.spec                    @ToastyToast25

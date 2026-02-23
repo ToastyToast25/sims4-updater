@@ -114,12 +114,19 @@ jobs:
         with:
           name: CDNManager
 
+      - name: Generate SHA256 checksums
+        run: |
+          sha256sum Sims4Updater.exe CDNManager.exe > SHA256SUMS.txt
+          echo "## Checksums"
+          cat SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             Sims4Updater.exe
             CDNManager.exe
+            SHA256SUMS.txt
           generate_release_notes: true
           draft: false
           prerelease: false
