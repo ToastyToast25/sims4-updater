@@ -14,6 +14,30 @@ from typing import Any
 SEEDBOX_BASE_DIR = "files/sims4"
 CDN_DOMAIN = "https://cdn.hyperabyss.com"
 
+# Cached SSH host keys file (alongside cdn_config.json)
+_KNOWN_HOSTS_FILE = Path(__file__).resolve().parent.parent.parent / "known_hosts"
+
+
+def _get_host_keys_policy():
+    """Return a paramiko host key policy that uses a local known_hosts file.
+
+    On first connection, the host key is saved (trust-on-first-use / TOFU).
+    Subsequent connections verify against the saved key.
+    """
+    import paramiko
+
+    class TOFUPolicy(paramiko.MissingHostKeyPolicy):
+        """Trust-on-first-use: save the key on first connect, reject changes."""
+
+        def missing_host_key(self, client, hostname, key):
+            # Save the key to our known_hosts file
+            host_keys = client.get_host_keys()
+            host_keys.add(hostname, key.get_name(), key)
+            with contextlib.suppress(OSError):
+                host_keys.save(str(_KNOWN_HOSTS_FILE))
+
+    return TOFUPolicy()
+
 
 def _retry(max_retries: int = 3, base_delay: float = 2):
     """Decorator: retry with exponential backoff on any exception."""
@@ -170,7 +194,9 @@ class ConnectionManager:
         import paramiko
 
         client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if _KNOWN_HOSTS_FILE.is_file():
+            client.load_host_keys(str(_KNOWN_HOSTS_FILE))
+        client.set_missing_host_key_policy(_get_host_keys_policy())
         client.connect(
             hostname=self._config["whatbox_host"],
             port=self._config.get("whatbox_port", 22),
