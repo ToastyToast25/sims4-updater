@@ -1,4 +1,4 @@
-VERSION = "2.3.1"
+VERSION = "2.4.0"
 
 # Ensure the sibling patcher package is importable (dev & PyInstaller)
 import sys as _sys  # noqa: E402
