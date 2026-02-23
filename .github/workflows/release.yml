@@ -144,3 +144,16 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+          body: |
+            ## Artifacts
+
+            | File | Description |
+            |------|-------------|
+            | **Sims4Updater.exe** | Main application — game patching, version detection, DLC management, GreenLuma integration, language changer |
+            | **CDNManager.exe** | Admin tool — upload DLC packs, language files, and patches to the CDN (maintainers only) |
+            | **SHA256SUMS.txt** | SHA-256 checksums for verifying file integrity |
+
+            > Both executables include [build provenance attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) for supply chain security.
+            > Verify with: `gh attestation verify Sims4Updater.exe --repo ToastyToast25/sims4-updater`
+
+            ---

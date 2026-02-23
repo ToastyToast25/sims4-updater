@@ -1,0 +1,82 @@
+name: DLC Request
+description: Request a missing DLC to be added to the catalog or CDN
+title: "[DLC]: "
+labels: ["dlc"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request a DLC that is missing from the catalog or not available for download. Please provide as much detail as possible to help us add it quickly.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      options:
+        - label: I have checked the DLC tab in the updater and this DLC is not listed or not downloadable.
+          required: true
+        - label: I have searched [existing issues](https://github.com/ToastyToast25/sims4-updater/issues?q=label%3Adlc) for this DLC request.
+          required: true
+
+  - type: dropdown
+    id: request-type
+    attributes:
+      label: Request Type
+      options:
+        - Missing from catalog (DLC not listed at all)
+        - Missing from CDN (listed but not downloadable)
+        - Incorrect metadata (wrong name, icon, etc.)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: dlc-name
+    attributes:
+      label: DLC Name
+      description: The official name of the DLC.
+      placeholder: "e.g., Lovestruck Expansion Pack"
+    validations:
+      required: true
+
+  - type: input
+    id: dlc-id
+    attributes:
+      label: DLC Pack ID
+      description: The internal pack ID if you know it (e.g., EP01, GP05, SP18, FP01, KIT01).
+      placeholder: "e.g., EP17"
+    validations:
+      required: false
+
+  - type: input
+    id: steam-id
+    attributes:
+      label: Steam App ID
+      description: The Steam store app ID if known.
+      placeholder: "e.g., 2047890"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: pack-type
+    attributes:
+      label: Pack Type
+      options:
+        - Expansion Pack (EP)
+        - Game Pack (GP)
+        - Stuff Pack (SP)
+        - Kit (KIT)
+        - Free Pack (FP)
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other details — links to the DLC on Steam/EA, screenshots, etc.
+    validations:
+      required: false
