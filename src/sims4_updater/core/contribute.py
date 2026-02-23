@@ -155,13 +155,17 @@ def submit_contribution(
     if not endpoint:
         return {"status": "error", "message": "Contribution URL not configured."}
 
+    from . import identity
+
     contribution.app_version = VERSION
 
+    headers = {"Content-Type": "application/json"}
+    headers.update(identity.get_headers())
     resp = requests.post(
         endpoint,
         json=contribution.to_dict(),
         timeout=timeout,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
 
     if resp.status_code == 429:

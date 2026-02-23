@@ -672,6 +672,13 @@ class PackerFrame(ctk.CTkFrame):
             f"Packed {', '.join(parts)} successfully",
             "success",
         )
+        self.app.telemetry.track_event(
+            "dlc_pack",
+            {
+                "dlc_count": total_count,
+                "total_size_bytes": total_size,
+            },
+        )
 
     def _on_pack_error(self, error):
         self._busy = False
@@ -743,6 +750,12 @@ class PackerFrame(ctk.CTkFrame):
             self.app.show_toast("Archive extracted", "success")
             return
 
+        self.app.telemetry.track_event(
+            "dlc_import",
+            {
+                "dlc_count": len(found_dlc_ids),
+            },
+        )
         dlc_list = ", ".join(found_dlc_ids)
         self._status_label.configure(text=f"Imported: {dlc_list}")
         self.app.show_toast(

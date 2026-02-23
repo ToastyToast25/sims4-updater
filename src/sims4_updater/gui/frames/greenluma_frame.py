@@ -521,9 +521,23 @@ class GreenLumaFrame(ctk.CTkFrame):
                 self.app.show_toast(f"GreenLuma v{ver} installed ({mode})!", "success")
                 self._log(f"GreenLuma installed: v{ver} ({mode})")
                 self._gl_badge.set_status(f"v{ver} ({mode})", "success")
+                self.app.telemetry.track_event(
+                    "greenluma_install",
+                    {
+                        "stealth": stealth,
+                        "success": True,
+                    },
+                )
             else:
                 self.app.show_toast("Installation may have failed.", "warning")
                 self._log("Installation completed but GreenLuma not detected.")
+                self.app.telemetry.track_event(
+                    "greenluma_install",
+                    {
+                        "stealth": stealth,
+                        "success": False,
+                    },
+                )
 
         def _err(e):
             self._set_busy(False)
@@ -569,11 +583,13 @@ class GreenLumaFrame(ctk.CTkFrame):
             if failed == 0:
                 self.app.show_toast(f"GreenLuma uninstalled ({removed} files removed)", "success")
                 self._log(f"Uninstalled: {removed} files removed")
+                self.app.telemetry.track_event("greenluma_uninstall", {"success": True})
             else:
                 self.app.show_toast(
                     f"Uninstall partial: {removed} removed, {failed} failed", "warning"
                 )
                 self._log(f"Uninstall: {removed} removed, {failed} failed")
+                self.app.telemetry.track_event("greenluma_uninstall", {"success": False})
             self._refresh_status()
 
         def _err(e):
@@ -742,6 +758,14 @@ class GreenLumaFrame(ctk.CTkFrame):
                     f"{result.manifests_copied} manifests copied, "
                     f"{result.applist_entries_added} AppList entries"
                 )
+                # Telemetry: GreenLuma LUA applied
+                self.app.telemetry.track_event(
+                    "greenluma_applied",
+                    {
+                        "keys_added": result.keys_added,
+                        "manifests_copied": result.manifests_copied,
+                    },
+                )
             else:
                 self.app.show_toast(f"LUA applied with {len(result.errors)} error(s)", "warning")
                 for err in result.errors:
@@ -795,6 +819,14 @@ class GreenLumaFrame(ctk.CTkFrame):
             msg = f"Applied: {keys} keys, {manifests} manifests, {applist_count} AppList entries"
             self._log(msg)
             self.app.show_toast(msg, "success")
+            # Telemetry: CDN keys applied
+            self.app.telemetry.track_event(
+                "greenluma_cdn_applied",
+                {
+                    "keys": keys,
+                    "manifests": manifests,
+                },
+            )
             self._refresh_status()
 
         def _err(e):
@@ -877,6 +909,12 @@ class GreenLumaFrame(ctk.CTkFrame):
                 if status == "accepted":
                     self.app.show_toast(message, "success")
                     self._log(f"Submitted: {message}")
+                    self.app.telemetry.track_event(
+                        "greenluma_keys_contributed",
+                        {
+                            "keys_submitted": len(contributions),
+                        },
+                    )
                 elif status == "rate_limited":
                     self.app.show_toast(message, "warning")
                     self._log(f"Rate limited: {message}")

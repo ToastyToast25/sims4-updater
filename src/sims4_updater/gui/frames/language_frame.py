@@ -802,6 +802,13 @@ class LanguageFrame(ctk.CTkFrame):
                     f"Language changed to {name}! Restart the game.",
                     "success",
                 )
+                # Telemetry: language changed
+                self.app.telemetry.track_event(
+                    "language_changed",
+                    {
+                        "locale": code,
+                    },
+                )
             else:
                 self._log(
                     "Could not update any config. "
@@ -855,6 +862,13 @@ class LanguageFrame(ctk.CTkFrame):
                 self.app.show_toast(
                     f"{name} language pack installed!",
                     "success",
+                )
+                self.app.telemetry.track_event(
+                    "language_pack_downloaded",
+                    {
+                        "locale": code,
+                        "size_bytes": entry.size if hasattr(entry, "size") else None,
+                    },
                 )
                 # Now apply the language config
                 self._refresh_status()
@@ -930,6 +944,13 @@ class LanguageFrame(ctk.CTkFrame):
                 self.app.show_toast(
                     f"{name} language pack installed!",
                     "success",
+                )
+                self.app.telemetry.track_event(
+                    "language_pack_downloaded",
+                    {
+                        "locale": code,
+                        "size_bytes": entry.size if hasattr(entry, "size") else None,
+                    },
                 )
             else:
                 self.app.show_toast(

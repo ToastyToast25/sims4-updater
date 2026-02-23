@@ -1310,6 +1310,44 @@ class VerifyResult:
 
 `apply_cdn_keys(manifest, steam_info, log)` — Downloads GreenLuma key and manifest data from the CDN entries declared in the patch manifest's `greenluma_entries` list, writes each depot decryption key into `config.vdf`, and places the corresponding `.manifest` file into `depotcache/`. Intended for DLCs that are incomplete (missing key or manifest) after a standard LUA apply. Returns an `ApplyResult` with counts of keys and manifests written.
 
+### 5.23 Core: Machine ID
+
+**File:** `src/sims4_updater/core/machine_id.py`
+
+Generates a deterministic machine fingerprint for CDN access control.
+
+- Reads `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (64-bit registry view)
+- Hashes: `SHA256("sims4updater-v1:" + MachineGuid)[:32]` — 32 hex chars
+- Module-level cache: registry read only once per process
+- Fallback: returns `"unknown"` if registry read fails
+- Not telemetry — this is mandatory CDN access identification
+
+### 5.24 Core: Identity Headers
+
+**File:** `src/sims4_updater/core/identity.py`
+
+Provides shared identity headers injected into all CDN HTTP requests.
+
+```python
+configure(machine_id: str, uid: str) -> None  # Call once at startup
+get_headers() -> dict[str, str]                # Returns X-Machine-Id, X-UID headers
+```
+
+Headers injected into: `patch/downloader.py`, `core/telemetry.py`, `core/contribute.py`, `greenluma/contribute.py`. NOT injected into external services (GitHub API, Steam Store API).
+
+### 5.25 Core: CDN Authentication
+
+**File:** `src/sims4_updater/core/cdn_auth.py`
+
+Manages JWT session token lifecycle for CDN access.
+
+**Key classes:**
+
+- `CDNAuth` — Manages token state. `get_token()` returns valid token, auto-refreshes when < 60s remaining. `_refresh()` POSTs to `{api_url}/auth/token`. Raises `BannedError` on 403-banned, `AccessRequiredError` on 403-access_required.
+- `CDNTokenAuth(AuthBase)` — requests auth adapter. Set as `session.auth`; runs on every HTTP request, calling `get_token()` each time. Handles multi-hour batch downloads seamlessly.
+
+**Integration:** After manifest fetch, `App` creates `CDNAuth`, sets `session.auth = cdn_auth.get_auth_adapter()`.
+
 ---
 
 ## 6. Layer 3: GUI
@@ -2060,7 +2098,10 @@ Exception
       ├── NoUpdatePathError        No patch path from current to target version
       ├── NoCrackConfigError       No crack config found in game directory
       ├── XdeltaError              xdelta3.exe returned non-zero exit code
-      └── AVButtinInError          Antivirus interfered with file operations
+      ├── AVButtinInError          Antivirus interfered with file operations
+      ├── BannedError              User is banned from the CDN
+      └── AccessRequiredError      Private CDN requires access approval
+                                     Attrs: cdn_name: str, request_url: str
 ```
 
 **GUI error handling pattern:**
@@ -2164,6 +2205,13 @@ A complete reference for operators who host their own patch manifests.
       "md5":      "UPPER_HEX_MD5",
       "filename": "Sims4_DLC_EP01_World_Adventures.zip"
     }
+  },
+
+  "cdn": {
+    "name": "HyperAbyss CDN",
+    "api_url": "https://api.hyperabyss.com",
+    "telemetry_url": "https://api.hyperabyss.com/stats",
+    "access": "public"
   }
 }
 ```
@@ -2188,6 +2236,11 @@ A complete reference for operators who host their own patch manifests.
 | `new_dlcs` | No | Announced but not yet patchable DLCs for UI notification |
 | `dlc_catalog` | No | New DLC entries merged into the in-memory catalog |
 | `dlc_downloads` | No | Per-DLC download entries for individual DLC acquisition |
+| `cdn` | No | CDN configuration block; parsed into `CDNConfig` dataclass, stored as `Manifest.cdn` |
+| `cdn.name` | No | Human-readable CDN name (shown in error messages) |
+| `cdn.api_url` | No | Base URL for CDN API endpoints (auth, contribution) |
+| `cdn.telemetry_url` | No | Endpoint for telemetry/stats reporting |
+| `cdn.access` | No | Access mode: `"public"` (open) or `"private"` (requires approval) |
 
 ---
 

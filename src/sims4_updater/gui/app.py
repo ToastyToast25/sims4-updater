@@ -84,12 +84,27 @@ class App(ctk.CTk):
                 self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
         else:
             self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
+
+        # Configure machine identity for CDN/API requests (always active)
+        from ..core import identity
+        from ..core.machine_id import get_machine_id
+
+        identity.configure(get_machine_id(), self.settings.uid)
+
         self.price_cache = SteamPriceCache()
         self.updater = Sims4Updater(
             ask_question=self._ask_question,
             callback=self._enqueue_callback,
             settings=self.settings,
         )
+
+        # CDN auth — initialized after manifest fetch via init_cdn_auth()
+        self._cdn_auth = None
+
+        # Telemetry (fire-and-forget, deferred import)
+        from ..core.telemetry import TelemetryClient
+
+        self.telemetry = TelemetryClient(self.settings)
 
         # Build UI
         self._build_sidebar()
@@ -482,6 +497,16 @@ class App(ctk.CTk):
         old_name = self._current_frame_name
         self._current_frame_name = name
 
+        # Track navigation
+        if old_name is not None:
+            self.telemetry.track_event(
+                "frame_navigation",
+                {
+                    "from_frame": old_name,
+                    "to_frame": name,
+                },
+            )
+
         # First frame show — no animation needed
         if old_name is None:
             frame.tkraise()
@@ -593,6 +618,21 @@ class App(ctk.CTk):
 
     def _show_error(self, error: Exception):
         """Display an error to the user."""
+        from ..core.exceptions import AccessRequiredError, BannedError
+
+        if isinstance(error, BannedError):
+            # Prominent dialog — user must see this clearly
+            tk.messagebox.showerror(
+                "CDN Access Suspended",
+                str(error),
+                parent=self,
+            )
+            return
+
+        if isinstance(error, AccessRequiredError):
+            self._show_access_request_dialog(error)
+            return
+
         msg = str(error)
         if not msg:
             msg = type(error).__name__
@@ -738,6 +778,110 @@ class App(ctk.CTk):
         self._notification_history.clear()
         self._close_notification_popup()
 
+    # ── CDN Auth ──────────────────────────────────────────────
+
+    def init_cdn_auth(self, manifest):
+        """Initialize CDN authentication from manifest config.
+
+        Call after fetching the manifest.  Creates a CDNAuth instance for
+        the CDN described in manifest.cdn, updates the telemetry base URL,
+        and returns the auth adapter for download sessions.
+
+        Returns CDNTokenAuth adapter or None.
+        """
+        if not manifest.cdn.api_url:
+            return None
+
+        from .. import VERSION
+        from ..core.cdn_auth import CDNAuth
+        from ..core.machine_id import get_machine_id
+
+        self._cdn_auth = CDNAuth(
+            api_url=manifest.cdn.api_url,
+            machine_id=get_machine_id(),
+            uid=self.settings.uid,
+            app_version=VERSION,
+        )
+
+        # Update telemetry to use CDN-specific telemetry URL
+        if manifest.cdn.telemetry_url:
+            self.telemetry._base_url = manifest.cdn.telemetry_url
+
+        return self._cdn_auth.get_auth_adapter()
+
+    def _show_access_request_dialog(self, error):
+        """Show a dialog for requesting access to a private CDN."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Access Request Required")
+        dialog.geometry("420x240")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.attributes("-topmost", True)
+
+        pad = {"padx": 20}
+
+        ctk.CTkLabel(
+            dialog,
+            text=f"Access to {error.cdn_name} requires approval.",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=theme.COLORS["warning"],
+            wraplength=380,
+        ).pack(pady=(20, 4), **pad)
+
+        ctk.CTkLabel(
+            dialog,
+            text="You may provide a reason for your request (optional):",
+            font=ctk.CTkFont(size=12),
+            text_color=theme.COLORS["text_muted"],
+        ).pack(pady=(4, 8), **pad)
+
+        reason_entry = ctk.CTkEntry(
+            dialog,
+            placeholder_text="Reason for access...",
+            width=360,
+            height=32,
+        )
+        reason_entry.pack(**pad)
+
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=(16, 10), **pad)
+
+        def _submit():
+            reason = reason_entry.get().strip()
+            dialog.destroy()
+
+            if not self._cdn_auth:
+                self.show_toast("CDN auth not initialized.", "error")
+                return
+
+            def _bg():
+                return self._cdn_auth.request_access(reason=reason)
+
+            def _done(resp):
+                self.show_toast("Access request submitted.", "success")
+
+            def _err(e):
+                self.show_toast(f"Request failed: {e}", "error")
+
+            self.run_async(_bg, on_done=_done, on_error=_err)
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Request Access",
+            width=160,
+            fg_color=theme.COLORS["accent"],
+            command=_submit,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Cancel",
+            width=100,
+            fg_color=theme.COLORS["bg_elevated"],
+            command=dialog.destroy,
+        ).pack(side="left")
+
     # ── Lifecycle ───────────────────────────────────────────────
 
     def _on_startup(self):
@@ -755,6 +899,9 @@ class App(ctk.CTk):
 
         # Auto-contribute GreenLuma keys silently in background
         self.after(5000, self._auto_contribute_keys)
+
+        # Send telemetry heartbeat
+        self.after(7000, self._send_heartbeat)
 
     def _auto_check_game_updates(self):
         """Automatically check for game updates on startup if configured."""
@@ -828,8 +975,74 @@ class App(ctk.CTk):
 
         self.run_async(_bg, on_done=_done, on_error=lambda e: None)
 
+    def _send_heartbeat(self):
+        """Send telemetry heartbeat in a daemon thread (fire-and-forget)."""
+        import threading
+
+        def _bg():
+            try:
+                game_version = None
+                crack_format = None
+                dlc_count = None
+                game_detected = False
+
+                game_dir = self.updater.find_game_dir()
+                if game_dir:
+                    game_detected = True
+                    try:
+                        from ..core.version_detect import VersionDetector
+
+                        detector = VersionDetector()
+                        result = detector.detect(game_dir)
+                        game_version = result.version
+                    except Exception:
+                        pass
+                    try:
+                        from ..dlc.formats import detect_format
+
+                        adapter = detect_format(game_dir)
+                        if adapter:
+                            crack_format = adapter.get_format_name()
+                    except Exception:
+                        pass
+                    try:
+                        dlc_states = self.updater._dlc_manager.get_dlc_states(game_dir)
+                        dlc_count = sum(1 for s in dlc_states.values() if s)
+                    except Exception:
+                        pass
+
+                locale = self.settings.language or None
+                self.telemetry.heartbeat(
+                    game_version=game_version,
+                    crack_format=crack_format,
+                    dlc_count=dlc_count,
+                    game_detected=game_detected,
+                    locale=locale,
+                )
+                self.telemetry.track_event(
+                    "app_launch",
+                    {
+                        "session_id": self.telemetry.session_id,
+                    },
+                )
+                # Cache game info for periodic heartbeats and start 5-min pings
+                self.telemetry.set_game_info(
+                    game_version=game_version,
+                    crack_format=crack_format,
+                    dlc_count=dlc_count,
+                    game_detected=game_detected,
+                    locale=locale,
+                )
+                self.telemetry.start_periodic_heartbeat(300)
+            except Exception:
+                pass  # Never fail
+
+        threading.Thread(target=_bg, daemon=True).start()
+
     def _on_close(self):
         """Handle window close."""
+        with contextlib.suppress(Exception):
+            self.telemetry.session_end()
         try:
             self._animator.cancel_all()
             self.updater.exiting.set()

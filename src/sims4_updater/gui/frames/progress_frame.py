@@ -11,6 +11,7 @@ Shows:
 from __future__ import annotations
 
 import contextlib
+import time
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -222,6 +223,18 @@ class ProgressFrame(ctk.CTkFrame):
         # Start progress bar pulse animation
         self._start_pulse()
 
+        # Telemetry: update started
+        self._update_plan = plan
+        self._update_start_time = time.monotonic()
+        self.app.telemetry.track_event(
+            "update_started",
+            {
+                "from_version": plan.current_version,
+                "to_version": plan.target_version,
+                "steps": plan.step_count,
+            },
+        )
+
         self.app.run_async(
             self._run_update,
             plan,
@@ -351,6 +364,13 @@ class ProgressFrame(ctk.CTkFrame):
                         "Backup created.\n",
                         "success",
                     )
+                    self.app.telemetry.track_event(
+                        "backup_created",
+                        {
+                            "size_bytes": size,
+                            "version": version_label,
+                        },
+                    )
                 except Exception as e:
                     self._enqueue_gui(
                         self._log_text,
@@ -396,6 +416,18 @@ class ProgressFrame(ctk.CTkFrame):
         )
         self.app.show_toast("Update complete!", "success")
 
+        # Telemetry: update completed
+        plan = getattr(self, "_update_plan", None)
+        start = getattr(self, "_update_start_time", None)
+        duration = round(time.monotonic() - start, 1) if start else None
+        self.app.telemetry.track_event(
+            "update_completed",
+            {
+                "to_version": plan.target_version if plan else None,
+                "duration_seconds": duration,
+            },
+        )
+
     def _on_update_error(self, error):
         self._is_running = False
         self._stop_pulse()
@@ -409,6 +441,14 @@ class ProgressFrame(ctk.CTkFrame):
         self._cancel_btn.configure(state="disabled")
         self._done_btn.configure(state="normal")
         self.app.show_toast(f"Update failed: {error}", "error")
+
+        # Telemetry: update failed
+        self.app.telemetry.track_event(
+            "update_failed",
+            {
+                "error": str(error)[:200],
+            },
+        )
 
     # ── Log helpers ──────────────────────────────────────────────
 
@@ -456,6 +496,14 @@ class ProgressFrame(ctk.CTkFrame):
             )
             self._cancel_btn.configure(state="disabled")
             self._log_text("\nCancelling...\n", "warning")
+            start = getattr(self, "_update_start_time", None)
+            elapsed = round(time.monotonic() - start, 1) if start else None
+            self.app.telemetry.track_event(
+                "update_cancelled",
+                {
+                    "elapsed_seconds": elapsed,
+                },
+            )
 
     def _on_done(self):
         # Reset progress bar color for next update

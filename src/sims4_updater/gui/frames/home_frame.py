@@ -984,6 +984,18 @@ class HomeFrame(ctk.CTkFrame):
         self._update_btn.configure(state="normal")
         self._last_update_info = info
 
+        # Track update check
+        self.app.telemetry.track_event(
+            "update_check",
+            {
+                "update_available": info.update_available,
+                "current_version": getattr(info, "current_version", None),
+                "latest_version": info.latest_version,
+                "steps": info.step_count,
+                "download_size": info.total_download_size,
+            },
+        )
+
         # Update last checked timestamp
         from datetime import datetime
 
@@ -1119,6 +1131,13 @@ class HomeFrame(ctk.CTkFrame):
         """GUI thread: show or hide the app update banner."""
         self._app_update_info = info
         if info and info.update_available:
+            self.app.telemetry.track_event(
+                "self_update_available",
+                {
+                    "current_version": getattr(info, "current_version", None),
+                    "latest_version": info.latest_version,
+                },
+            )
             from ...patch.client import format_size
 
             size = format_size(info.download_size) if info.download_size else "?"
@@ -1220,6 +1239,15 @@ class HomeFrame(ctk.CTkFrame):
 
     def _on_self_update_downloaded(self, new_exe_path):
         """GUI thread: show completion then apply the update."""
+        self.app.telemetry.track_event(
+            "self_update_downloaded",
+            {
+                "version": self._app_update_info.latest_version if self._app_update_info else None,
+                "size_bytes": self._app_update_info.download_size
+                if self._app_update_info
+                else None,
+            },
+        )
         # Show completed state briefly
         self._dl_progress_bar.set(1)
         self._dl_pct_label.configure(text="100%")
@@ -1389,10 +1417,25 @@ class HomeFrame(ctk.CTkFrame):
                 creationflags=(subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP),
             )
             self.app.show_toast(f"{label} game launched!", "success")
+            self.app.telemetry.track_event(
+                "game_launch",
+                {
+                    "launch_type": label,
+                    "exe_found": True,
+                },
+            )
         except OSError as e:
             self._game_launching = False
             self._reset_launch_buttons()
             self.app.show_toast(f"Failed to launch: {e}", "error")
+            self.app.telemetry.track_event(
+                "game_launch",
+                {
+                    "launch_type": label,
+                    "exe_found": True,
+                    "error": str(e),
+                },
+            )
             return
 
         # Start polling to detect when the process is actually running

@@ -137,6 +137,20 @@ class GreenLumaEntry:
 
 
 @dataclass
+class CDNConfig:
+    """CDN-specific configuration provided by the manifest.
+
+    Tells the client where to authenticate, send telemetry, and whether
+    access requires approval.  Each CDN owner configures this block.
+    """
+
+    name: str = ""
+    api_url: str = ""  # e.g. https://api.hyperabyss.com
+    telemetry_url: str = ""  # e.g. https://api.hyperabyss.com/stats
+    access: str = "public"  # "public" or "private"
+
+
+@dataclass
 class Manifest:
     """Parsed manifest describing all available patches."""
 
@@ -157,6 +171,7 @@ class Manifest:
     self_update_url: str = ""
     contribute_url: str = ""
     greenluma: dict[str, GreenLumaEntry] = field(default_factory=dict)
+    cdn: CDNConfig = field(default_factory=CDNConfig)
 
     @property
     def patch_pending(self) -> bool:
@@ -293,6 +308,17 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                     manifest_url=gl_data.get("manifest_url", ""),
                 )
 
+    # Parse optional CDN config: {name, api_url, telemetry_url, access}
+    cdn = CDNConfig()
+    raw_cdn = data.get("cdn", {})
+    if isinstance(raw_cdn, dict):
+        cdn = CDNConfig(
+            name=raw_cdn.get("name", ""),
+            api_url=raw_cdn.get("api_url", ""),
+            telemetry_url=raw_cdn.get("telemetry_url", ""),
+            access=raw_cdn.get("access", "public"),
+        )
+
     return Manifest(
         latest=latest,
         patches=patches,
@@ -311,6 +337,7 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         self_update_url=data.get("self_update_url", ""),
         contribute_url=data.get("contribute_url", ""),
         greenluma=greenluma,
+        cdn=cdn,
     )
 
 

@@ -2,14 +2,18 @@ name = "sims4-cdn"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
-# Bind this to your cdn.hyperabyss.com subdomain
-# After deploying, add a route in Cloudflare dashboard:
-#   Route: cdn.hyperabyss.com/*
-#   Worker: sims4-cdn
+# Route: cdn.hyperabyss.com/* → this worker
+# Set in Cloudflare dashboard: Workers & Pages → sims4-cdn → Settings → Triggers
 
 # KV Namespace — stores path → seedbox URL mappings
-# Create in dashboard: Workers & Pages → KV → Create namespace → "CDN_ROUTES"
-# Then paste the namespace ID below
 [[kv_namespaces]]
 binding = "CDN_ROUTES"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "21b161fd30af47d19c4b298f597ff259"
+
+# Environment variables (secrets set via `wrangler secret put`):
+#   SEEDBOX_BASE_URL  — e.g. https://spirit.whatbox.ca/toastytoast/
+#   SEEDBOX_USER      — seedbox HTTP auth user
+#   SEEDBOX_PASS      — seedbox HTTP auth password
+#   SUPABASE_URL      — e.g. https://ginikbkaqnlmrezpkiog.supabase.co
+#   SUPABASE_SERVICE_KEY — Supabase service_role key
+#   JWT_SECRET        — shared secret for JWT signing (same as api worker)

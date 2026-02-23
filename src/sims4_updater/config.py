@@ -67,6 +67,8 @@ class Settings:
     tools_collapsed: bool = True  # Sidebar "Tools" section starts collapsed
     backup_enabled: bool = False  # Create backup of game files before patching
     backup_max_count: int = 3  # Keep last N backups, auto-prune older ones
+    uid: str = ""  # Anonymous telemetry user ID (generated on first launch)
+    telemetry_enabled: bool = True  # Send anonymous usage statistics
 
     def __post_init__(self):
         # Fill in critical URL defaults when empty (e.g. migrated from older settings)
