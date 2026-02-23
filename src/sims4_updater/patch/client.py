@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..core.exceptions import DownloadError, ManifestError
+from ..core.exceptions import BannedError, DownloadError, ManifestError
 from ..core.learned_hashes import LearnedHashDB
 from .downloader import Downloader, DownloadResult, ProgressCallback
 from .manifest import Manifest, PendingDLC, parse_manifest
@@ -119,8 +119,13 @@ class PatchClient:
         for url in urls:
             try:
                 resp = self.downloader.session.get(url, timeout=30)
+                from .downloader import _check_ban_response
+
+                _check_ban_response(resp)
                 resp.raise_for_status()
                 data = resp.json()
+            except BannedError:
+                raise
             except json.JSONDecodeError as e:
                 last_error = ManifestError(f"Manifest is not valid JSON: {e}")
                 continue

@@ -563,12 +563,16 @@ class App(ctk.CTk):
 
     def run_async(self, func, *args, on_done=None, on_error=None):
         """Run a function in the background thread."""
+        from ..core.exceptions import AccessRequiredError, BannedError
 
         def wrapper():
             try:
                 result = func(*args)
                 if on_done:
                     self._enqueue_gui(on_done, result)
+            except (BannedError, AccessRequiredError) as e:
+                # Always route CDN auth errors to the prominent dialog
+                self._enqueue_gui(self._show_error, e)
             except Exception as e:
                 if on_error:
                     self._enqueue_gui(on_error, e)

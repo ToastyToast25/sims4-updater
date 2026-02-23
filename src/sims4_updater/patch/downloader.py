@@ -16,7 +16,7 @@ import requests
 import requests.adapters
 import urllib3
 
-from ..core.exceptions import DownloadError, IntegrityError
+from ..core.exceptions import BannedError, DownloadError, IntegrityError
 from .manifest import FileEntry
 
 if TYPE_CHECKING:
@@ -129,6 +129,7 @@ class Downloader:
                 stream=True,
                 timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
             )
+            _check_ban_response(resp)
             resp.raise_for_status()
 
             # Determine total size and write mode
@@ -165,7 +166,7 @@ class Downloader:
                     if progress:
                         progress(downloaded, total_size, entry.filename)
 
-        except DownloadError:
+        except (DownloadError, BannedError):
             raise
         except requests.RequestException as e:
             raise DownloadError(f"Failed to download {entry.filename}: {e}") from e
@@ -277,6 +278,22 @@ class _TimeoutSSLAdapter(requests.adapters.HTTPAdapter):
             maxsize=maxsize,
             block=block,
             ssl_context=self._ssl_context,
+        )
+
+
+def _check_ban_response(resp: requests.Response) -> None:
+    """Raise BannedError if the response is a 403 ban from the CDN."""
+    if resp.status_code != 403:
+        return
+    try:
+        body = resp.json()
+    except Exception:
+        return
+    if body.get("error") == "banned":
+        raise BannedError(
+            reason=body.get("reason", ""),
+            ban_type=body.get("ban_type", ""),
+            expires_at=body.get("expires_at", ""),
         )
 
 
