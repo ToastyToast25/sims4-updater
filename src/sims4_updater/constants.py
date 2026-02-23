@@ -10,6 +10,9 @@ FALLBACK_MANIFEST_URLS: list[str] = []
 # Contribution API endpoint
 CONTRIBUTE_URL = "https://api.hyperabyss.com/contribute"
 
+# Telemetry API endpoint
+TELEMETRY_URL = "https://api.hyperabyss.com/stats"
+
 # The Sims 4 registry keys for auto-detection
 REGISTRY_PATHS = [
     r"SOFTWARE\Maxis\The Sims 4",

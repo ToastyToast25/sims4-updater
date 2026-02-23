@@ -200,6 +200,13 @@ class DiagnosticsFrame(ctk.CTkFrame):
         self._export_btn.configure(state="normal")
         self._progress_bar.grid_remove()
 
+        self.app.telemetry.track_event("diagnostics_run", {
+            "pass_count": report.pass_count,
+            "warn_count": report.warn_count,
+            "fail_count": report.fail_count,
+            "is_healthy": report.is_healthy,
+        })
+
     # ── File Validation ──────────────────────────────────────
 
     def _on_validate_files(self):
@@ -273,6 +280,13 @@ class DiagnosticsFrame(ctk.CTkFrame):
             summary_color = theme.COLORS["warning"]
             summary_text = f"{len(problems)} issue(s) found"
             self._status_label.configure(text=summary_text)
+
+        problems = report.get_problems() if not report.is_healthy else []
+        self.app.telemetry.track_event("validation_run", {
+            "total_files": report.total_files_scanned,
+            "is_healthy": report.is_healthy,
+            "problems": len(problems),
+        })
 
         # Overall stats
         self._add_section_header(

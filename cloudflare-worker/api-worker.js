@@ -2,17 +2,25 @@
  * Sims 4 Updater Contribution API — api.hyperabyss.com
  *
  * Endpoints:
- *   POST /contribute          — Submit DLC metadata (from user apps)
- *   GET  /admin               — Dashboard to review contributions (password protected)
+ *   POST /contribute            — Submit DLC metadata (from user apps)
+ *   POST /contribute/greenluma  — Submit GreenLuma depot keys + manifests
+ *   POST /stats/heartbeat       — Telemetry heartbeat (upsert user)
+ *   POST /stats/event           — Telemetry event (append)
+ *   GET  /admin                 — Dashboard to review contributions (password protected)
+ *   GET  /admin/stats           — Analytics dashboard (password protected)
+ *   GET  /admin/stats/api       — JSON: all Supabase view data
+ *   GET  /admin/stats/recent    — JSON: last 50 events
  *   GET|POST /admin/approve/:id — Approve a contribution
  *   GET|POST /admin/reject/:id  — Reject a contribution
- *   GET  /admin/list           — JSON list of all contributions
- *   GET  /health              — Health check
+ *   GET  /admin/list            — JSON list of all contributions
+ *   GET  /health                — Health check
  *
  * Environment:
- *   CONTRIBUTIONS   — KV namespace for storing contributions
- *   ADMIN_PASSWORD  — Password for admin dashboard
- *   DISCORD_WEBHOOK — Discord webhook URL for notifications
+ *   CONTRIBUTIONS    — KV namespace for storing contributions
+ *   ADMIN_PASSWORD   — Password for admin dashboard
+ *   DISCORD_WEBHOOK  — Discord webhook URL for notifications
+ *   SUPABASE_URL     — Supabase project URL (e.g. https://xxx.supabase.co)
+ *   SUPABASE_SERVICE_KEY — Supabase service_role key (server-side only)
  */
 
 export default {
@@ -46,6 +54,14 @@ export default {
       return handleGLContribution(request, env);
     }
 
+    // Telemetry
+    if (path === "/stats/heartbeat" && request.method === "POST") {
+      return handleStatsHeartbeat(request, env);
+    }
+    if (path === "/stats/event" && request.method === "POST") {
+      return handleStatsEvent(request, env);
+    }
+
     // Admin routes
     if (path.startsWith("/admin")) {
       // Check admin auth
@@ -54,6 +70,15 @@ export default {
 
       if (path === "/admin" && request.method === "GET") {
         return serveDashboard(env);
+      }
+      if (path === "/admin/stats" && request.method === "GET") {
+        return serveStatsDashboard(env);
+      }
+      if (path === "/admin/stats/api" && request.method === "GET") {
+        return getStatsData(env);
+      }
+      if (path === "/admin/stats/recent" && request.method === "GET") {
+        return getRecentEvents(env);
       }
       if (path === "/admin/list" && request.method === "GET") {
         return listContributions(env);
@@ -139,6 +164,134 @@ async function checkRateLimit(request, env) {
 
   await env.CONTRIBUTIONS.put(key, JSON.stringify({ count: 1, first: now }), { expirationTtl: 3600 });
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry rate limiting (per-UID, stored in KV)
+// ---------------------------------------------------------------------------
+
+async function checkStatsRateLimit(env, uid, type) {
+  // type: "heartbeat" (15/hour for 5-min pings) or "event" (50/hour)
+  const maxCount = type === "heartbeat" ? 15 : 50;
+  const key = `stats_rl:${type}:${uid}`;
+  const now = Math.floor(Date.now() / 1000);
+
+  const data = await env.CONTRIBUTIONS.get(key);
+  if (data) {
+    const parsed = JSON.parse(data);
+    if (parsed.count >= maxCount && (now - parsed.first) < 3600) {
+      return true; // rate limited
+    }
+    if ((now - parsed.first) >= 3600) {
+      await env.CONTRIBUTIONS.put(key, JSON.stringify({ count: 1, first: now }), { expirationTtl: 3600 });
+      return false;
+    }
+    parsed.count++;
+    await env.CONTRIBUTIONS.put(key, JSON.stringify(parsed), { expirationTtl: 3600 });
+    return false;
+  }
+
+  await env.CONTRIBUTIONS.put(key, JSON.stringify({ count: 1, first: now }), { expirationTtl: 3600 });
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry handlers — proxy to Supabase
+// ---------------------------------------------------------------------------
+
+async function handleStatsHeartbeat(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  // Validate required fields
+  if (!body.uid || typeof body.uid !== "string" || body.uid.length < 16) {
+    return json({ error: "Missing or invalid uid" }, 400);
+  }
+  if (!body.app_version || typeof body.app_version !== "string") {
+    return json({ error: "Missing app_version" }, 400);
+  }
+
+  // Rate limit: 15 heartbeats per hour per UID (5-min periodic pings)
+  if (await checkStatsRateLimit(env, body.uid, "heartbeat")) {
+    return json({ status: "rate_limited", message: "15 heartbeats per hour" }, 429);
+  }
+
+  // Forward upsert to Supabase
+  const payload = {
+    uid: body.uid,
+    app_version: body.app_version,
+    game_version: body.game_version || null,
+    os_version: body.os_version || null,
+    locale: body.locale || null,
+    crack_format: body.crack_format || null,
+    dlc_count: typeof body.dlc_count === "number" ? body.dlc_count : null,
+    game_detected: !!body.game_detected,
+    last_seen: body.last_seen || new Date().toISOString(),
+  };
+
+  const resp = await supabasePost(env, "/rest/v1/users", payload, true);
+  if (!resp.ok) {
+    const text = await resp.text();
+    return json({ status: "error", message: `Supabase error: ${resp.status}` }, 502);
+  }
+
+  return json({ status: "ok", message: "Heartbeat recorded" });
+}
+
+async function handleStatsEvent(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  // Validate required fields
+  if (!body.uid || typeof body.uid !== "string" || body.uid.length < 16) {
+    return json({ error: "Missing or invalid uid" }, 400);
+  }
+  if (!body.event_type || typeof body.event_type !== "string") {
+    return json({ error: "Missing event_type" }, 400);
+  }
+
+  // Rate limit: 50 events per hour per UID
+  if (await checkStatsRateLimit(env, body.uid, "event")) {
+    return json({ status: "rate_limited", message: "50 events per hour" }, 429);
+  }
+
+  const payload = {
+    uid: body.uid,
+    event_type: body.event_type,
+    metadata: body.metadata || null,
+  };
+
+  const resp = await supabasePost(env, "/rest/v1/events", payload, false);
+  if (!resp.ok) {
+    const text = await resp.text();
+    return json({ status: "error", message: `Supabase error: ${resp.status}` }, 502);
+  }
+
+  return json({ status: "ok", message: "Event recorded" });
+}
+
+async function supabasePost(env, path, data, upsert = false) {
+  const headers = {
+    "apikey": env.SUPABASE_SERVICE_KEY,
+    "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+    "Content-Type": "application/json",
+  };
+  if (upsert) {
+    headers["Prefer"] = "resolution=merge-duplicates";
+  }
+  return fetch(`${env.SUPABASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -572,7 +725,322 @@ async function updateStatus(env, dlcId, newStatus) {
 }
 
 // ---------------------------------------------------------------------------
-// Admin: Dashboard HTML
+// Stats: API + Dashboard
+// ---------------------------------------------------------------------------
+
+async function supabaseGet(env, path) {
+  return fetch(`${env.SUPABASE_URL}${path}`, {
+    headers: {
+      "apikey": env.SUPABASE_SERVICE_KEY,
+      "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+async function getStatsData(env) {
+  // Query all Supabase views in parallel
+  const views = [
+    "online_users", "active_users", "version_stats", "crack_format_stats",
+    "locale_stats", "event_stats", "popular_dlcs", "update_stats",
+    "download_volume", "session_stats",
+  ];
+  const results = {};
+  const settled = await Promise.allSettled(
+    views.map(async (v) => {
+      const resp = await supabaseGet(env, `/rest/v1/${v}?select=*`);
+      if (resp.ok) return { name: v, data: await resp.json() };
+      return { name: v, data: [] };
+    })
+  );
+  for (const s of settled) {
+    if (s.status === "fulfilled") results[s.value.name] = s.value.data;
+    else results[s.reason?.name || "unknown"] = [];
+  }
+  return json(results);
+}
+
+async function getRecentEvents(env) {
+  const resp = await supabaseGet(
+    env,
+    "/rest/v1/events?select=*&order=created_at.desc&limit=50"
+  );
+  if (!resp.ok) {
+    return json({ error: `Supabase error: ${resp.status}` }, 502);
+  }
+  return json(await resp.json());
+}
+
+async function serveStatsDashboard(env) {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sims 4 Updater — Analytics</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0d12; color: #e1e4e8; min-height: 100vh; }
+  .header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 32px; height: 32px; background: linear-gradient(135deg, #58a6ff, #3b82f6); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; }
+  .header h1 { font-size: 18px; color: #e1e4e8; font-weight: 600; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .auto-refresh-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; cursor: pointer; }
+  .auto-refresh-toggle input { accent-color: #58a6ff; }
+  .last-updated { font-size: 11px; color: #484f58; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .section-title { font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 12px; font-weight: 600; }
+  .section-title:first-child { margin-top: 0; }
+
+  /* Metric cards */
+  .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 12px; }
+  .metrics.three { grid-template-columns: repeat(3, 1fr); }
+  .metric { background: #161b22; padding: 18px; border-radius: 10px; border: 1px solid #30363d; }
+  .metric-value { font-size: 28px; font-weight: 700; line-height: 1; }
+  .metric-label { font-size: 11px; color: #8b949e; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .metric-value.green { color: #2ecc71; }
+  .metric-value.blue { color: #58a6ff; }
+  .metric-value.orange { color: #f0ad4e; }
+  .metric-value.red { color: #e74c3c; }
+  .online-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; margin-right: 6px; animation: pulse-dot 2s infinite; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* Bar charts */
+  .charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
+  .chart-card { background: #161b22; border-radius: 10px; border: 1px solid #30363d; padding: 18px; }
+  .chart-title { font-size: 13px; color: #e1e4e8; font-weight: 600; margin-bottom: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .bar-label { font-size: 12px; color: #8b949e; min-width: 100px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 18px; background: #0d1117; border-radius: 4px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; min-width: 2px; }
+  .bar-fill.blue { background: linear-gradient(90deg, #1f6feb, #58a6ff); }
+  .bar-fill.green { background: linear-gradient(90deg, #238636, #2ecc71); }
+  .bar-fill.orange { background: linear-gradient(90deg, #d29922, #f0ad4e); }
+  .bar-fill.purple { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+  .bar-count { font-size: 11px; color: #58a6ff; min-width: 40px; font-weight: 600; }
+
+  /* Activity feed */
+  .feed-card { background: #161b22; border-radius: 10px; border: 1px solid #30363d; overflow: hidden; }
+  .feed-header { padding: 14px 18px; border-bottom: 1px solid #30363d; font-size: 13px; font-weight: 600; }
+  .feed-scroll { max-height: 400px; overflow-y: auto; }
+  .feed-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .feed-table th { text-align: left; padding: 8px 16px; color: #484f58; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #21262d; position: sticky; top: 0; background: #161b22; }
+  .feed-table td { padding: 7px 16px; border-bottom: 1px solid #1c2128; }
+  .feed-table tr:hover td { background: rgba(88,166,255,0.03); }
+  .event-type { color: #58a6ff; font-weight: 500; }
+  .uid-short { color: #484f58; font-family: monospace; font-size: 11px; }
+  .meta-preview { color: #8b949e; font-size: 11px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .time-col { color: #484f58; white-space: nowrap; }
+
+  .loading { text-align: center; padding: 40px; color: #484f58; }
+
+  @media (max-width: 900px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .metrics.three { grid-template-columns: repeat(2, 1fr); }
+    .charts { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="logo">S4</div>
+    <h1>Sims 4 Updater &mdash; Analytics</h1>
+  </div>
+  <div class="header-right">
+    <label class="auto-refresh-toggle">
+      <input type="checkbox" id="autoRefresh" checked> Auto-refresh (30s)
+    </label>
+    <span class="last-updated" id="lastUpdated"></span>
+  </div>
+</div>
+<div class="container">
+  <div id="content"><div class="loading">Loading analytics...</div></div>
+</div>
+<script>
+var PW = new URLSearchParams(window.location.search).get("pw");
+var BASE = window.location.origin;
+var refreshTimer = null;
+
+function api(path) {
+  var sep = path.indexOf("?") >= 0 ? "&" : "?";
+  return fetch(BASE + path + sep + "pw=" + PW).then(function(r) { return r.json(); });
+}
+
+function fmtSize(b) {
+  if (!b || b === 0) return "0 B";
+  if (b >= 1073741824) return (b/1073741824).toFixed(1) + " GB";
+  if (b >= 1048576) return (b/1048576).toFixed(1) + " MB";
+  if (b >= 1024) return (b/1024).toFixed(0) + " KB";
+  return b + " B";
+}
+function fmtSpeed(bps) {
+  if (!bps || bps === 0) return "0 B/s";
+  if (bps >= 1048576) return (bps/1048576).toFixed(1) + " MB/s";
+  if (bps >= 1024) return (bps/1024).toFixed(0) + " KB/s";
+  return Math.round(bps) + " B/s";
+}
+function fmtDuration(s) {
+  if (!s || s <= 0) return "0s";
+  if (s < 60) return Math.round(s) + "s";
+  if (s < 3600) return Math.round(s/60) + "m";
+  return (s/3600).toFixed(1) + "h";
+}
+function fmtPct(n, d) { return d > 0 ? Math.round(100 * n / d) + "%" : "N/A"; }
+function timeAgo(iso) {
+  if (!iso) return "";
+  var diff = Date.now() - new Date(iso).getTime();
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + "m ago";
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.floor(hrs/24) + "d ago";
+}
+function row(a) { return a && a[0] ? a[0] : {}; }
+function barChart(title, items, colorClass) {
+  if (!items || items.length === 0) return '<div class="chart-card"><div class="chart-title">' + title + '</div><div style="color:#484f58;font-size:12px">No data</div></div>';
+  var max = Math.max.apply(null, items.map(function(i) { return i.count; }));
+  var html = '<div class="chart-card"><div class="chart-title">' + title + '</div>';
+  items.slice(0, 10).forEach(function(item) {
+    var pct = max > 0 ? Math.max(2, (item.count / max) * 100) : 2;
+    html += '<div class="bar-row"><span class="bar-label">' + item.label + '</span>';
+    html += '<div class="bar-track"><div class="bar-fill ' + colorClass + '" style="width:' + pct + '%"></div></div>';
+    html += '<span class="bar-count">' + item.count + '</span></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function render(stats, events) {
+  var au = row(stats.active_users || []);
+  var on = row(stats.online_users || []);
+  var us = row(stats.update_stats || []);
+  var dv = row(stats.download_volume || []);
+  var ss = row(stats.session_stats || []);
+
+  var h = '';
+
+  // Top metrics
+  h += '<div class="section-title">Users</div>';
+  h += '<div class="metrics">';
+  h += '<div class="metric"><div class="metric-value green"><span class="online-dot"></span>' + (on.count || 0) + '</div><div class="metric-label">Online Now</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + (au.dau || 0) + '</div><div class="metric-label">Daily Active</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + (au.wau || 0) + '</div><div class="metric-label">Weekly Active</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + (au.mau || 0) + '</div><div class="metric-label">Monthly Active</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + (au.total || 0) + '</div><div class="metric-label">Total Users</div></div>';
+  h += '</div>';
+
+  // Downloads + updates
+  h += '<div class="section-title">Downloads &amp; Updates</div>';
+  h += '<div class="metrics three">';
+  h += '<div class="metric"><div class="metric-value orange">' + (dv.total_downloads || 0) + '</div><div class="metric-label">DLC Downloads (30d)</div></div>';
+  h += '<div class="metric"><div class="metric-value orange">' + fmtSize(dv.total_bytes || 0) + '</div><div class="metric-label">Download Volume (30d)</div></div>';
+  h += '<div class="metric"><div class="metric-value green">' + fmtPct(us.completed || 0, us.started || 0) + '</div><div class="metric-label">Update Success Rate</div></div>';
+  h += '</div>';
+
+  // Charts
+  h += '<div class="section-title">Distributions (30 days)</div>';
+  h += '<div class="charts">';
+  var vs = (stats.version_stats || []).map(function(r) { return {label: r.app_version || "?", count: r.count}; });
+  var cs = (stats.crack_format_stats || []).map(function(r) { return {label: r.crack_format || "unknown", count: r.count}; });
+  var ls = (stats.locale_stats || []).map(function(r) { return {label: r.locale || "unknown", count: r.count}; });
+  var pd = (stats.popular_dlcs || []).map(function(r) { return {label: r.dlc_id || "?", count: r.downloads, extra: fmtSize(r.total_bytes)}; });
+  h += barChart("App Version", vs, "blue");
+  h += barChart("Crack Format", cs, "green");
+  h += barChart("Locale", ls, "orange");
+
+  // Popular DLCs — custom to show size
+  if (pd.length > 0) {
+    var maxDl = Math.max.apply(null, pd.map(function(i) { return i.count; }));
+    h += '<div class="chart-card"><div class="chart-title">Popular DLCs</div>';
+    pd.slice(0, 10).forEach(function(item) {
+      var pct = maxDl > 0 ? Math.max(2, (item.count / maxDl) * 100) : 2;
+      h += '<div class="bar-row"><span class="bar-label">' + item.label + '</span>';
+      h += '<div class="bar-track"><div class="bar-fill purple" style="width:' + pct + '%"></div></div>';
+      h += '<span class="bar-count">' + item.count + ' (' + item.extra + ')</span></div>';
+    });
+    h += '</div>';
+  } else {
+    h += barChart("Popular DLCs", [], "purple");
+  }
+  h += '</div>';
+
+  // Session & download stats
+  h += '<div class="section-title">Sessions &amp; Performance</div>';
+  h += '<div class="metrics">';
+  h += '<div class="metric"><div class="metric-value blue">' + (ss.total_sessions || 0) + '</div><div class="metric-label">Sessions (30d)</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + fmtDuration(ss.avg_duration || 0) + '</div><div class="metric-label">Avg Session</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + fmtDuration(ss.max_duration || 0) + '</div><div class="metric-label">Max Session</div></div>';
+  h += '<div class="metric"><div class="metric-value orange">' + fmtSpeed(dv.avg_speed_bps || 0) + '</div><div class="metric-label">Avg DL Speed</div></div>';
+  h += '<div class="metric"><div class="metric-value orange">' + fmtDuration(dv.avg_duration || 0) + '</div><div class="metric-label">Avg DL Duration</div></div>';
+  h += '</div>';
+
+  // Event type breakdown
+  var es = (stats.event_stats || []).map(function(r) { return {label: r.event_type, count: r.count}; });
+  h += '<div class="section-title">Event Types (30 days)</div>';
+  h += '<div class="charts"><div style="grid-column:1/-1">';
+  h += barChart("Events by Type", es, "blue").replace('<div class="chart-card">', '<div class="chart-card" style="grid-column:1/-1">');
+  h += '</div></div>';
+
+  // Recent events feed
+  h += '<div class="section-title">Recent Events</div>';
+  h += '<div class="feed-card"><div class="feed-header">Last 50 Events</div>';
+  h += '<div class="feed-scroll"><table class="feed-table"><thead><tr>';
+  h += '<th>Time</th><th>UID</th><th>Event</th><th>Metadata</th>';
+  h += '</tr></thead><tbody>';
+  if (events && events.length > 0) {
+    events.forEach(function(ev) {
+      var uid = ev.uid ? ev.uid.substring(0, 8) + "..." : "";
+      var meta = ev.metadata ? JSON.stringify(ev.metadata) : "";
+      if (meta.length > 80) meta = meta.substring(0, 80) + "...";
+      h += '<tr><td class="time-col">' + timeAgo(ev.created_at) + '</td>';
+      h += '<td class="uid-short">' + uid + '</td>';
+      h += '<td class="event-type">' + (ev.event_type || "") + '</td>';
+      h += '<td class="meta-preview">' + meta + '</td></tr>';
+    });
+  } else {
+    h += '<tr><td colspan="4" style="color:#484f58;text-align:center;padding:20px">No events yet</td></tr>';
+  }
+  h += '</tbody></table></div></div>';
+
+  document.getElementById("content").innerHTML = h;
+}
+
+function loadStats() {
+  Promise.all([
+    api("/admin/stats/api"),
+    api("/admin/stats/recent"),
+  ]).then(function(results) {
+    render(results[0], results[1]);
+    document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleTimeString();
+  }).catch(function(e) {
+    document.getElementById("content").innerHTML = '<div class="loading" style="color:#e74c3c">Failed to load: ' + e.message + '</div>';
+  });
+}
+
+document.getElementById("autoRefresh").addEventListener("change", function(e) {
+  if (e.target.checked) startAutoRefresh();
+  else if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+});
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(function() {
+    if (document.getElementById("autoRefresh").checked) loadStats();
+  }, 30000);
+}
+
+loadStats();
+startAutoRefresh();
+</script>
+</body>
+</html>`;
+  return new Response(html, { headers: { "Content-Type": "text/html" } });
+}
+
+// ---------------------------------------------------------------------------
+// Admin: Contributions Dashboard HTML
 // ---------------------------------------------------------------------------
 
 async function serveDashboard(env) {

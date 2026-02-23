@@ -275,6 +275,46 @@ class SettingsFrame(ctk.CTkFrame):
             column=0,
             columnspan=2,
             padx=(theme.CARD_PAD_X + 24, theme.CARD_PAD_X),
+            pady=(0, 6),
+            sticky="w",
+        )
+        row += 1
+
+        # ── Separator ──
+        ctk.CTkFrame(
+            card1,
+            height=1,
+            fg_color=theme.COLORS["separator"],
+        ).grid(row=row, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=6, sticky="ew")
+        row += 1
+
+        # ── Telemetry ──
+        self._telemetry_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            card1,
+            text="Send anonymous usage statistics",
+            variable=self._telemetry_var,
+            font=ctk.CTkFont(size=12),
+        ).grid(
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=theme.CARD_PAD_X,
+            pady=(6, 2),
+            sticky="w",
+        )
+        row += 1
+
+        ctk.CTkLabel(
+            card1,
+            text="Help improve the updater by sharing anonymous usage data.",
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(
+            row=row,
+            column=0,
+            columnspan=2,
+            padx=(theme.CARD_PAD_X + 24, theme.CARD_PAD_X),
             pady=(0, theme.CARD_PAD_Y),
             sticky="w",
         )
@@ -783,6 +823,7 @@ class SettingsFrame(ctk.CTkFrame):
 
         self._check_start_var.set(settings.check_updates_on_start)
         self._skip_update_var.set(settings.skip_game_update)
+        self._telemetry_var.set(settings.telemetry_enabled)
 
         # GreenLuma fields
         self._steam_path_entry.delete(0, "end")
@@ -891,6 +932,7 @@ class SettingsFrame(ctk.CTkFrame):
 
         settings.check_updates_on_start = self._check_start_var.get()
         settings.skip_game_update = self._skip_update_var.get()
+        settings.telemetry_enabled = self._telemetry_var.get()
 
         # Card 2 fields (GreenLuma)
         settings.steam_path = self._steam_path_entry.get().strip()
@@ -911,6 +953,11 @@ class SettingsFrame(ctk.CTkFrame):
             settings.save()
             self._status_label.configure(text="")
             self.app.show_toast("Settings saved!", "success")
+            self.app.telemetry.track_event("settings_saved", {
+                "telemetry_enabled": settings.telemetry_enabled,
+                "theme": settings.theme,
+                "dlc_only_mode": settings.skip_game_update,
+            })
 
             animator = get_animator()
             animator.cancel_all(self._save_btn, tag="save_flash")

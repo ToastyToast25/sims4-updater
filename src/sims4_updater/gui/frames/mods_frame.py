@@ -505,6 +505,7 @@ class ModsFrame(ctk.CTkFrame):
             self._set_busy(False)
             if ok:
                 self.app.show_toast(f"{mod_name} installed!", "success")
+                self.app.telemetry.track_event("mod_installed", {"mod_name": mod_name})
             else:
                 self.app.show_toast(f"Failed to install {mod_name}", "error")
             self._refresh()
@@ -538,6 +539,7 @@ class ModsFrame(ctk.CTkFrame):
             self._set_busy(False)
             if ok:
                 self.app.show_toast(f"{mod_name} uninstalled.", "success")
+                self.app.telemetry.track_event("mod_uninstalled", {"mod_name": mod_name})
             self._refresh()
 
         def _err(e):
@@ -558,6 +560,7 @@ class ModsFrame(ctk.CTkFrame):
         def _done(_):
             self._set_busy(False)
             self.app.show_toast(f"{mod_name} enabled.", "success")
+            self.app.telemetry.track_event("mod_enabled", {"mod_name": mod_name})
             self._refresh()
 
         def _err(e):
@@ -578,6 +581,7 @@ class ModsFrame(ctk.CTkFrame):
         def _done(_):
             self._set_busy(False)
             self.app.show_toast(f"{mod_name} disabled.", "success")
+            self.app.telemetry.track_event("mod_disabled", {"mod_name": mod_name})
             self._refresh()
 
         def _err(e):

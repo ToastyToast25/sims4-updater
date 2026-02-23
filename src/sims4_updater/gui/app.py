@@ -91,6 +91,11 @@ class App(ctk.CTk):
             settings=self.settings,
         )
 
+        # Telemetry (fire-and-forget, deferred import)
+        from ..core.telemetry import TelemetryClient
+
+        self.telemetry = TelemetryClient(self.settings)
+
         # Build UI
         self._build_sidebar()
         self._build_content_area()
@@ -482,6 +487,13 @@ class App(ctk.CTk):
         old_name = self._current_frame_name
         self._current_frame_name = name
 
+        # Track navigation
+        if old_name is not None:
+            self.telemetry.track_event("frame_navigation", {
+                "from_frame": old_name,
+                "to_frame": name,
+            })
+
         # First frame show — no animation needed
         if old_name is None:
             frame.tkraise()
@@ -756,6 +768,9 @@ class App(ctk.CTk):
         # Auto-contribute GreenLuma keys silently in background
         self.after(5000, self._auto_contribute_keys)
 
+        # Send telemetry heartbeat
+        self.after(7000, self._send_heartbeat)
+
     def _auto_check_game_updates(self):
         """Automatically check for game updates on startup if configured."""
         if not self.settings.manifest_url:
@@ -828,8 +843,71 @@ class App(ctk.CTk):
 
         self.run_async(_bg, on_done=_done, on_error=lambda e: None)
 
+    def _send_heartbeat(self):
+        """Send telemetry heartbeat in a daemon thread (fire-and-forget)."""
+        import threading
+
+        def _bg():
+            try:
+                game_version = None
+                crack_format = None
+                dlc_count = None
+                game_detected = False
+
+                game_dir = self.updater.find_game_dir()
+                if game_dir:
+                    game_detected = True
+                    try:
+                        from ..core.version_detect import VersionDetector
+
+                        detector = VersionDetector()
+                        result = detector.detect(game_dir)
+                        game_version = result.version
+                    except Exception:
+                        pass
+                    try:
+                        from ..dlc.formats import detect_format
+
+                        adapter = detect_format(game_dir)
+                        if adapter:
+                            crack_format = adapter.get_format_name()
+                    except Exception:
+                        pass
+                    try:
+                        dlc_states = self.updater._dlc_manager.get_dlc_states(game_dir)
+                        dlc_count = sum(1 for s in dlc_states.values() if s)
+                    except Exception:
+                        pass
+
+                locale = self.settings.language or None
+                self.telemetry.heartbeat(
+                    game_version=game_version,
+                    crack_format=crack_format,
+                    dlc_count=dlc_count,
+                    game_detected=game_detected,
+                    locale=locale,
+                )
+                self.telemetry.track_event("app_launch", {
+                    "session_id": self.telemetry.session_id,
+                })
+                # Cache game info for periodic heartbeats and start 5-min pings
+                self.telemetry.set_game_info(
+                    game_version=game_version,
+                    crack_format=crack_format,
+                    dlc_count=dlc_count,
+                    game_detected=game_detected,
+                    locale=locale,
+                )
+                self.telemetry.start_periodic_heartbeat(300)
+            except Exception:
+                pass  # Never fail
+
+        threading.Thread(target=_bg, daemon=True).start()
+
     def _on_close(self):
         """Handle window close."""
+        with contextlib.suppress(Exception):
+            self.telemetry.session_end()
         try:
             self._animator.cancel_all()
             self.updater.exiting.set()
