@@ -1624,6 +1624,9 @@ async function handleTokenRequest(request, env) {
     return json({ error: "Missing machine_id" }, 400);
   }
 
+  // Log the token request FIRST (for admin visibility — even denied requests)
+  await logTokenRequest(env, { machine_id: machineId, uid, ip, app_version: appVersion });
+
   // Check access mode (dynamic from Supabase, fallback to env var)
   const cdnAccess = await getCDNSetting(env, "cdn_access") || env.CDN_ACCESS || "public";
   if (cdnAccess === "private") {
@@ -1639,9 +1642,6 @@ async function handleTokenRequest(request, env) {
       );
     }
   }
-
-  // Log the token request (for admin visibility)
-  await logTokenRequest(env, { machine_id: machineId, uid, ip, app_version: appVersion });
 
   // Generate JWT (1-hour expiry)
   const now = Math.floor(Date.now() / 1000);
