@@ -668,6 +668,18 @@ Key development conventions:
 
 ---
 
+## Contributors
+
+Thanks to all the people who contribute to this project.
+
+<a href="https://github.com/ToastyToast25/sims4-updater/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ToastyToast25/sims4-updater" alt="Contributors" />
+</a>
+
+*Made with [contrib.rocks](https://contrib.rocks).*
+
+---
+
 ## License
 
 This project is provided for educational purposes. See [LICENSE](LICENSE) for details.
