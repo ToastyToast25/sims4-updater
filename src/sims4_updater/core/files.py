@@ -1,151 +1,30 @@
-import contextlib
-import hashlib
-import os
-import shutil
-from pathlib import Path
+"""File utilities — re-exported from the patcher library.
 
-from .exceptions import WritePermissionError
+The canonical implementations live in ``patcher.files``.  This module
+re-exports them so that existing ``from .files import hash_file`` calls
+throughout sims4-updater continue to work without changes.
+"""
+
+from __future__ import annotations
+
+from patcher.files import (
+    HASH_CHUNK_SIZE,
+    copyfileobj,
+    delete_empty_dirs,
+    get_files_dict,
+    get_files_set,
+    get_short_path,
+    hash_file,
+    write_check,
+)
 
 __all__ = [
-    "get_short_path",
-    "write_check",
-    "get_files_dict",
-    "get_files_set",
-    "hash_file",
+    "HASH_CHUNK_SIZE",
     "copyfileobj",
     "delete_empty_dirs",
+    "get_files_dict",
+    "get_files_set",
+    "get_short_path",
+    "hash_file",
+    "write_check",
 ]
-
-
-if os.name == "nt":
-    import pywintypes
-    import win32file
-
-    def get_short_path(long_path):
-        path = Path(long_path)
-        final_path = None
-        for part in path.parts:
-            try:
-                part.encode("ascii")
-            except UnicodeEncodeError:
-                try:
-                    safe_part = win32file.FindFilesW(os.path.join(final_path, part))[0][9]
-                    if safe_part == "" or safe_part is None:
-                        return None
-                except (
-                    IndexError,
-                    pywintypes.error,
-                ):
-                    return None
-            else:
-                safe_part = part
-
-            if final_path is not None:
-                final_path = os.path.join(final_path, safe_part)
-            else:
-                final_path = safe_part
-
-        return final_path
-
-else:
-
-    def get_short_path(long_path):
-        return long_path
-
-
-def write_check(path="."):
-    if path == ".":
-        text = (
-            "this folder.\nDo NOT put this program directly on your "
-            "system drive (C:) nor in Program Files!"
-        )
-    else:
-        text = f'"{path}". Try copying your game somewhere else.'
-    path = Path(path)
-
-    i = 0
-    while True:
-        file_path = path / f"tmp_file_{i}"
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-            with open(file_path, "x"):
-                pass
-            file_path.unlink()
-        except FileExistsError:
-            i += 1
-            continue
-        except (PermissionError, FileNotFoundError, OSError):
-            raise WritePermissionError(
-                f"Write test failed. Cannot create files in {text}"
-            ) from None
-        else:
-            break
-
-
-def get_files_dict(folder_path, all_folders=None):
-    result = {}
-
-    if not os.path.isdir(folder_path):
-        return result
-
-    paths = [folder_path]
-    while len(paths) > 0:
-        path = paths.pop(0)
-        rel_path = Path(path).relative_to(folder_path).as_posix()
-        try:
-            with os.scandir(path) as it:
-                for entry in it:
-                    if entry.is_file(follow_symlinks=False):
-                        p = rel_path + "/" + entry.name if rel_path != "." else entry.name
-                        result[p] = entry.stat
-                    elif entry.is_dir(follow_symlinks=False):
-                        paths.append(entry.path)
-        except (PermissionError, OSError):
-            if all_folders is not None and rel_path not in all_folders:
-                continue
-
-            raise WritePermissionError(
-                f'Can\'t read files from "{path}". Try copying it somewhere else.'
-            ) from None
-
-    return result
-
-
-def get_files_set(folder_path):
-    return set(get_files_dict(folder_path).keys())
-
-
-def hash_file(path, chunk_size=65536, progress=None):
-    processed = 0
-
-    if progress is not None:
-        progress(processed)
-
-    m = hashlib.md5()
-    with open(path, "rb") as f:
-        while chunk := f.read(chunk_size):
-            m.update(chunk)
-
-            processed += len(chunk)
-            if progress is not None:
-                progress(processed)
-    return m.hexdigest().upper()
-
-
-def copyfileobj(fsrc, fdst, progress, length=0):
-    if not length:
-        length = shutil.COPY_BUFSIZE
-    copied = 0
-    progress(copied)
-    fsrc_read = fsrc.read
-    fdst_write = fdst.write
-    while buf := fsrc_read(length):
-        fdst_write(buf)
-        copied += len(buf)
-        progress(copied)
-
-
-def delete_empty_dirs(src_dir):
-    for dirpath, _, _ in os.walk(src_dir, topdown=False):
-        with contextlib.suppress(OSError):
-            os.rmdir(dirpath)
