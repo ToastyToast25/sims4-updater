@@ -1237,9 +1237,12 @@ class DLCFrame(ctk.CTkFrame):
         self._auto_btn.configure(state="normal")
         if changes:
             self.app.show_toast(f"Toggled {len(changes)} DLC(s)", "success")
-            self.app.telemetry.track_event("dlc_auto_toggle", {
-                "dlcs_toggled": len(changes),
-            })
+            self.app.telemetry.track_event(
+                "dlc_auto_toggle",
+                {
+                    "dlcs_toggled": len(changes),
+                },
+            )
             self._load_dlcs()
         else:
             self.app.show_toast("All DLCs already correctly configured", "success")
@@ -1265,10 +1268,13 @@ class DLCFrame(ctk.CTkFrame):
     def _on_apply_done(self, _):
         self._apply_btn.configure(state="normal")
         self.app.show_toast("Changes applied successfully", "success")
-        self.app.telemetry.track_event("dlc_changes_applied", {
-            "dlcs_changed": sum(1 for v in self._checkbox_vars.values() if v.get()),
-            "crack_format": getattr(self.app.updater, "_detected_format", None),
-        })
+        self.app.telemetry.track_event(
+            "dlc_changes_applied",
+            {
+                "dlcs_changed": sum(1 for v in self._checkbox_vars.values() if v.get()),
+                "crack_format": getattr(self.app.updater, "_detected_format", None),
+            },
+        )
 
     def set_pending_dlcs(self, pending_dlcs):
         self._pending_dlcs = pending_dlcs

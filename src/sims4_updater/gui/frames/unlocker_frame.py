@@ -283,9 +283,13 @@ class UnlockerFrame(ctk.CTkFrame):
             self._set_busy(False)
             self._enqueue_log(f"Install failed: {e}")
             self.app.show_toast(f"Install failed: {e}", "error")
-            self.app.telemetry.track_event("unlocker_install", {
-                "success": False, "error": str(e),
-            })
+            self.app.telemetry.track_event(
+                "unlocker_install",
+                {
+                    "success": False,
+                    "error": str(e),
+                },
+            )
             self._refresh_status()
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
@@ -329,9 +333,13 @@ class UnlockerFrame(ctk.CTkFrame):
             self._set_busy(False)
             self._enqueue_log(f"Uninstall failed: {e}")
             self.app.show_toast(f"Uninstall failed: {e}", "error")
-            self.app.telemetry.track_event("unlocker_uninstall", {
-                "success": False, "error": str(e),
-            })
+            self.app.telemetry.track_event(
+                "unlocker_uninstall",
+                {
+                    "success": False,
+                    "error": str(e),
+                },
+            )
             self._refresh_status()
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)

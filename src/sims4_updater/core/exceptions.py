@@ -72,6 +72,5 @@ class AccessRequiredError(UpdaterError):
         self.cdn_name = cdn_name or "This CDN"
         self.request_url = request_url
         super().__init__(
-            f"Access to {self.cdn_name} requires approval. "
-            "Request access from the CDN owner."
+            f"Access to {self.cdn_name} requires approval. Request access from the CDN owner."
         )

@@ -162,10 +162,13 @@ class TelemetryClient:
         """Send session_end event with duration, then stop periodic heartbeat."""
         self.stop_periodic_heartbeat()
         duration = int(time.monotonic() - self._launch_time)
-        self.track_event("session_end", {
-            "session_id": self._session_id,
-            "duration_seconds": duration,
-        })
+        self.track_event(
+            "session_end",
+            {
+                "session_id": self._session_id,
+                "duration_seconds": duration,
+            },
+        )
 
     # ── Internal ──────────────────────────────────────────────
 

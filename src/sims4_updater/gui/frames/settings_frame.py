@@ -953,11 +953,14 @@ class SettingsFrame(ctk.CTkFrame):
             settings.save()
             self._status_label.configure(text="")
             self.app.show_toast("Settings saved!", "success")
-            self.app.telemetry.track_event("settings_saved", {
-                "telemetry_enabled": settings.telemetry_enabled,
-                "theme": settings.theme,
-                "dlc_only_mode": settings.skip_game_update,
-            })
+            self.app.telemetry.track_event(
+                "settings_saved",
+                {
+                    "telemetry_enabled": settings.telemetry_enabled,
+                    "theme": settings.theme,
+                    "dlc_only_mode": settings.skip_game_update,
+                },
+            )
 
             animator = get_animator()
             animator.cancel_all(self._save_btn, tag="save_flash")

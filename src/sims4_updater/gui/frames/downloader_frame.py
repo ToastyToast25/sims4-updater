@@ -812,11 +812,14 @@ class DownloaderFrame(ctk.CTkFrame):
         total_download_size = sum(e.size for e in entries)
         self._overall_tracker.reset(total_size=total_download_size)
 
-        self.app.telemetry.track_event("dlc_download_started", {
-            "dlc_count": len(entries),
-            "total_size_bytes": total_download_size,
-            "concurrency": self.app.settings.download_concurrency,
-        })
+        self.app.telemetry.track_event(
+            "dlc_download_started",
+            {
+                "dlc_count": len(entries),
+                "total_size_bytes": total_download_size,
+                "concurrency": self.app.settings.download_concurrency,
+            },
+        )
 
         # Show per-DLC progress UI
         for entry in entries:
@@ -1099,28 +1102,37 @@ class DownloaderFrame(ctk.CTkFrame):
                     dlc_dur = time.monotonic() - start
                 dlc_size = self._dlc_bytes.get(dlc_id, r.entry.size)
                 speed = dlc_size / dlc_dur if dlc_dur > 0 else 0
-                self.app.telemetry.track_event("dlc_download_complete", {
-                    "dlc_id": dlc_id,
-                    "size_bytes": dlc_size,
-                    "duration_seconds": round(dlc_dur, 1),
-                    "speed_bps": round(speed),
-                })
+                self.app.telemetry.track_event(
+                    "dlc_download_complete",
+                    {
+                        "dlc_id": dlc_id,
+                        "size_bytes": dlc_size,
+                        "duration_seconds": round(dlc_dur, 1),
+                        "speed_bps": round(speed),
+                    },
+                )
             elif r.state == DLCDownloadState.FAILED:
-                self.app.telemetry.track_event("dlc_download_failed", {
-                    "dlc_id": dlc_id,
-                    "error": str(r.error) if r.error else None,
-                })
+                self.app.telemetry.track_event(
+                    "dlc_download_failed",
+                    {
+                        "dlc_id": dlc_id,
+                        "error": str(r.error) if r.error else None,
+                    },
+                )
 
         # Batch summary event
         avg_speed = total_bytes / duration if duration > 0 else 0
-        self.app.telemetry.track_event("dlc_batch_complete", {
-            "completed": completed + extracted,
-            "failed": failed,
-            "cancelled": cancelled,
-            "total_bytes": total_bytes,
-            "duration_seconds": round(duration, 1),
-            "avg_speed_bps": round(avg_speed),
-        })
+        self.app.telemetry.track_event(
+            "dlc_batch_complete",
+            {
+                "completed": completed + extracted,
+                "failed": failed,
+                "cancelled": cancelled,
+                "total_bytes": total_bytes,
+                "duration_seconds": round(duration, 1),
+                "avg_speed_bps": round(avg_speed),
+            },
+        )
 
         if failed == 0 and cancelled == 0:
             self.app.show_toast(
@@ -1176,9 +1188,12 @@ class DownloaderFrame(ctk.CTkFrame):
         self._resume_btn.grid_remove()
         self._log(f"[{_timestamp()}] Cancellation requested...")
         elapsed = time.monotonic() - self._download_start_time
-        self.app.telemetry.track_event("dlc_download_cancelled", {
-            "elapsed_seconds": round(elapsed, 1),
-        })
+        self.app.telemetry.track_event(
+            "dlc_download_cancelled",
+            {
+                "elapsed_seconds": round(elapsed, 1),
+            },
+        )
 
     # ── Button state management ───────────────────────────────────
 

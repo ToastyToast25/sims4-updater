@@ -803,9 +803,12 @@ class LanguageFrame(ctk.CTkFrame):
                     "success",
                 )
                 # Telemetry: language changed
-                self.app.telemetry.track_event("language_changed", {
-                    "locale": code,
-                })
+                self.app.telemetry.track_event(
+                    "language_changed",
+                    {
+                        "locale": code,
+                    },
+                )
             else:
                 self._log(
                     "Could not update any config. "
@@ -860,10 +863,13 @@ class LanguageFrame(ctk.CTkFrame):
                     f"{name} language pack installed!",
                     "success",
                 )
-                self.app.telemetry.track_event("language_pack_downloaded", {
-                    "locale": code,
-                    "size_bytes": entry.size if hasattr(entry, "size") else None,
-                })
+                self.app.telemetry.track_event(
+                    "language_pack_downloaded",
+                    {
+                        "locale": code,
+                        "size_bytes": entry.size if hasattr(entry, "size") else None,
+                    },
+                )
                 # Now apply the language config
                 self._refresh_status()
                 self._apply_language(code)
@@ -939,10 +945,13 @@ class LanguageFrame(ctk.CTkFrame):
                     f"{name} language pack installed!",
                     "success",
                 )
-                self.app.telemetry.track_event("language_pack_downloaded", {
-                    "locale": code,
-                    "size_bytes": entry.size if hasattr(entry, "size") else None,
-                })
+                self.app.telemetry.track_event(
+                    "language_pack_downloaded",
+                    {
+                        "locale": code,
+                        "size_bytes": entry.size if hasattr(entry, "size") else None,
+                    },
+                )
             else:
                 self.app.show_toast(
                     f"Download failed for {name}.",

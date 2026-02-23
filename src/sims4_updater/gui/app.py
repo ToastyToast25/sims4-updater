@@ -499,10 +499,13 @@ class App(ctk.CTk):
 
         # Track navigation
         if old_name is not None:
-            self.telemetry.track_event("frame_navigation", {
-                "from_frame": old_name,
-                "to_frame": name,
-            })
+            self.telemetry.track_event(
+                "frame_navigation",
+                {
+                    "from_frame": old_name,
+                    "to_frame": name,
+                },
+            )
 
         # First frame show — no animation needed
         if old_name is None:
@@ -1016,9 +1019,12 @@ class App(ctk.CTk):
                     game_detected=game_detected,
                     locale=locale,
                 )
-                self.telemetry.track_event("app_launch", {
-                    "session_id": self.telemetry.session_id,
-                })
+                self.telemetry.track_event(
+                    "app_launch",
+                    {
+                        "session_id": self.telemetry.session_id,
+                    },
+                )
                 # Cache game info for periodic heartbeats and start 5-min pings
                 self.telemetry.set_game_info(
                     game_version=game_version,
