@@ -24,7 +24,7 @@
 
 ### One-Click Game Updates
 
-Binary delta patching powered by [anadius's patcher engine](https://github.com/anadius) and xdelta3. The updater detects your installed version by hashing sentinel files against a database of 135+ known versions, then uses BFS pathfinding to compute the shortest chain of patch steps from your version to the latest. Downloads support HTTP Range resume and per-file MD5 verification.
+Binary delta patching powered by anadius's patcher engine and xdelta3. The updater detects your installed version by hashing sentinel files against a database of 135+ known versions, then uses BFS pathfinding to compute the shortest chain of patch steps from your version to the latest. Downloads support HTTP Range resume and per-file MD5 verification.
 
 ### DLC Management
 
@@ -32,7 +32,7 @@ Toggle 109 DLCs across 5 auto-detected crack config formats (RldOrigin, Codex, R
 
 ### CDN DLC Downloads
 
-Download any DLC directly from [cdn.hyperabyss.com](https://cdn.hyperabyss.com) (Cloudflare Worker proxying a seedbox). Downloads run in parallel background threads with resume support and MD5 integrity verification. Progress is streamed live to the GUI.
+Download any DLC directly from [cdn.example.com](https://cdn.example.com) (Cloudflare Worker proxying a seedbox). Downloads run in parallel background threads with resume support and MD5 integrity verification. Progress is streamed live to the GUI.
 
 ### GreenLuma 2025 Integration
 
@@ -199,10 +199,10 @@ Sims4Updater.exe status
 Sims4Updater.exe detect "D:\Games\The Sims 4"
 
 # Check for updates against a custom manifest
-Sims4Updater.exe check --manifest-url https://cdn.hyperabyss.com/manifest.json
+Sims4Updater.exe check --manifest-url https://cdn.example.com/manifest.json
 
 # Inspect a manifest to see all available patches
-Sims4Updater.exe manifest https://cdn.hyperabyss.com/manifest.json
+Sims4Updater.exe manifest https://cdn.example.com/manifest.json
 
 # Show DLC states for a game directory
 Sims4Updater.exe dlc "D:\Games\The Sims 4"
@@ -228,7 +228,7 @@ Sims4Updater.exe language fr_FR --game-dir "D:\Games\The Sims 4"
 
 ## Hosting Patches
 
-The updater is **backend-agnostic** — it only needs a single manifest URL. Patch files can be hosted anywhere: a CDN, object storage bucket, web server, seedbox, or local network share. The CDN at `cdn.hyperabyss.com` uses a Cloudflare Worker proxying a Whatbox/RapidSeedbox seedbox, but the architecture is fully replaceable by updating the manifest URLs.
+The updater is **backend-agnostic** — it only needs a single manifest URL. Patch files can be hosted anywhere: a CDN, object storage bucket, web server, seedbox, or local network share. The CDN at `cdn.example.com` uses a Cloudflare Worker proxying a Whatbox/RapidSeedbox seedbox, but the architecture is fully replaceable by updating the manifest URLs.
 
 ### Manifest Format
 
@@ -246,13 +246,13 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
       "to": "1.120.250.1020",
       "files": [
         {
-          "url": "https://cdn.hyperabyss.com/patches/ts4_1.119_to_1.120.zip",
+          "url": "https://cdn.example.com/patches/ts4_1.119_to_1.120.zip",
           "size": 524288000,
           "md5": "ABC123DEF456..."
         }
       ],
       "crack": {
-        "url": "https://cdn.hyperabyss.com/cracks/crack_1.120.rar",
+        "url": "https://cdn.example.com/cracks/crack_1.120.rar",
         "size": 1048576,
         "md5": "MNO345PQR678..."
       }
@@ -262,7 +262,7 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
       "to": "1.121.372.1020",
       "files": [
         {
-          "url": "https://cdn.hyperabyss.com/patches/ts4_1.120_to_1.121.zip",
+          "url": "https://cdn.example.com/patches/ts4_1.120_to_1.121.zip",
           "size": 412000000,
           "md5": "STU901VWX234..."
         }
@@ -282,8 +282,8 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
     }
   },
 
-  "fingerprints_url": "https://api.hyperabyss.com/fingerprints.json",
-  "report_url": "https://api.hyperabyss.com/report"
+  "fingerprints_url": "https://api.example.com/fingerprints.json",
+  "report_url": "https://api.example.com/report"
 }
 ```
 
@@ -363,20 +363,22 @@ Patches are created using the patcher tool in the sibling `../patcher/` director
 2. Once the patch is ready, move the DLC out of `new_dlcs` and into the normal patch flow.
 3. Add the DLC to `data/dlc_catalog.json` and rebuild the exe for localized names.
 
-### CDN Infrastructure (cdn.hyperabyss.com)
+### CDN Infrastructure
 
-The live CDN uses a Cloudflare Worker that proxies requests to a RapidSeedbox seedbox (Whatbox Swift NL). Users only see `cdn.hyperabyss.com`; the seedbox URL is never exposed.
+A Cloudflare Worker proxies download requests to a backend seedbox. Users only see the CDN domain; the seedbox URL is never exposed.
 
 ```text
-User app  ->  cdn.hyperabyss.com/dlc/EP01.zip  ->  Cloudflare Worker  ->  Seedbox  ->  file streamed back
+User app  ->  cdn.example.com/dlc/EP01.zip  ->  Cloudflare Worker  ->  Seedbox  ->  file streamed back
 ```
 
 The Worker reads a KV namespace (`CDN_ROUTES`) that maps clean paths (e.g., `dlc/EP01.zip`) to seedbox secure links. Adding a new file to the CDN is a three-step operation: upload to seedbox, generate a secure link, add a KV entry. Setup details and the complete Worker source are in the [`cloudflare-worker/`](cloudflare-worker/) directory.
 
+**Any seedbox that supports SFTP upload and HTTP/HTTPS download can be used as the backend.** The CDN Manager tool connects via SFTP (paramiko) for uploads and the Cloudflare Worker proxies HTTP downloads. Compatible providers include Whatbox, RapidSeedbox, Ultraseedbox, Seedbox.io, or any VPS/dedicated server with SSH and a web server. Configure your seedbox credentials in `cdn_config.json`.
+
 **URL structure:**
 
 ```text
-cdn.hyperabyss.com/
+cdn.example.com/
 ├── manifest.json
 ├── patches/
 │   └── 1.120.250_to_1.121.372.zip
@@ -387,14 +389,14 @@ cdn.hyperabyss.com/
     └── de_DE.zip
 ```
 
-**Cost breakdown:**
+**Cost breakdown (example):**
 
 | Service | Cost |
 | --- | --- |
 | Cloudflare Worker | Free (100k req/day) |
 | Cloudflare KV | Free (100k reads/day, 1k writes/day) |
-| RapidSeedbox Swift | $8/mo |
-| **Total** | **$8/mo** |
+| Seedbox (any provider) | ~$5-15/mo |
+| **Total** | **~$5-15/mo** |
 
 ### Crowd-Sourced Hash Reporting
 
@@ -566,7 +568,7 @@ sims4-updater/
 ├── data/
 │   ├── version_hashes.json          # Bundled sentinel-file hash database (135+ versions)
 │   └── dlc_catalog.json             # All 109 DLCs with localized names, pack types, Steam App IDs
-├── cloudflare-worker/               # Cloudflare Worker source + deployment scripts for cdn.hyperabyss.com
+├── cloudflare-worker/               # Cloudflare Worker source + deployment scripts for cdn.example.com
 │   ├── worker.js                    # CDN proxy worker (KV route lookup -> seedbox fetch)
 │   ├── api-worker.js                # Fingerprint API worker (report + validate hashes)
 │   ├── wrangler.toml                # Wrangler deployment config

@@ -98,7 +98,7 @@ The Sims 4 Updater is a Windows desktop application that automates game version 
 
 The application is distributed as a single-file Windows `.exe` produced by PyInstaller. It can also be run from source. A full CLI is available for all major operations when the GUI is not desired.
 
-A Cloudflare Worker-based CDN at `cdn.hyperabyss.com` provides global distribution of DLC content packs and game patches. See [CDN Infrastructure](CDN_Infrastructure.md) for details.
+A Cloudflare Worker-based CDN at `cdn.example.com` provides global distribution of DLC content packs and game patches. See [CDN Infrastructure](CDN_Infrastructure.md) for details.
 
 ---
 

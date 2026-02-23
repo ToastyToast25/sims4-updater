@@ -49,7 +49,7 @@ The following are in scope:
 
 - The Sims 4 Updater application (`Sims4Updater.exe`)
 - The Python source code in this repository
-- CDN and API endpoints (`cdn.hyperabyss.com`, `api.hyperabyss.com`)
+- CDN and API endpoints (`cdn.example.com`, `api.example.com`)
 
 The following are out of scope:
 
