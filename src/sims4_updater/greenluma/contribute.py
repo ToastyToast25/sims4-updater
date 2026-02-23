@@ -186,11 +186,15 @@ def submit_gl_contribution(
         "app_version": VERSION,
     }
 
+    from ..core import identity
+
+    headers = {"Content-Type": "application/json"}
+    headers.update(identity.get_headers())
     resp = requests.post(
         endpoint,
         json=payload,
         timeout=timeout,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
 
     if resp.status_code == 429:

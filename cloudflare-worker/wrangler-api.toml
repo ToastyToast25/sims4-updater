@@ -1,0 +1,26 @@
+name = "sims4-api"
+main = "api-worker.js"
+compatibility_date = "2024-01-01"
+
+# Route: api.hyperabyss.com/* → this worker
+# Set in Cloudflare dashboard: Workers & Pages → sims4-api → Settings → Triggers
+
+# KV Namespace — stores contribution data
+[[kv_namespaces]]
+binding = "CONTRIBUTIONS"
+id = "058c6aba58e543eb88d03a05ab95af9d"
+
+# Environment variables (secrets set via `wrangler secret put`):
+#   ADMIN_PASSWORD       — Password for admin dashboards
+#   DISCORD_WEBHOOK      — Discord webhook URL for notifications
+#   SUPABASE_URL         — e.g. https://ginikbkaqnlmrezpkiog.supabase.co
+#   SUPABASE_SERVICE_KEY — Supabase service_role key (server-side only)
+#   JWT_SECRET           — shared secret for JWT signing (same as cdn worker)
+#
+# Plain-text variables (set via `wrangler vars put` or in [vars] below):
+#   CDN_ACCESS           — "public" or "private"
+#   CDN_NAME             — display name for this CDN
+
+[vars]
+CDN_ACCESS = "public"
+CDN_NAME = "HyperAbyss CDN"

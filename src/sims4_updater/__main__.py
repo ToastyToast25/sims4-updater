@@ -418,6 +418,19 @@ def show_language(args):
             print(f"  {code}: {name}{marker}")
 
 
+def _configure_identity():
+    """Configure machine identity for CDN/API requests."""
+    try:
+        from sims4_updater.config import Settings
+        from sims4_updater.core import identity
+        from sims4_updater.core.machine_id import get_machine_id
+
+        settings = Settings.load()
+        identity.configure(get_machine_id(), settings.uid)
+    except Exception:
+        pass  # Non-critical — CLI still works without identity
+
+
 def pack_dlc(args):
     """Create standard zip archives for individual DLCs."""
     from pathlib import Path
@@ -552,6 +565,9 @@ def main():
     lang_parser.add_argument("--game-dir", help="Game directory for RldOrigin.ini update")
 
     args = parser.parse_args()
+
+    # Configure machine identity for CDN/API requests (lightweight, always runs)
+    _configure_identity()
 
     if args.command == "detect":
         detect_version(args.game_dir)

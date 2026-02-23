@@ -240,6 +240,8 @@ class Downloader:
 
 def _create_session() -> requests.Session:
     """Create a requests session with retry, timeout, and legacy TLS support."""
+    from ..core import identity
+
     ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ctx.options |= 0x4  # OP_LEGACY_SERVER_CONNECT
 
@@ -253,6 +255,7 @@ def _create_session() -> requests.Session:
     session.mount("https://", adapter)
     session.mount("http://", requests.adapters.HTTPAdapter(max_retries=retry))
     session.headers["User-Agent"] = "Sims4Updater/2.0"
+    session.headers.update(identity.get_headers())
     return session
 
 

@@ -117,3 +117,67 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 
 -- Service role bypasses RLS by default, so no policies needed.
 -- If you ever expose these via anon key, add restrictive policies.
+
+-- =============================================================
+-- Step 4: CDN Access Control — Bans, Access Requests, Allowlist
+-- =============================================================
+
+-- Bans table (IP, machine, UID bans with permanent/temp support)
+CREATE TABLE IF NOT EXISTS public.bans (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ban_type TEXT NOT NULL CHECK (ban_type IN ('ip', 'machine', 'uid')),
+  value TEXT NOT NULL,
+  reason TEXT DEFAULT '',
+  permanent BOOLEAN DEFAULT TRUE,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  active BOOLEAN DEFAULT TRUE,
+  UNIQUE(ban_type, value)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bans_active ON public.bans (ban_type, value) WHERE active = TRUE;
+
+ALTER TABLE public.bans ENABLE ROW LEVEL SECURITY;
+
+-- Active bans view (excludes expired temp bans — used by worker ban checks)
+CREATE OR REPLACE VIEW public.active_bans AS
+SELECT * FROM public.bans
+WHERE active = TRUE
+  AND (permanent = TRUE OR expires_at > now());
+
+-- Ban summary view (for admin dashboard stats)
+CREATE OR REPLACE VIEW public.bans_summary AS
+SELECT
+  count(*) FILTER (WHERE active AND (permanent OR expires_at > now())) AS active_count,
+  count(*) FILTER (WHERE active AND permanent) AS permanent_count,
+  count(*) FILTER (WHERE active AND NOT permanent AND expires_at > now()) AS temp_count,
+  count(*) FILTER (WHERE active AND NOT permanent AND expires_at <= now()) AS expired_count,
+  count(*) FILTER (WHERE NOT active) AS unbanned_count,
+  count(*) AS total
+FROM public.bans;
+
+-- Access requests table (for private CDNs — in-app access request flow)
+CREATE TABLE IF NOT EXISTS public.access_requests (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  machine_id TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  app_version TEXT,
+  reason TEXT DEFAULT '',
+  ip TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'denied')),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(machine_id)
+);
+
+ALTER TABLE public.access_requests ENABLE ROW LEVEL SECURITY;
+
+-- CDN allowlist (approved machines for private CDNs)
+CREATE TABLE IF NOT EXISTS public.cdn_allowlist (
+  machine_id TEXT PRIMARY KEY,
+  uid TEXT,
+  approved_at TIMESTAMPTZ DEFAULT now(),
+  approved_by TEXT DEFAULT 'admin'
+);
+
+ALTER TABLE public.cdn_allowlist ENABLE ROW LEVEL SECURITY;

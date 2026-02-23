@@ -32,13 +32,15 @@ _TIMEOUT = 10  # seconds — short to avoid stalling the app
 class TelemetryClient:
     """Fire-and-forget telemetry via Cloudflare Worker → Supabase."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, base_url: str = "") -> None:
         self._settings = settings
+        self._base_url = base_url or TELEMETRY_URL
         self._session_id = uuid.uuid4().hex
         self._os_version = self._get_os_version()
         self._launch_time = time.monotonic()
         self._game_info: dict[str, Any] = {}
         self._heartbeat_stop: threading.Event | None = None
+        self._disabled = False  # set True on 403 to stop further requests
         self._ensure_uid()
 
     # ── UID management ────────────────────────────────────────
@@ -169,18 +171,28 @@ class TelemetryClient:
 
     def _is_enabled(self) -> bool:
         """Check if telemetry is enabled and configured."""
-        return bool(self._settings.telemetry_enabled and TELEMETRY_URL)
+        if self._disabled:
+            return False
+        return bool(self._settings.telemetry_enabled and self._base_url)
 
     def _post(self, endpoint: str, data: dict) -> None:
         """POST to the stats API. Never raises."""
+        from . import identity
+
         try:
-            url = f"{TELEMETRY_URL}{endpoint}"
+            url = f"{self._base_url}{endpoint}"
+            headers = {"Content-Type": "application/json"}
+            headers.update(identity.get_headers())
             resp = requests.post(
                 url,
                 json=data,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 timeout=_TIMEOUT,
             )
+            if resp.status_code == 403:
+                log.debug("Telemetry got 403 — disabling for this session")
+                self._disabled = True
+                return
             if resp.status_code not in (200, 201):
                 log.debug("Telemetry %s failed: %s", endpoint, resp.status_code)
         except requests.RequestException as exc:
