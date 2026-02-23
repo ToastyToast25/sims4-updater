@@ -23,6 +23,19 @@ body:
         - label: I have checked the [Troubleshooting](https://github.com/ToastyToast25/sims4-updater/wiki/Troubleshooting) and [FAQ](https://github.com/ToastyToast25/sims4-updater/wiki/FAQ) wiki pages.
           required: true
 
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severely does this bug affect you?
+      options:
+        - "Crash — app crashes or becomes unresponsive"
+        - "Blocker — a core feature is completely broken"
+        - "Major — feature works but produces wrong results"
+        - "Minor — cosmetic issue or minor inconvenience"
+    validations:
+      required: true
+
   - type: input
     id: version
     attributes:
@@ -107,6 +120,16 @@ body:
       label: Screenshots / Error Messages
       description: If applicable, add screenshots or paste error messages. Drag and drop images here.
       placeholder: "Paste error messages or drag screenshots here..."
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: If available, paste any relevant log output or console errors. This field will be auto-formatted as code.
+      render: text
     validations:
       required: false
 
@@ -136,11 +159,22 @@ body:
     validations:
       required: true
 
+  - type: checkboxes
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Check all that apply.
+      options:
+        - label: I am running the updater as Administrator
+        - label: I have antivirus software that may interfere (e.g., Windows Defender, Bitdefender, Kaspersky)
+        - label: My game is installed in a non-default location
+        - label: I am using GreenLuma
+
   - type: textarea
     id: context
     attributes:
       label: Additional Context
-      description: Any other relevant details — antivirus software, game install location, mods, etc.
+      description: Any other relevant details — antivirus software, game install location, GreenLuma version, mods, etc.
       placeholder: "Any other information that might help..."
     validations:
       required: false

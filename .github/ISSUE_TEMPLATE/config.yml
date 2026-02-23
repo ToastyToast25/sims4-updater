@@ -6,3 +6,6 @@ contact_links:
   - name: Wiki & Documentation
     url: https://github.com/ToastyToast25/sims4-updater/wiki
     about: Check the wiki for guides, FAQ, and troubleshooting before opening an issue.
+  - name: Discussions
+    url: https://github.com/ToastyToast25/sims4-updater/discussions
+    about: For general conversation, ideas, and community support — use Discussions instead of issues.

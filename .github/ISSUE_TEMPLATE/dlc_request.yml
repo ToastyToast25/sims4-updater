@@ -73,6 +73,15 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: game-version
+    attributes:
+      label: Game Version
+      description: Your current Sims 4 game version (DLC availability may depend on game version).
+      placeholder: "e.g., 1.108.349.1020"
+    validations:
+      required: false
+
   - type: textarea
     id: context
     attributes:
