@@ -1077,10 +1077,8 @@ class App(ctk.CTk):
         import threading
 
         def _bg():
-            try:
+            with contextlib.suppress(Exception):
                 self.ensure_cdn_auth()
-            except Exception:
-                pass  # Non-critical — will retry on next download
 
         threading.Thread(target=_bg, daemon=True).start()
 
