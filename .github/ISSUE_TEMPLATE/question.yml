@@ -1,0 +1,76 @@
+name: Question / Help
+description: Ask a question or request help with using the Sims 4 Updater
+title: "[Question]: "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before asking, please check if your question is already answered:
+        - [Wiki FAQ](https://github.com/ToastyToast25/sims4-updater/wiki/FAQ)
+        - [Troubleshooting Guide](https://github.com/ToastyToast25/sims4-updater/wiki/Troubleshooting)
+        - [Getting Started](https://github.com/ToastyToast25/sims4-updater/wiki/Getting-Started)
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      options:
+        - label: I have checked the [wiki](https://github.com/ToastyToast25/sims4-updater/wiki) and my question is not answered there.
+          required: true
+        - label: I have searched [existing issues](https://github.com/ToastyToast25/sims4-updater/issues?q=label%3Aquestion) for similar questions.
+          required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      description: What is your question about?
+      options:
+        - Installation / Getting Started
+        - Game Updates / Patching
+        - DLC Management
+        - GreenLuma Setup
+        - Language Changer
+        - Settings / Configuration
+        - Building from Source
+        - Contributing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Ask your question in as much detail as possible.
+      placeholder: "How do I...?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What I've Tried
+      description: Describe what you've already tried or looked at.
+      placeholder: "I tried... / I looked at..."
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Updater Version (if applicable)
+      placeholder: "e.g., 2.3.1"
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your question.
+    validations:
+      required: false

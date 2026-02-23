@@ -1,0 +1,136 @@
+name: GreenLuma Issue
+description: Report a problem with GreenLuma integration, DLC unlocking, or Steam interaction
+title: "[GreenLuma]: "
+labels: ["bug", "greenluma"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for issues specific to GreenLuma integration — DLC unlocking, AppList management, depot keys, Steam interaction, or launch failures. For general bugs unrelated to GreenLuma, use the [Bug Report](https://github.com/ToastyToast25/sims4-updater/issues/new?template=bug_report.yml) template instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      options:
+        - label: I have searched [existing issues](https://github.com/ToastyToast25/sims4-updater/issues?q=label%3Agreenluma) for this problem.
+          required: true
+        - label: I am using the [latest release](https://github.com/ToastyToast25/sims4-updater/releases/latest) of Sims 4 Updater.
+          required: true
+        - label: I have read the [GreenLuma Integration](https://github.com/ToastyToast25/sims4-updater/wiki/GreenLuma-Integration) wiki page.
+          required: true
+
+  - type: input
+    id: updater-version
+    attributes:
+      label: Updater Version
+      placeholder: "e.g., 2.3.1"
+    validations:
+      required: true
+
+  - type: input
+    id: greenluma-version
+    attributes:
+      label: GreenLuma Version
+      description: The version of GreenLuma 2025 you have installed (check the DLL file properties or installer).
+      placeholder: "e.g., 1.7.0"
+    validations:
+      required: true
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Game Version
+      description: Your current Sims 4 game version.
+      placeholder: "e.g., 1.108.349.1020"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Issue Area
+      description: Which GreenLuma feature is affected?
+      multiple: true
+      options:
+        - GreenLuma installation / setup
+        - AppList generation (numbered .txt files)
+        - Depot keys / config.vdf
+        - LUA manifest parsing
+        - Depotcache / manifest files
+        - DLC unlocking (game doesn't see DLCs)
+        - Steam launch / game won't start
+        - CDN key distribution
+        - Contribution (key/manifest upload)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: Describe the problem in detail.
+      placeholder: "Describe what's happening..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Open Sims 4 Updater
+        2. Go to GreenLuma tab
+        3. Click '...'
+        4. Observe error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: "Describe what should have happened..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / Error Messages
+      description: Screenshots of the error, the GreenLuma tab, or Steam error dialogs.
+      placeholder: "Drag and drop images here..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: Paste any relevant log output or error traces. This field will be auto-formatted as code.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: environment
+    attributes:
+      label: Environment Details
+      description: Check all that apply.
+      options:
+        - label: Steam is running when I use the updater
+        - label: I am running the updater as Administrator
+        - label: I have other Steam DLC unlockers installed (CreamAPI, SmartSteamEmu, etc.)
+        - label: I installed GreenLuma manually (not through the updater)
+        - label: My Steam is installed in a non-default location
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other details — Steam install path, number of DLCs in AppList, other GreenLuma-enabled games, etc.
+    validations:
+      required: false
