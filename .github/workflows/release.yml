@@ -102,6 +102,8 @@ jobs:
 
     permissions:
       contents: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Download Sims4Updater
@@ -119,6 +121,16 @@ jobs:
           sha256sum Sims4Updater.exe CDNManager.exe > SHA256SUMS.txt
           echo "## Checksums"
           cat SHA256SUMS.txt
+
+      - name: Attest Sims4Updater provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: Sims4Updater.exe
+
+      - name: Attest CDNManager provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: CDNManager.exe
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
