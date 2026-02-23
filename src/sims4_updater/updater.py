@@ -12,35 +12,25 @@ Subclasses the base Patcher to add:
 from __future__ import annotations
 
 import os
-import sys
 import threading
 from enum import Enum
 from pathlib import Path
 
-# Make the base patcher package importable
-_patcher_root = Path(__file__).resolve().parents[3] / "patcher"
-if (
-    _patcher_root.is_dir()
-    and (_patcher_root / "patcher" / "__init__.py").is_file()
-    and str(_patcher_root) not in sys.path
-):
-    sys.path.insert(0, str(_patcher_root))
+from patcher.patcher import CallbackType
+from patcher.patcher import Patcher as BasePatcher
 
-from patcher.patcher import CallbackType  # noqa: E402
-from patcher.patcher import Patcher as BasePatcher  # noqa: E402
-
-from . import constants  # noqa: E402
-from .config import Settings, get_app_dir  # noqa: E402
-from .core.exceptions import (  # noqa: E402
+from . import constants
+from .config import Settings, get_app_dir
+from .core.exceptions import (
     UpdaterError,
     VersionDetectionError,
 )
-from .core.learned_hashes import LearnedHashDB  # noqa: E402
-from .core.version_detect import DetectionResult, VersionDetector  # noqa: E402
-from .dlc.downloader import DLCDownloader  # noqa: E402
-from .dlc.manager import DLCManager  # noqa: E402
-from .patch.client import PatchClient, UpdateInfo  # noqa: E402
-from .patch.planner import UpdatePlan  # noqa: E402
+from .core.learned_hashes import LearnedHashDB
+from .core.version_detect import DetectionResult, VersionDetector
+from .dlc.downloader import DLCDownloader
+from .dlc.manager import DLCManager
+from .patch.client import PatchClient, UpdateInfo
+from .patch.planner import UpdatePlan
 
 
 class UpdateState(Enum):
