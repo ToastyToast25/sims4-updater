@@ -2479,7 +2479,10 @@ var allClients = [];
 function loadClients() {
   api("/admin/clients/api").then(function(data) {
     allClients = data.clients || [];
-    document.getElementById("clientCount").textContent = allClients.length;
+    var online = allClients.filter(function(c) {
+      return c.last_seen && (Date.now() - new Date(c.last_seen).getTime()) < 6 * 60 * 1000;
+    }).length;
+    document.getElementById("clientCount").textContent = online + " online / " + allClients.length + " recent";
     renderClients();
   });
 }
@@ -2497,8 +2500,10 @@ function renderClients() {
     return val && val !== "-" ? ' <span class="copy-btn" data-copy-val="' + val + '" title="Copy" style="cursor:pointer;opacity:0.4;font-size:10px">&#x2398;</span>' : "";
   }
   rows.forEach(function(c) {
+    var isOnline = c.last_seen && (Date.now() - new Date(c.last_seen).getTime()) < 6 * 60 * 1000;
+    var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + (isOnline ? "#2ecc71" : "#484f58") + '" title="' + (isOnline ? "Online" : "Offline") + '"></span>';
     html += "<tr>";
-    html += '<td class="mono" title="' + c.machine_id + '">' + (c.machine_id||"").substring(0,16) + "..." + copyCell(c.machine_id) + "</td>";
+    html += '<td class="mono" title="' + c.machine_id + '">' + dot + (c.machine_id||"").substring(0,16) + "..." + copyCell(c.machine_id) + "</td>";
     html += '<td class="mono">' + (c.uid || "-") + copyCell(c.uid) + "</td>";
     html += "<td>" + (c.ip || "-") + copyCell(c.ip) + "</td>";
     html += "<td>" + (c.app_version || "-") + copyCell(c.app_version) + "</td>";
@@ -2828,9 +2833,11 @@ async function updateCDNSetting(request, env) {
 // ---------------------------------------------------------------------------
 
 async function getClientsData(env) {
+  // Only return clients seen in the last 24 hours
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const resp = await supabaseGet(
     env,
-    "/rest/v1/token_log?select=*&order=last_seen.desc&limit=200"
+    `/rest/v1/token_log?select=*&order=last_seen.desc&limit=200&last_seen=gte.${since}`
   );
   const clients = await resp.json();
   return json({ clients: clients || [] });
