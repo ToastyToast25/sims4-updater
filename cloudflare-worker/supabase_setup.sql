@@ -181,3 +181,47 @@ CREATE TABLE IF NOT EXISTS public.cdn_allowlist (
 );
 
 ALTER TABLE public.cdn_allowlist ENABLE ROW LEVEL SECURITY;
+
+-- CDN settings (dynamic key-value config, e.g. public/private mode)
+CREATE TABLE IF NOT EXISTS public.cdn_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.cdn_settings ENABLE ROW LEVEL SECURITY;
+
+-- Seed default settings
+INSERT INTO public.cdn_settings (key, value) VALUES
+  ('cdn_access', 'public')
+ON CONFLICT (key) DO NOTHING;
+
+-- Token log (connected clients — populated on each /auth/token request)
+CREATE TABLE IF NOT EXISTS public.token_log (
+  machine_id TEXT PRIMARY KEY,
+  uid TEXT DEFAULT '',
+  ip TEXT DEFAULT '',
+  app_version TEXT DEFAULT '',
+  last_seen TIMESTAMPTZ DEFAULT now(),
+  request_count INTEGER DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_token_log_last_seen ON public.token_log (last_seen DESC);
+
+ALTER TABLE public.token_log ENABLE ROW LEVEL SECURITY;
+
+-- Auto-update last_seen and increment request_count on upsert
+CREATE OR REPLACE FUNCTION update_token_log_on_conflict()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    NEW.last_seen = now();
+    NEW.request_count = OLD.request_count + 1;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER token_log_upsert_trigger
+BEFORE UPDATE ON public.token_log
+FOR EACH ROW EXECUTE FUNCTION update_token_log_on_conflict();

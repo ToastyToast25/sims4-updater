@@ -783,12 +783,17 @@ class App(ctk.CTk):
     def init_cdn_auth(self, manifest):
         """Initialize CDN authentication from manifest config.
 
-        Call after fetching the manifest.  Creates a CDNAuth instance for
-        the CDN described in manifest.cdn, updates the telemetry base URL,
-        and returns the auth adapter for download sessions.
+        Idempotent — only creates CDNAuth once.  Call from any background
+        thread after fetching the manifest.  Creates a CDNAuth instance,
+        attaches the auth adapter to the shared download session, and
+        updates the telemetry base URL.
 
         Returns CDNTokenAuth adapter or None.
         """
+        # Already initialized — return existing adapter
+        if self._cdn_auth is not None:
+            return self._cdn_auth.get_auth_adapter()
+
         if not manifest.cdn.api_url:
             return None
 
@@ -803,11 +808,30 @@ class App(ctk.CTk):
             app_version=VERSION,
         )
 
+        # Attach auth adapter to the shared download session
+        self.updater.patch_client.downloader.session.auth = self._cdn_auth.get_auth_adapter()
+
         # Update telemetry to use CDN-specific telemetry URL
         if manifest.cdn.telemetry_url:
             self.telemetry._base_url = manifest.cdn.telemetry_url
 
         return self._cdn_auth.get_auth_adapter()
+
+    def ensure_cdn_auth(self):
+        """Ensure CDN auth is initialized.  Call from background threads.
+
+        Fetches the manifest if needed, initializes CDN auth, and eagerly
+        requests a token (triggering ban/access-required checks).
+
+        Raises BannedError or AccessRequiredError if the CDN denies access.
+        """
+        if self._cdn_auth is not None:
+            return
+        manifest = self.updater.patch_client.fetch_manifest()
+        adapter = self.init_cdn_auth(manifest)
+        if adapter and self._cdn_auth:
+            # Eagerly request token — triggers ban/access checks
+            self._cdn_auth.get_token()
 
     def _show_access_request_dialog(self, error):
         """Show a dialog for requesting access to a private CDN."""

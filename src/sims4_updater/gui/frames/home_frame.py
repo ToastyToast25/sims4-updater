@@ -976,8 +976,14 @@ class HomeFrame(ctk.CTkFrame):
         )
 
     def _check_updates_bg(self):
-        """Background: check for updates."""
-        return self.app.updater.check_for_updates()
+        """Background: check for updates and initialize CDN auth."""
+        info = self.app.updater.check_for_updates()
+
+        # Initialize CDN auth after manifest is fetched — triggers ban/access
+        # checks and populates the server-side token_log for admin visibility.
+        self.app.ensure_cdn_auth()
+
+        return info
 
     def _on_updates_checked(self, info):
         """GUI thread: show update results with patch-pending awareness."""
@@ -1109,6 +1115,15 @@ class HomeFrame(ctk.CTkFrame):
 
     def _on_check_error(self, error):
         self._update_btn.configure(state="normal")
+
+        # Route CDN auth errors to the app-level handler (ban dialog, access request)
+        from ...core.exceptions import AccessRequiredError, BannedError
+
+        if isinstance(error, (BannedError, AccessRequiredError)):
+            self._set_status("CDN access denied.", "error")
+            self.app._show_error(error)
+            return
+
         self._set_status(f"Error: {error}", "error")
 
     def _start_update(self, info):

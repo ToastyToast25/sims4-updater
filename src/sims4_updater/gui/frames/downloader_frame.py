@@ -513,6 +513,9 @@ class DownloaderFrame(ctk.CTkFrame):
         # Fetch main manifest first (populates archived_versions)
         main_manifest = client.fetch_manifest()
 
+        # Ensure CDN auth is initialized (idempotent)
+        self.app.ensure_cdn_auth()
+
         # Use archived manifest if a specific version is selected
         if self._selected_version:
             manifest = client.fetch_version_manifest(self._selected_version)
