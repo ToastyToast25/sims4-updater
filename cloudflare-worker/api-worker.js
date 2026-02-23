@@ -2283,6 +2283,7 @@ async function serveBansDashboard(env, pw) {
   .badge.expired { background: rgba(240,173,78,0.15); color: #f0ad4e; }
   .badge.removed { background: rgba(72,79,88,0.2); color: #484f58; }
   .mono { font-family: monospace; font-size: 11px; color: #8b949e; }
+  .copy-btn:hover { opacity: 0.9 !important; color: #58a6ff; }
   .search { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; color: #e1e4e8; font-size: 12px; outline: none; width: 200px; }
   .search:focus { border-color: #58a6ff; }
 
@@ -2492,12 +2493,15 @@ function renderClients() {
     return (c.machine_id||"").toLowerCase().indexOf(q) >= 0 || (c.uid||"").toLowerCase().indexOf(q) >= 0 || (c.ip||"").indexOf(q) >= 0 || (c.app_version||"").indexOf(q) >= 0;
   });
   var html = "";
+  function copyCell(val) {
+    return val && val !== "-" ? ' <span class="copy-btn" data-copy-val="' + val + '" title="Copy" style="cursor:pointer;opacity:0.4;font-size:10px">&#x2398;</span>' : "";
+  }
   rows.forEach(function(c) {
     html += "<tr>";
-    html += '<td class="mono" title="' + c.machine_id + '">' + (c.machine_id||"").substring(0,16) + "...</td>";
-    html += '<td class="mono">' + (c.uid || "-") + "</td>";
-    html += "<td>" + (c.ip || "-") + "</td>";
-    html += "<td>" + (c.app_version || "-") + "</td>";
+    html += '<td class="mono" title="' + c.machine_id + '">' + (c.machine_id||"").substring(0,16) + "..." + copyCell(c.machine_id) + "</td>";
+    html += '<td class="mono">' + (c.uid || "-") + copyCell(c.uid) + "</td>";
+    html += "<td>" + (c.ip || "-") + copyCell(c.ip) + "</td>";
+    html += "<td>" + (c.app_version || "-") + copyCell(c.app_version) + "</td>";
     html += "<td>" + timeAgo(c.last_seen) + "</td>";
     html += "<td>" + (c.request_count || 0) + "</td>";
     html += '<td><button class="btn btn-create" style="padding:4px 8px;font-size:10px;margin:0" data-ban-ip="' + (c.ip||"") + '" data-ban-mid="' + (c.machine_id||"") + '">Ban</button></td>';
@@ -2507,6 +2511,13 @@ function renderClients() {
 }
 
 document.addEventListener("click", function(e) {
+  var copyBtn = e.target.closest(".copy-btn");
+  if (copyBtn && copyBtn.dataset.copyVal) {
+    navigator.clipboard.writeText(copyBtn.dataset.copyVal).then(function() {
+      toast("Copied!");
+    });
+    return;
+  }
   var btn = e.target.closest("[data-ban-mid]");
   if (btn && !btn.dataset.unban) {
     var mid = btn.dataset.banMid;
