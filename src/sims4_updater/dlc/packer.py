@@ -216,9 +216,7 @@ class DLCPacker:
                     continue
                 target = (dest_dir / entry).resolve()
                 if not str(target).startswith(str(dest_resolved)):
-                    raise DownloadError(
-                        f"RAR archive contains path traversal entry: {entry!r}"
-                    )
+                    raise DownloadError(f"RAR archive contains path traversal entry: {entry!r}")
 
         result = subprocess.run(
             [

@@ -189,9 +189,7 @@ class BackupManager:
         """Delete a single backup folder."""
         # Use resolve() for robust containment check
         resolved = backup_path.resolve()
-        if resolved.is_dir() and str(resolved).startswith(
-            str(self.backup_dir.resolve()) + os.sep
-        ):
+        if resolved.is_dir() and str(resolved).startswith(str(self.backup_dir.resolve()) + os.sep):
             shutil.rmtree(resolved, ignore_errors=True)
             logger.info("Deleted backup: %s", backup_path.name)
 
