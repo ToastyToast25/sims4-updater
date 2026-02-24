@@ -43,7 +43,7 @@ Server-side access control for CDN infrastructure. Every client authenticates wi
 - **Monitor connected clients** — see machine IDs, IPs, app versions, and request counts in real time
 - **Bulk manage access requests** — approve or deny multiple requests at once
 
-Admin dashboards at `api.hyperabyss.com/admin/*` provide full management with real-time metrics, search/filter, and Discord webhook notifications for all actions.
+Admin dashboards at `api.example.com/admin/*` provide full management with real-time metrics, search/filter, and Discord webhook notifications for all actions.
 
 ### GreenLuma 2025 Integration
 
@@ -262,8 +262,8 @@ Host a JSON file at any stable URL. Configure this URL in the updater's Settings
 {
   "cdn": {
     "name": "HyperAbyss CDN",
-    "api_url": "https://api.hyperabyss.com",
-    "telemetry_url": "https://api.hyperabyss.com/stats",
+    "api_url": "https://api.example.com",
+    "telemetry_url": "https://api.example.com/stats",
     "access": "public"
   },
   "latest": "1.121.372.1020",
