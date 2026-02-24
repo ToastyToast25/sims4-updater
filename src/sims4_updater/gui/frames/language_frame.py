@@ -851,7 +851,8 @@ class LanguageFrame(ctk.CTkFrame):
         self._log(f"--- Downloading {name} ({code}) then applying language ---")
 
         def _bg():
-            downloader = self.app.updater.create_language_downloader(game_dir)
+            auth = self.app._cdn_auth.get_auth_adapter() if self.app._cdn_auth else None
+            downloader = self.app.updater.create_language_downloader(game_dir, auth=auth)
             try:
                 return downloader.download_language(entry, log=self._enqueue_log)
             finally:
@@ -933,7 +934,8 @@ class LanguageFrame(ctk.CTkFrame):
         self._log(f"--- Downloading: {name} ({code}) ---")
 
         def _bg():
-            downloader = self.app.updater.create_language_downloader(game_dir)
+            auth = self.app._cdn_auth.get_auth_adapter() if self.app._cdn_auth else None
+            downloader = self.app.updater.create_language_downloader(game_dir, auth=auth)
             try:
                 return downloader.download_language(entry, log=self._enqueue_log)
             finally:
@@ -1014,7 +1016,8 @@ class LanguageFrame(ctk.CTkFrame):
         self._log(f"--- Downloading {len(missing)} missing language pack(s) ---")
 
         def _bg():
-            downloader = self.app.updater.create_language_downloader(game_dir)
+            auth = self.app._cdn_auth.get_auth_adapter() if self.app._cdn_auth else None
+            downloader = self.app.updater.create_language_downloader(game_dir, auth=auth)
             try:
                 return downloader.download_all_missing(
                     self._lang_downloads,

@@ -71,12 +71,22 @@ class BackupManager:
         backup_path = self.backup_dir / folder_name
         backup_path.mkdir(parents=True, exist_ok=True)
 
+        game_resolved = game_dir.resolve()
+        backup_resolved = backup_path.resolve()
         copied = 0
         for rel_path in files_to_patch:
             src = game_dir / rel_path
-            if not src.is_file():
+            # Validate source stays within game dir (prevent path traversal in file list)
+            if not str(src.resolve()).startswith(str(game_resolved) + os.sep):
+                logger.warning("Skipping backup of path-escaping file: %s", rel_path)
+                continue
+            if not src.is_file() or src.is_symlink():
                 continue
             dest = backup_path / rel_path
+            # Validate dest stays within backup dir
+            if not str(dest.resolve()).startswith(str(backup_resolved) + os.sep):
+                logger.warning("Skipping backup of path-escaping dest: %s", rel_path)
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
                 shutil.copy2(str(src), str(dest))
@@ -136,16 +146,32 @@ class BackupManager:
 
         Returns number of files restored.
         """
+        # Validate backup_path is actually within our backup directory
+        backup_resolved = backup_path.resolve()
+        if not str(backup_resolved).startswith(str(self.backup_dir.resolve())):
+            logger.error("Backup path outside backup dir: %s", backup_path)
+            return 0
+
+        game_resolved = game_dir.resolve()
         restored = 0
         all_files = []
         for root, _dirs, files in os.walk(backup_path):
             for f in files:
-                all_files.append(Path(root) / f)
+                fp = Path(root) / f
+                # Skip symlinks — prevent symlink-based path escape
+                if fp.is_symlink():
+                    logger.warning("Skipping symlink in backup: %s", fp)
+                    continue
+                all_files.append(fp)
 
         total = len(all_files)
         for i, src in enumerate(all_files):
             rel = src.relative_to(backup_path)
             dest = game_dir / rel
+            # Path traversal protection — ensure dest stays within game dir
+            if not str(dest.resolve()).startswith(str(game_resolved) + os.sep):
+                logger.warning("Skipping restore of path-escaping file: %s", rel)
+                continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
                 shutil.copy2(str(src), str(dest))
@@ -161,8 +187,10 @@ class BackupManager:
 
     def delete_backup(self, backup_path: Path) -> None:
         """Delete a single backup folder."""
-        if backup_path.is_dir() and self.backup_dir in backup_path.parents:
-            shutil.rmtree(backup_path, ignore_errors=True)
+        # Use resolve() for robust containment check
+        resolved = backup_path.resolve()
+        if resolved.is_dir() and str(resolved).startswith(str(self.backup_dir.resolve()) + os.sep):
+            shutil.rmtree(resolved, ignore_errors=True)
             logger.info("Deleted backup: %s", backup_path.name)
 
     def delete_all_backups(self) -> None:

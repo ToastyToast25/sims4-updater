@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import threading
 import time
 from typing import Any
 
@@ -58,6 +59,7 @@ class CDNAuth:
         self._app_version = app_version
         self._token: str = ""
         self._expires_at: float = 0
+        self._lock = threading.Lock()
 
     @property
     def api_url(self) -> str:
@@ -67,7 +69,11 @@ class CDNAuth:
         """Return a valid token, refreshing if near expiry (< 60 s left)."""
         if self._token and time.monotonic() < self._expires_at - 60:
             return self._token
-        self._refresh()
+        with self._lock:
+            # Double-check after acquiring lock (another thread may have refreshed)
+            if self._token and time.monotonic() < self._expires_at - 60:
+                return self._token
+            self._refresh()
         return self._token
 
     def get_auth_adapter(self) -> CDNTokenAuth:
@@ -78,6 +84,7 @@ class CDNAuth:
         """Submit an access request for a private CDN.
 
         Returns the JSON response body on success, or raises on error.
+        Raises BannedError if the server responds with a ban.
         """
         resp = requests.post(
             f"{self._api_url}/access/request",
@@ -90,6 +97,17 @@ class CDNAuth:
             headers=identity.get_headers(),
             timeout=_TIMEOUT,
         )
+        # Check for ban response before generic raise_for_status
+        if resp.status_code == 403:
+            body: dict[str, Any] = {}
+            with contextlib.suppress(Exception):
+                body = resp.json()
+            if body.get("error") == "banned":
+                raise BannedError(
+                    reason=body.get("reason", ""),
+                    ban_type=body.get("ban_type", ""),
+                    expires_at=body.get("expires_at", ""),
+                )
         resp.raise_for_status()
         return resp.json()
 
@@ -109,7 +127,11 @@ class CDNAuth:
                 timeout=_TIMEOUT,
             )
         except requests.RequestException as exc:
-            log.warning("CDN token request failed: %s", exc)
+            log.warning("CDN token request network error: %s", exc)
+            # Keep existing token if still valid, otherwise clear atomically
+            if self._token and time.monotonic() < self._expires_at:
+                return
+            self._token, self._expires_at = "", 0
             return
 
         if resp.status_code == 403:

@@ -5,6 +5,7 @@ Download manager with resume, progress callbacks, MD5 verification, and cancella
 from __future__ import annotations
 
 import hashlib
+import logging
 import ssl
 import threading
 from collections.abc import Callable
@@ -21,6 +22,8 @@ from .manifest import FileEntry
 
 if TYPE_CHECKING:
     from ..core.rate_limiter import TokenBucketRateLimiter
+
+logger = logging.getLogger(__name__)
 
 # Type alias for progress callbacks: (bytes_downloaded, total_bytes, filename)
 ProgressCallback = Callable[[int, int, str], None]
@@ -50,6 +53,7 @@ class Downloader:
         cancel_event: threading.Event | None = None,
         rate_limiter: TokenBucketRateLimiter | None = None,
         proceed_event: threading.Event | None = None,
+        auth: requests.auth.AuthBase | None = None,
     ):
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
@@ -57,11 +61,14 @@ class Downloader:
         self._session: requests.Session | None = None
         self._rate_limiter = rate_limiter
         self._proceed = proceed_event  # None = no pause support
+        self._auth = auth
 
     @property
     def session(self) -> requests.Session:
         if self._session is None:
             self._session = _create_session()
+            if self._auth:
+                self._session.auth = self._auth
         return self._session
 
     def cancel(self):
@@ -98,7 +105,14 @@ class Downloader:
         dest_dir = self.download_dir / subdir if subdir else self.download_dir
         dest_dir.mkdir(parents=True, exist_ok=True)
 
-        final_path = dest_dir / entry.filename
+        # Sanitize filename: strip directory components to prevent path traversal
+        safe_name = Path(entry.filename).name
+        if not safe_name or safe_name in (".", ".."):
+            raise DownloadError(f"Invalid filename in manifest: {entry.filename!r}")
+        dest_resolved = dest_dir.resolve()
+        final_path = dest_dir / safe_name
+        if not str(final_path.resolve()).startswith(str(dest_resolved)):
+            raise DownloadError(f"Path traversal detected: {entry.filename!r}")
         partial_path = final_path.with_suffix(final_path.suffix + ".partial")
 
         # If final file exists and MD5 matches, skip download
@@ -176,14 +190,21 @@ class Downloader:
         # Verify MD5 if provided
         verified = False
         if entry.md5:
-            if not _verify_md5(partial_path, entry.md5):
+            actual_md5 = _compute_md5(partial_path)
+            if actual_md5.upper() != entry.md5.upper():
                 partial_path.unlink(missing_ok=True)
                 raise IntegrityError(
                     f"MD5 mismatch for {entry.filename}.\n"
                     f"Expected: {entry.md5}\n"
+                    f"Got:      {actual_md5}\n"
                     f"The file may be corrupted or tampered with."
                 )
             verified = True
+        else:
+            logger.warning(
+                "No MD5 hash for %s — file integrity could not be verified",
+                entry.filename,
+            )
 
         # Rename partial to final
         partial_path.replace(final_path)
@@ -244,7 +265,7 @@ def _create_session() -> requests.Session:
     from ..core import identity
 
     ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-    ctx.options |= 0x4  # OP_LEGACY_SERVER_CONNECT
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
     session = requests.Session()
     retry = requests.adapters.Retry(
@@ -254,7 +275,6 @@ def _create_session() -> requests.Session:
     )
     adapter = _TimeoutSSLAdapter(ctx, max_retries=retry)
     session.mount("https://", adapter)
-    session.mount("http://", requests.adapters.HTTPAdapter(max_retries=retry))
     session.headers["User-Agent"] = "Sims4Updater/2.0"
     session.headers.update(identity.get_headers())
     return session
@@ -287,7 +307,7 @@ def _check_ban_response(resp: requests.Response) -> None:
         return
     try:
         body = resp.json()
-    except Exception:
+    except (ValueError, requests.JSONDecodeError):
         return
     if body.get("error") == "banned":
         raise BannedError(
@@ -297,10 +317,15 @@ def _check_ban_response(resp: requests.Response) -> None:
         )
 
 
-def _verify_md5(path: Path, expected: str) -> bool:
-    """Verify a file's MD5 hash."""
+def _compute_md5(path: Path) -> str:
+    """Compute a file's MD5 hash, returning uppercase hex digest."""
     m = hashlib.md5()
     with open(path, "rb") as f:
         while chunk := f.read(CHUNK_SIZE):
             m.update(chunk)
-    return m.hexdigest().upper() == expected.upper()
+    return m.hexdigest().upper()
+
+
+def _verify_md5(path: Path, expected: str) -> bool:
+    """Verify a file's MD5 hash."""
+    return _compute_md5(path) == expected.upper()

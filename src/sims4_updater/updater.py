@@ -81,16 +81,17 @@ class Sims4Updater(BasePatcher):
             )
         return self._patch_client
 
-    def create_dlc_downloader(self, game_dir: str) -> DLCDownloader:
+    def create_dlc_downloader(self, game_dir: str, auth=None) -> DLCDownloader:
         """Create a new DLCDownloader for the given game directory."""
         return DLCDownloader(
             download_dir=self._download_dir,
             game_dir=game_dir,
             dlc_manager=self._dlc_manager,
             cancel_event=self._cancel,
+            auth=auth,
         )
 
-    def create_language_downloader(self, game_dir: str):
+    def create_language_downloader(self, game_dir: str, auth=None):
         """Create a LanguagePackDownloader for the given game directory."""
         from .language.downloader import LanguagePackDownloader
 
@@ -98,6 +99,7 @@ class Sims4Updater(BasePatcher):
             download_dir=self._download_dir,
             game_dir=game_dir,
             cancel_event=self._cancel,
+            auth=auth,
         )
 
     def create_parallel_dlc_downloader(
@@ -105,6 +107,7 @@ class Sims4Updater(BasePatcher):
         game_dir: str,
         max_workers: int = 3,
         speed_limit_bytes: int = 0,
+        auth=None,
     ):
         """Create a ParallelDLCDownloader for concurrent DLC downloads."""
         from .dlc.downloader import ParallelDLCDownloader
@@ -116,6 +119,7 @@ class Sims4Updater(BasePatcher):
             cancel_event=self._cancel,
             max_workers=max_workers,
             speed_limit_bytes=speed_limit_bytes,
+            auth=auth,
         )
 
     def exiting_extra(self):

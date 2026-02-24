@@ -113,7 +113,10 @@ def _bfs_all_shortest(
     if start == end:
         return [[]]
 
-    # BFS with path tracking
+    # BFS with path tracking (bounded to prevent resource exhaustion)
+    _MAX_PATH_LENGTH = 20
+    _MAX_QUEUE_SIZE = 10000
+
     queue: deque[tuple[str, list[PatchEntry]]] = deque()
     queue.append((start, []))
 
@@ -123,9 +126,12 @@ def _bfs_all_shortest(
     shortest_found = float("inf")
 
     while queue:
+        if len(queue) > _MAX_QUEUE_SIZE:
+            break  # Safety valve against combinatorial explosion
+
         current, path = queue.popleft()
 
-        if len(path) >= shortest_found:
+        if len(path) >= shortest_found or len(path) >= _MAX_PATH_LENGTH:
             continue
 
         for patch in graph.get(current, []):

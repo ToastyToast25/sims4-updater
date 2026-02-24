@@ -69,6 +69,7 @@ class DLCDownloader:
         proceed_event: threading.Event | None = None,
         downloader: Downloader | None = None,
         register_lock: threading.Lock | None = None,
+        auth=None,
     ):
         self.download_dir = Path(download_dir) / "dlcs"
         self.game_dir = Path(game_dir)
@@ -80,6 +81,7 @@ class DLCDownloader:
             download_dir=self.download_dir,
             cancel_event=self._cancel,
             proceed_event=self._proceed,
+            auth=auth,
         )
 
     def cancel(self):
@@ -356,6 +358,7 @@ class ParallelDLCDownloader:
         cancel_event: threading.Event | None = None,
         max_workers: int = 3,
         speed_limit_bytes: int = 0,
+        auth=None,
     ):
         self._download_dir = Path(download_dir)
         self._dlcs_dir = self._download_dir / "dlcs"
@@ -367,6 +370,7 @@ class ParallelDLCDownloader:
         self._max_workers = max(1, min(max_workers, 10))
         self._rate_limiter = TokenBucketRateLimiter(speed_limit_bytes)
         self._register_lock = threading.Lock()
+        self._auth = auth
 
     def set_speed_limit(self, bytes_per_sec: int) -> None:
         """Update the global speed limit at runtime."""
@@ -450,6 +454,7 @@ class ParallelDLCDownloader:
             cancel_event=self._cancel,
             rate_limiter=self._rate_limiter,
             proceed_event=self._proceed,
+            auth=self._auth,
         )
         worker = DLCDownloader(
             download_dir=self._download_dir,

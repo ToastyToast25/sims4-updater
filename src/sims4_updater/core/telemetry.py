@@ -59,6 +59,11 @@ class TelemetryClient:
     def session_id(self) -> str:
         return self._session_id
 
+    def set_base_url(self, url: str) -> None:
+        """Update the telemetry endpoint URL (e.g. from CDN manifest config)."""
+        if url:
+            self._base_url = url
+
     # ── Game info cache ───────────────────────────────────────
 
     def set_game_info(

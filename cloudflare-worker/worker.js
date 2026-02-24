@@ -9,10 +9,11 @@
  *
  * REQUEST FLOW:
  *   1. CORS preflight → allow
- *   2. Public paths (manifest.json, root) → no auth required
- *   3. Ban check (IP + machine_id) → 403 if banned
- *   4. JWT validation → 401 if missing/invalid/expired
- *   5. KV lookup → seedbox proxy
+ *   2. Method check → only GET/HEAD/OPTIONS
+ *   3. Public paths (manifest.json, root) → no auth required
+ *   4. Ban check (IP + machine_id) → 403 if banned
+ *   5. JWT validation + machine_id binding → 401 if missing/invalid/expired
+ *   6. KV lookup → seedbox proxy (with path validation)
  *
  * SETUP:
  *   1. Create a KV namespace called "CDN_ROUTES" in Cloudflare dashboard
@@ -32,6 +33,9 @@
 // Paths that don't require JWT authentication
 const PUBLIC_PATHS = new Set(["manifest.json"]);
 
+// Expected seedbox path prefix (prevents KV route traversal)
+const SEEDBOX_PATH_PREFIX = "files/";
+
 export default {
   async fetch(request, env) {
     // Handle CORS preflight
@@ -39,6 +43,14 @@ export default {
       return new Response(null, {
         status: 204,
         headers: corsHeaders(),
+      });
+    }
+
+    // Only allow GET and HEAD
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return new Response("Method not allowed", {
+        status: 405,
+        headers: { Allow: "GET, HEAD, OPTIONS", ...corsHeaders() },
       });
     }
 
@@ -62,7 +74,18 @@ export default {
     }
 
     // ── JWT validation (protected paths only) ──
-    if (!isPublic && env.JWT_SECRET) {
+    if (!isPublic) {
+      // Fail closed: refuse to serve without auth capability
+      if (!env.JWT_SECRET) {
+        return jsonResponse({ error: "service_unavailable" }, 503);
+      }
+
+      // Require X-Machine-Id header on protected paths
+      const machineId = request.headers.get("X-Machine-Id");
+      if (!machineId) {
+        return jsonResponse({ error: "machine_id_required" }, 400);
+      }
+
       const authResult = await validateToken(request, env);
       if (authResult) return authResult;
     }
@@ -72,6 +95,12 @@ export default {
 
     if (!seedboxPath) {
       return jsonResponse({ error: "not_found" }, 404);
+    }
+
+    // Validate seedbox path: prevent traversal attacks via KV manipulation
+    const normalizedPath = seedboxPath.replace(/\\/g, "/");
+    if (normalizedPath.includes("..") || !normalizedPath.startsWith(SEEDBOX_PATH_PREFIX)) {
+      return jsonResponse({ error: "invalid_route" }, 403);
     }
 
     // Build the full seedbox URL
@@ -91,17 +120,17 @@ export default {
       fetchHeaders["Range"] = rangeHeader;
     }
 
-    // Fetch from seedbox with authentication
+    // Fetch from seedbox with authentication (no redirect following)
     const seedboxResponse = await fetch(seedboxUrl, {
       headers: fetchHeaders,
-      redirect: "follow",
+      redirect: "error",
     });
 
     if (!seedboxResponse.ok && seedboxResponse.status !== 206) {
       return new Response("Upstream error", { status: 502 });
     }
 
-    // Stream the response back to the user with clean headers
+    // Stream the response back to the user with clean headers (allowlist)
     const headers = new Headers();
     headers.set(
       "Content-Type",
@@ -110,7 +139,13 @@ export default {
     const contentLength = seedboxResponse.headers.get("Content-Length");
     if (contentLength) headers.set("Content-Length", contentLength);
     headers.set("Accept-Ranges", "bytes");
-    headers.set("Cache-Control", "public, max-age=86400");
+
+    // Public paths can be cached; authenticated responses must not
+    if (isPublic) {
+      headers.set("Cache-Control", "public, max-age=86400");
+    } else {
+      headers.set("Cache-Control", "private, no-store");
+    }
 
     // CORS
     for (const [k, v] of Object.entries(corsHeaders())) {
@@ -121,18 +156,15 @@ export default {
     const contentRange = seedboxResponse.headers.get("Content-Range");
     if (contentRange) headers.set("Content-Range", contentRange);
 
-    // Preserve content disposition for downloads
+    // Content-Disposition: sanitize filename to prevent header injection
     const disposition = seedboxResponse.headers.get("Content-Disposition");
-    if (disposition) {
+    if (disposition && !disposition.includes("\r") && !disposition.includes("\n")) {
       headers.set("Content-Disposition", disposition);
     } else {
-      const filename = path.split("/").pop();
+      const rawFilename = path.split("/").pop() || "download";
+      const filename = rawFilename.replace(/["\\\r\n;]/g, "_");
       headers.set("Content-Disposition", `attachment; filename="${filename}"`);
     }
-
-    // Remove headers that leak seedbox info
-    headers.delete("Server");
-    headers.delete("X-Powered-By");
 
     return new Response(seedboxResponse.body, {
       status: seedboxResponse.status,
@@ -160,6 +192,12 @@ async function validateToken(request, env) {
     return jsonResponse({ error: "token_expired" }, 401);
   }
 
+  // Bind token to requesting client's machine_id
+  const requestMachineId = request.headers.get("X-Machine-Id") || "";
+  if (payload.machine_id && requestMachineId && payload.machine_id !== requestMachineId) {
+    return jsonResponse({ error: "token_mismatch" }, 401);
+  }
+
   return null; // Valid — proceed
 }
 
@@ -169,6 +207,15 @@ async function verifyJWT(token, secret) {
     if (parts.length !== 3) return null;
 
     const [headerB64, payloadB64, sigB64] = parts;
+
+    // Validate JWT algorithm claim
+    try {
+      const headerJson = atob(headerB64.replace(/-/g, "+").replace(/_/g, "/"));
+      const header = JSON.parse(headerJson);
+      if (header.alg !== "HS256") return null;
+    } catch {
+      return null;
+    }
 
     // Import HMAC key
     const key = await crypto.subtle.importKey(
@@ -207,10 +254,15 @@ function base64urlDecode(str) {
 
 // ── Ban Check ─────────────────────────────────────────────────
 
+function sanitizeFilterValue(val) {
+  if (!val || typeof val !== "string") return "";
+  return val.replace(/[^a-zA-Z0-9._:\-]/g, "").substring(0, 200);
+}
+
 async function checkBan(request, env) {
-  const ip = request.headers.get("CF-Connecting-IP") || "";
-  const machineId = request.headers.get("X-Machine-Id") || "";
-  const uid = request.headers.get("X-UID") || "";
+  const ip = sanitizeFilterValue(request.headers.get("CF-Connecting-IP") || "");
+  const machineId = sanitizeFilterValue(request.headers.get("X-Machine-Id") || "");
+  const uid = sanitizeFilterValue(request.headers.get("X-UID") || "");
 
   // Build OR conditions for matching bans
   const conditions = [];
@@ -271,7 +323,7 @@ function jsonResponse(data, status = 200) {
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Machine-Id, X-UID",
   };

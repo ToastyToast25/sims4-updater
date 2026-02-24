@@ -11,12 +11,17 @@ _headers: dict[str, str] = {}
 
 
 def configure(machine_id: str, uid: str) -> None:
-    """Set identity values. Call once at app startup."""
-    _headers.clear()
+    """Set identity values. Call once at app startup.
+
+    Uses atomic reference swap instead of clear+set for thread safety.
+    """
+    global _headers
+    new: dict[str, str] = {}
     if machine_id:
-        _headers["X-Machine-Id"] = machine_id
+        new["X-Machine-Id"] = machine_id
     if uid:
-        _headers["X-UID"] = uid
+        new["X-UID"] = uid
+    _headers = new
 
 
 def get_headers() -> dict[str, str]:

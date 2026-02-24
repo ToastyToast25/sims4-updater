@@ -100,6 +100,7 @@ class App(ctk.CTk):
 
         # CDN auth — initialized after manifest fetch via init_cdn_auth()
         self._cdn_auth = None
+        self._cdn_auth_lock = Lock()
 
         # Telemetry (fire-and-forget, deferred import)
         from ..core.telemetry import TelemetryClient
@@ -794,32 +795,39 @@ class App(ctk.CTk):
 
         Returns CDNTokenAuth adapter or None.
         """
-        # Already initialized — return existing adapter
+        # Fast path — already initialized (no lock needed)
         if self._cdn_auth is not None:
             return self._cdn_auth.get_auth_adapter()
 
-        if not manifest.cdn.api_url:
-            return None
+        with self._cdn_auth_lock:
+            # Double-check after acquiring lock
+            if self._cdn_auth is not None:
+                return self._cdn_auth.get_auth_adapter()
 
-        from .. import VERSION
-        from ..core.cdn_auth import CDNAuth
-        from ..core.machine_id import get_machine_id
+            if not manifest.cdn.api_url:
+                return None
 
-        self._cdn_auth = CDNAuth(
-            api_url=manifest.cdn.api_url,
-            machine_id=get_machine_id(),
-            uid=self.settings.uid,
-            app_version=VERSION,
-        )
+            from .. import VERSION
+            from ..core.cdn_auth import CDNAuth
+            from ..core.machine_id import get_machine_id
 
-        # Attach auth adapter to the shared download session
-        self.updater.patch_client.downloader.session.auth = self._cdn_auth.get_auth_adapter()
+            cdn_auth = CDNAuth(
+                api_url=manifest.cdn.api_url,
+                machine_id=get_machine_id(),
+                uid=self.settings.uid,
+                app_version=VERSION,
+            )
 
-        # Update telemetry to use CDN-specific telemetry URL
-        if manifest.cdn.telemetry_url:
-            self.telemetry._base_url = manifest.cdn.telemetry_url
+            # Attach auth adapter to the shared download session
+            self.updater.patch_client.downloader.session.auth = cdn_auth.get_auth_adapter()
 
-        return self._cdn_auth.get_auth_adapter()
+            # Update telemetry to use CDN-specific telemetry URL
+            if manifest.cdn.telemetry_url:
+                self.telemetry.set_base_url(manifest.cdn.telemetry_url)
+
+            # Publish only after everything is set up
+            self._cdn_auth = cdn_auth
+            return self._cdn_auth.get_auth_adapter()
 
     def ensure_cdn_auth(self):
         """Ensure CDN auth is initialized.  Call from background threads.
@@ -829,6 +837,7 @@ class App(ctk.CTk):
 
         Raises BannedError or AccessRequiredError if the CDN denies access.
         """
+        # Fast path — already initialized
         if self._cdn_auth is not None:
             return
         manifest = self.updater.patch_client.fetch_manifest()
@@ -1075,14 +1084,20 @@ class App(ctk.CTk):
 
         Fetches the manifest, requests a JWT token (registering this client
         in the server-side token_log), and attaches auth to the download
-        session.  Errors are silently ignored — CDN auth is best-effort
-        at startup and will be retried when the user triggers a download.
+        session.  Non-critical errors are silently ignored.  Ban/access
+        errors are surfaced to the user via the error dialog.
         """
         import threading
 
+        from ..core.exceptions import AccessRequiredError, BannedError
+
         def _bg():
-            with contextlib.suppress(Exception):
+            try:
                 self.ensure_cdn_auth()
+            except (BannedError, AccessRequiredError) as e:
+                self._enqueue_gui(self._show_error, e)
+            except Exception:
+                pass  # Non-critical, will retry on download
 
         threading.Thread(target=_bg, daemon=True).start()
 

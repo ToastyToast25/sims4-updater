@@ -873,10 +873,12 @@ class DownloaderFrame(ctk.CTkFrame):
             speed_mb = 0
         speed_bytes = speed_mb * 1_048_576
 
+        auth = self.app._cdn_auth.get_auth_adapter() if self.app._cdn_auth else None
         downloader = self.app.updater.create_parallel_dlc_downloader(
             game_dir=self._game_dir,
             max_workers=max_workers,
             speed_limit_bytes=speed_bytes,
+            auth=auth,
         )
         self._active_downloader = downloader
 
