@@ -83,7 +83,7 @@ export default {
     // Admin routes
     if (path.startsWith("/admin")) {
       // Check admin auth
-      const authErr = checkAdminAuth(request, env);
+      const authErr = await checkAdminAuth(request, env);
       if (authErr) return authErr;
 
       const pw = url.searchParams.get("pw") || request.headers.get("X-Admin-Password") || "";
@@ -138,20 +138,24 @@ export default {
       if (path === "/admin/gl/list" && request.method === "GET") {
         return listGLContributions(env);
       }
-      if (path.startsWith("/admin/approve/") && (request.method === "POST" || request.method === "GET")) {
+      if (path.startsWith("/admin/approve/") && request.method === "POST") {
         const id = path.replace("/admin/approve/", "");
+        if (!/^(EP|GP|SP|FP|KP)\d{2}$/.test(id)) return json({ error: "Invalid DLC ID format" }, 400);
         return updateStatus(env, id, "approved");
       }
-      if (path.startsWith("/admin/reject/") && (request.method === "POST" || request.method === "GET")) {
+      if (path.startsWith("/admin/reject/") && request.method === "POST") {
         const id = path.replace("/admin/reject/", "");
+        if (!/^(EP|GP|SP|FP|KP)\d{2}$/.test(id)) return json({ error: "Invalid DLC ID format" }, 400);
         return updateStatus(env, id, "rejected");
       }
-      if (path.startsWith("/admin/gl/approve/") && (request.method === "POST" || request.method === "GET")) {
+      if (path.startsWith("/admin/gl/approve/") && request.method === "POST") {
         const depotId = path.replace("/admin/gl/approve/", "");
+        if (!/^\d+$/.test(depotId)) return json({ error: "Invalid depot ID" }, 400);
         return updateGLStatus(env, depotId, "approved");
       }
-      if (path.startsWith("/admin/gl/reject/") && (request.method === "POST" || request.method === "GET")) {
+      if (path.startsWith("/admin/gl/reject/") && request.method === "POST") {
         const depotId = path.replace("/admin/gl/reject/", "");
+        if (!/^\d+$/.test(depotId)) return json({ error: "Invalid depot ID" }, 400);
         return updateGLStatus(env, depotId, "rejected");
       }
       // CDN Settings
@@ -217,12 +221,57 @@ function json(data, status = 200) {
   });
 }
 
-function checkAdminAuth(request, env) {
+/**
+ * Sanitize a value for use in Supabase PostgREST filter expressions.
+ * Strips characters that could inject additional filter operators.
+ */
+function sanitizeFilterValue(val) {
+  if (!val || typeof val !== "string") return "";
+  // Only allow alphanumeric, dots, colons, hyphens (covers IPs, hex IDs, UIDs)
+  return val.replace(/[^a-zA-Z0-9._:\-]/g, "").substring(0, 200);
+}
+
+function timingSafeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const enc = new TextEncoder();
+  const aBuf = enc.encode(a);
+  const bBuf = enc.encode(b);
+  if (aBuf.length !== bBuf.length) return false;
+  let result = 0;
+  for (let i = 0; i < aBuf.length; i++) {
+    result |= aBuf[i] ^ bBuf[i];
+  }
+  return result === 0;
+}
+
+async function checkAdminAuth(request, env) {
   const url = new URL(request.url);
   const pw = url.searchParams.get("pw") ||
     request.headers.get("X-Admin-Password");
 
-  if (!pw || pw !== env.ADMIN_PASSWORD) {
+  if (!pw || !timingSafeEqual(pw, env.ADMIN_PASSWORD || "")) {
+    // Brute-force protection: rate limit failed admin auth by IP
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rlKey = `admin_rl:${ip}`;
+    const now = Math.floor(Date.now() / 1000);
+    const data = await env.CONTRIBUTIONS.get(rlKey);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (parsed.failures >= 10 && (now - parsed.first) < 900) {
+        return new Response("Too many attempts. Try again later.", {
+          status: 429,
+          headers: { "Content-Type": "text/plain" },
+        });
+      }
+      if ((now - parsed.first) >= 900) {
+        await env.CONTRIBUTIONS.put(rlKey, JSON.stringify({ failures: 1, first: now }), { expirationTtl: 900 });
+      } else {
+        parsed.failures++;
+        await env.CONTRIBUTIONS.put(rlKey, JSON.stringify(parsed), { expirationTtl: 900 });
+      }
+    } else {
+      await env.CONTRIBUTIONS.put(rlKey, JSON.stringify({ failures: 1, first: now }), { expirationTtl: 900 });
+    }
     return new Response("Unauthorized. Add ?pw=YOUR_PASSWORD to the URL.", {
       status: 401,
       headers: { "Content-Type": "text/plain" },
@@ -315,17 +364,23 @@ async function handleStatsHeartbeat(request, env) {
     return json({ status: "rate_limited", message: "15 heartbeats per hour" }, 429);
   }
 
-  // Forward upsert to Supabase
+  // Truncate helper for string fields
+  function trunc(val, maxLen) {
+    if (typeof val !== "string") return val;
+    return val.substring(0, maxLen);
+  }
+
+  // Forward upsert to Supabase (server-side timestamp, truncated fields)
   const payload = {
-    uid: body.uid,
-    app_version: body.app_version,
-    game_version: body.game_version || null,
-    os_version: body.os_version || null,
-    locale: body.locale || null,
-    crack_format: body.crack_format || null,
-    dlc_count: typeof body.dlc_count === "number" ? body.dlc_count : null,
+    uid: trunc(body.uid, 128),
+    app_version: trunc(body.app_version, 32),
+    game_version: trunc(body.game_version || "", 32) || null,
+    os_version: trunc(body.os_version || "", 64) || null,
+    locale: trunc(body.locale || "", 10) || null,
+    crack_format: trunc(body.crack_format || "", 32) || null,
+    dlc_count: typeof body.dlc_count === "number" ? Math.min(Math.max(body.dlc_count, 0), 9999) : null,
     game_detected: !!body.game_detected,
-    last_seen: body.last_seen || new Date().toISOString(),
+    last_seen: new Date().toISOString(),
   };
 
   const resp = await supabasePost(env, "/rest/v1/users", payload, true);
@@ -358,10 +413,19 @@ async function handleStatsEvent(request, env) {
     return json({ status: "rate_limited", message: "50 events per hour" }, 429);
   }
 
+  // Validate metadata size
+  let metadata = body.metadata || null;
+  if (metadata) {
+    const metaStr = JSON.stringify(metadata);
+    if (metaStr.length > 4096) {
+      return json({ error: "metadata too large (max 4KB)" }, 400);
+    }
+  }
+
   const payload = {
-    uid: body.uid,
-    event_type: body.event_type,
-    metadata: body.metadata || null,
+    uid: typeof body.uid === "string" ? body.uid.substring(0, 128) : body.uid,
+    event_type: typeof body.event_type === "string" ? body.event_type.substring(0, 64) : body.event_type,
+    metadata,
   };
 
   const resp = await supabasePost(env, "/rest/v1/events", payload, false);
@@ -600,7 +664,6 @@ async function handleGLContribution(request, env) {
 
   // Discord notification
   if (env.DISCORD_WEBHOOK && stored.length > 0) {
-    const pw = encodeURIComponent(env.ADMIN_PASSWORD);
     const fields = validEntries
       .filter((e) => stored.includes(e.depot_id))
       .map((e) => ({
@@ -609,10 +672,8 @@ async function handleGLContribution(request, env) {
         inline: true,
       }));
 
-    // Add approve/reject links for each entry
-    const actionLines = stored.map((d) =>
-      `[Approve ${d}](https://api.hyperabyss.com/admin/gl/approve/${d}?pw=${pw}) | [Reject](https://api.hyperabyss.com/admin/gl/reject/${d}?pw=${pw})`
-    );
+    // Link to dashboard (no password in URLs)
+    const actionLines = [`Review in [Admin Dashboard](https://api.hyperabyss.com/admin)`];
 
     const embed = {
       title: `GreenLuma Keys: ${stored.length} depot(s)`,
@@ -711,9 +772,8 @@ async function notifyDiscord(env, contribution) {
   if (!env.DISCORD_WEBHOOK) return;
 
   const sizeMB = (contribution.total_size / 1024 / 1024).toFixed(1);
-  const pw = encodeURIComponent(env.ADMIN_PASSWORD);
-  const approveUrl = `https://api.hyperabyss.com/admin/approve/${contribution.dlc_id}?pw=${pw}`;
-  const rejectUrl = `https://api.hyperabyss.com/admin/reject/${contribution.dlc_id}?pw=${pw}`;
+  const approveUrl = `https://api.hyperabyss.com/admin`;
+  const rejectUrl = `https://api.hyperabyss.com/admin`;
 
   const embed = {
     title: `New DLC Contribution: ${contribution.dlc_id}`,
@@ -961,9 +1021,17 @@ var PW = new URLSearchParams(window.location.search).get("pw");
 var BASE = window.location.origin;
 var refreshTimer = null;
 
+function esc(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
 function api(path) {
   var sep = path.indexOf("?") >= 0 ? "&" : "?";
-  return fetch(BASE + path + sep + "pw=" + PW).then(function(r) { return r.json(); });
+  return fetch(BASE + path + sep + "pw=" + PW).then(function(r) {
+    if (!r.ok) return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { throw new Error("Server error " + r.status); } });
+    return r.json();
+  });
 }
 
 function fmtSize(b) {
@@ -1003,7 +1071,7 @@ function barChart(title, items, colorClass) {
   var html = '<div class="chart-card"><div class="chart-title">' + title + '</div>';
   items.slice(0, 10).forEach(function(item) {
     var pct = max > 0 ? Math.max(2, (item.count / max) * 100) : 2;
-    html += '<div class="bar-row"><span class="bar-label">' + item.label + '</span>';
+    html += '<div class="bar-row"><span class="bar-label">' + esc(item.label) + '</span>';
     html += '<div class="bar-track"><div class="bar-fill ' + colorClass + '" style="width:' + pct + '%"></div></div>';
     html += '<span class="bar-count">' + item.count + '</span></div>';
   });
@@ -1094,9 +1162,9 @@ function render(stats, events) {
       var meta = ev.metadata ? JSON.stringify(ev.metadata) : "";
       if (meta.length > 80) meta = meta.substring(0, 80) + "...";
       h += '<tr><td class="time-col">' + timeAgo(ev.created_at) + '</td>';
-      h += '<td class="uid-short">' + uid + '</td>';
-      h += '<td class="event-type">' + (ev.event_type || "") + '</td>';
-      h += '<td class="meta-preview">' + meta + '</td></tr>';
+      h += '<td class="uid-short">' + esc(uid) + '</td>';
+      h += '<td class="event-type">' + esc(ev.event_type || "") + '</td>';
+      h += '<td class="meta-preview">' + esc(meta) + '</td></tr>';
     });
   } else {
     h += '<tr><td colspan="4" style="color:#484f58;text-align:center;padding:20px">No events yet</td></tr>';
@@ -1114,7 +1182,7 @@ function loadStats() {
     render(results[0], results[1]);
     document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleTimeString();
   }).catch(function(e) {
-    document.getElementById("content").innerHTML = '<div class="loading" style="color:#e74c3c">Failed to load: ' + e.message + '</div>';
+    document.getElementById("content").innerHTML = '<div class="loading" style="color:#e74c3c">Failed to load: ' + esc(e.message) + '</div>';
   });
 }
 
@@ -1134,7 +1202,7 @@ startAutoRefresh();
 </script>
 </body>
 </html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html" } });
+  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" } });
 }
 
 // ---------------------------------------------------------------------------
@@ -1322,10 +1390,18 @@ var filteredData = [];
 var activeFilter = "all";
 var refreshTimer = null;
 
+function esc(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
 function api(path, method) {
   method = method || "GET";
   var sep = path.indexOf("?") >= 0 ? "&" : "?";
-  return fetch(BASE + path + sep + "pw=" + PW, { method: method }).then(function(r) { return r.json(); });
+  return fetch(BASE + path + sep + "pw=" + PW, { method: method }).then(function(r) {
+    if (!r.ok) return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { throw new Error("Server error " + r.status); } });
+    return r.json();
+  });
 }
 
 function formatSize(bytes) {
@@ -1448,13 +1524,13 @@ function renderCards() {
     var uid = c.dlc_id + "-" + i;
     html += '<div class="card ' + c.status + '">';
     html += '<div class="card-top"><div class="card-info">';
-    html += '<div class="card-title"><span class="dlc-id">' + c.dlc_id + "</span>" + (c.dlc_name ? '<span class="dlc-name">' + c.dlc_name + "</span>" : "") + "</div>";
+    html += '<div class="card-title"><span class="dlc-id">' + esc(c.dlc_id) + "</span>" + (c.dlc_name ? '<span class="dlc-name">' + esc(c.dlc_name) + "</span>" : "") + "</div>";
     html += '<div class="card-meta">';
     html += '<span class="meta-item"><svg viewBox="0 0 16 16"><path d="M3.75 1.5a.25.25 0 00-.25.25v11.5c0 .138.112.25.25.25h8.5a.25.25 0 00.25-.25V6H9.75A1.75 1.75 0 018 4.25V1.5H3.75zm5.75.56v2.19c0 .138.112.25.25.25h2.19L9.5 2.06zM2 1.75C2 .784 2.784 0 3.75 0h5.086c.464 0 .909.184 1.237.513l3.414 3.414c.329.328.513.773.513 1.237v8.086A1.75 1.75 0 0112.25 15h-8.5A1.75 1.75 0 012 13.25V1.75z"/></svg>' + c.file_count + " files</span>";
     html += '<span class="meta-item"><svg viewBox="0 0 16 16"><path d="M3.5 3.75a.25.25 0 01.25-.25h8.5a.25.25 0 01.25.25v8.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25v-8.5zM3.75 2A1.75 1.75 0 002 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 12.25v-8.5A1.75 1.75 0 0012.25 2h-8.5z"/></svg>' + formatSize(c.total_size) + "</span>";
     html += '<span class="meta-item"><svg viewBox="0 0 16 16"><path d="M1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0zM8 0a8 8 0 100 16A8 8 0 008 0zm.5 4.75a.75.75 0 00-1.5 0v3.5a.75.75 0 00.37.65l2.5 1.5a.75.75 0 00.76-1.3L8.5 7.94V4.75z"/></svg>' + timeAgo(c.submitted_at) + "</span>";
-    html += '<span class="meta-item">v' + (c.app_version || "?") + "</span>";
-    if (c.ip) html += '<span class="meta-item" style="color:#484f58">' + c.ip + "</span>";
+    html += '<span class="meta-item">v' + esc(c.app_version || "?") + "</span>";
+    if (c.ip) html += '<span class="meta-item" style="color:#484f58">' + esc(c.ip) + "</span>";
     html += "</div></div>";
     html += '<span class="badge ' + c.status + '">' + c.status + "</span></div>";
 
@@ -1465,7 +1541,7 @@ function renderCards() {
     html += '<table class="files-table"><thead><tr><th>File</th><th style="text-align:right">Size</th><th>MD5</th></tr></thead><tbody>';
     for (var j = 0; j < c.files.length; j++) {
       var f = c.files[j];
-      html += '<tr><td class="file-name">' + f.name + '</td><td class="file-size">' + formatSize(f.size) + '</td><td class="file-hash">' + f.md5 + "</td></tr>";
+      html += '<tr><td class="file-name">' + esc(f.name) + '</td><td class="file-size">' + formatSize(f.size) + '</td><td class="file-hash">' + esc(f.md5) + "</td></tr>";
     }
     html += "</tbody></table></div>";
 
@@ -1547,7 +1623,7 @@ startAutoRefresh();
 </html>`;
 
   return new Response(html, {
-    headers: { "Content-Type": "text/html" },
+    headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" },
   });
 }
 
@@ -1556,9 +1632,9 @@ startAutoRefresh();
 // ---------------------------------------------------------------------------
 
 async function checkBanApi(request, env) {
-  const ip = request.headers.get("CF-Connecting-IP") || "";
-  const machineId = request.headers.get("X-Machine-Id") || "";
-  const uid = request.headers.get("X-UID") || "";
+  const ip = sanitizeFilterValue(request.headers.get("CF-Connecting-IP") || "");
+  const machineId = sanitizeFilterValue(request.headers.get("X-Machine-Id") || "");
+  const uid = sanitizeFilterValue(request.headers.get("X-UID") || "");
 
   const conditions = [];
   if (ip) conditions.push(`and(ban_type.eq.ip,value.eq.${ip})`);
@@ -1603,9 +1679,40 @@ async function checkBanApi(request, env) {
 // JWT Token Issuance — POST /auth/token
 // ---------------------------------------------------------------------------
 
+async function checkTokenRateLimit(request, env) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const key = `rl:token:${ip}`;
+  const now = Math.floor(Date.now() / 1000);
+  const data = await env.CONTRIBUTIONS.get(key);
+  if (data) {
+    const parsed = JSON.parse(data);
+    if (parsed.count >= 30 && (now - parsed.first) < 3600) return true;
+    if ((now - parsed.first) >= 3600) {
+      await env.CONTRIBUTIONS.put(key, JSON.stringify({ count: 1, first: now }), { expirationTtl: 3600 });
+      return false;
+    }
+    parsed.count++;
+    await env.CONTRIBUTIONS.put(key, JSON.stringify(parsed), { expirationTtl: 3600 });
+    return false;
+  }
+  await env.CONTRIBUTIONS.put(key, JSON.stringify({ count: 1, first: now }), { expirationTtl: 3600 });
+  return false;
+}
+
 async function handleTokenRequest(request, env) {
   if (!env.JWT_SECRET) {
     return json({ error: "JWT not configured" }, 500);
+  }
+
+  // Rate limit: 30 token requests per hour per IP
+  if (await checkTokenRateLimit(request, env)) {
+    return json({ error: "Rate limited. Try again later." }, 429);
+  }
+
+  // Reject oversized request bodies
+  const contentLength = parseInt(request.headers.get("Content-Length") || "0");
+  if (contentLength > 65536) {
+    return json({ error: "Request too large" }, 413);
   }
 
   let body;
@@ -1620,12 +1727,44 @@ async function handleTokenRequest(request, env) {
   const appVersion = body.app_version || "";
   const ip = request.headers.get("CF-Connecting-IP") || "";
 
-  if (!machineId) {
-    return json({ error: "Missing machine_id" }, 400);
+  if (!machineId || machineId === "unknown") {
+    return json({ error: "Missing or invalid machine_id" }, 400);
   }
 
   // Log the token request FIRST (for admin visibility — even denied requests)
   await logTokenRequest(env, { machine_id: machineId, uid, ip, app_version: appVersion });
+
+  // Ban check — use body data (more reliable than headers for token requests)
+  if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+    const sIp = sanitizeFilterValue(ip);
+    const sMid = sanitizeFilterValue(machineId);
+    const sUid = sanitizeFilterValue(uid);
+    const conditions = [];
+    if (sIp) conditions.push(`and(ban_type.eq.ip,value.eq.${sIp})`);
+    if (sMid) conditions.push(`and(ban_type.eq.machine,value.eq.${sMid})`);
+    if (sUid) conditions.push(`and(ban_type.eq.uid,value.eq.${sUid})`);
+    if (conditions.length > 0) {
+      try {
+        const filter = `or(${conditions.join(",")})`;
+        const banResp = await fetch(
+          `${env.SUPABASE_URL}/rest/v1/active_bans?${filter}&select=ban_type,reason,permanent,expires_at&limit=1`,
+          {
+            headers: {
+              apikey: env.SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            },
+          }
+        );
+        if (banResp.ok) {
+          const bans = await banResp.json();
+          if (bans.length > 0) {
+            const ban = bans[0];
+            return json({ error: "banned", reason: ban.reason || "", ban_type: ban.ban_type || "", expires_at: ban.expires_at || "" }, 403);
+          }
+        }
+      } catch { /* Fail open */ }
+    }
+  }
 
   // Check access mode (dynamic from Supabase, fallback to env var)
   const cdnAccess = await getCDNSetting(env, "cdn_access") || env.CDN_ACCESS || "public";
@@ -1652,9 +1791,11 @@ async function handleTokenRequest(request, env) {
 }
 
 async function checkAllowlist(env, machineId) {
+  const safeMachineId = sanitizeFilterValue(machineId);
+  if (!safeMachineId) return false;
   try {
     const resp = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/cdn_allowlist?machine_id=eq.${machineId}&select=machine_id&limit=1`,
+      `${env.SUPABASE_URL}/rest/v1/cdn_allowlist?machine_id=eq.${safeMachineId}&select=machine_id&limit=1`,
       {
         headers: {
           apikey: env.SUPABASE_SERVICE_KEY,
@@ -1672,9 +1813,11 @@ async function checkAllowlist(env, machineId) {
 
 async function getCDNSetting(env, key) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return null;
+  const safeKey = sanitizeFilterValue(key);
+  if (!safeKey) return null;
   try {
     const resp = await fetch(
-      `${env.SUPABASE_URL}/rest/v1/cdn_settings?key=eq.${key}&select=value&limit=1`,
+      `${env.SUPABASE_URL}/rest/v1/cdn_settings?key=eq.${safeKey}&select=value&limit=1`,
       {
         headers: {
           apikey: env.SUPABASE_SERVICE_KEY,
@@ -1763,6 +1906,11 @@ function base64urlEncodeBuffer(buffer) {
 // ---------------------------------------------------------------------------
 
 async function handleAccessRequest(request, env) {
+  // Rate limit: reuse contribution rate limiter (5 per hour per IP)
+  if (await checkRateLimit(request, env)) {
+    return json({ error: "Rate limited. Max 5 requests per hour." }, 429);
+  }
+
   let body;
   try {
     body = await request.json();
@@ -1773,7 +1921,7 @@ async function handleAccessRequest(request, env) {
   const machineId = body.machine_id || "";
   const uid = body.uid || "";
   const appVersion = body.app_version || "";
-  const reason = body.reason || "";
+  const reason = (body.reason || "").substring(0, 500);
   const ip = request.headers.get("CF-Connecting-IP") || "";
 
   if (!machineId) {
@@ -1812,9 +1960,8 @@ async function handleAccessRequest(request, env) {
     return json({ error: "Failed to submit request" }, 502);
   }
 
-  // Discord notification
+  // Discord notification (no password in URLs)
   if (env.DISCORD_WEBHOOK) {
-    const pw = encodeURIComponent(env.ADMIN_PASSWORD || "");
     try {
       await fetch(env.DISCORD_WEBHOOK, {
         method: "POST",
@@ -1831,6 +1978,7 @@ async function handleAccessRequest(request, env) {
                 { name: "IP", value: ip || "unknown", inline: true },
                 { name: "Reason", value: reason || "(none)" },
                 { name: "App Version", value: appVersion || "unknown", inline: true },
+                { name: "Review", value: "[Access Dashboard](https://api.hyperabyss.com/admin/access)" },
               ],
               timestamp: new Date().toISOString(),
             },
@@ -1893,8 +2041,14 @@ async function createBan(request, env) {
   if (!["ip", "machine", "uid"].includes(banType)) {
     return json({ error: "Invalid ban_type (ip, machine, uid)" }, 400);
   }
-  if (!value) {
+  if (!value || typeof value !== "string") {
     return json({ error: "Missing value" }, 400);
+  }
+  if (value.length > 200) {
+    return json({ error: "Value too long (max 200 chars)" }, 400);
+  }
+  if (reason.length > 500) {
+    return json({ error: "Reason too long (max 500 chars)" }, 400);
   }
 
   const payload = {
@@ -1958,6 +2112,10 @@ async function createBan(request, env) {
 }
 
 async function removeBan(env, id) {
+  // Validate id is numeric to prevent query injection
+  if (!id || !/^\d+$/.test(id)) {
+    return json({ error: "Invalid ban ID" }, 400);
+  }
   // Set active = false
   const resp = await fetch(
     `${env.SUPABASE_URL}/rest/v1/bans?id=eq.${id}`,
@@ -2029,6 +2187,9 @@ async function getAccessData(env) {
 }
 
 async function approveAccess(env, id) {
+  if (!id || !/^\d+$/.test(id)) {
+    return json({ error: "Invalid request ID" }, 400);
+  }
   // Get the request
   const getResp = await fetch(
     `${env.SUPABASE_URL}/rest/v1/access_requests?id=eq.${id}&select=*&limit=1`,
@@ -2098,6 +2259,9 @@ async function approveAccess(env, id) {
 }
 
 async function denyAccess(env, id) {
+  if (!id || !/^\d+$/.test(id)) {
+    return json({ error: "Invalid request ID" }, 400);
+  }
   await fetch(`${env.SUPABASE_URL}/rest/v1/access_requests?id=eq.${id}`, {
     method: "PATCH",
     headers: {
@@ -2135,13 +2299,24 @@ async function denyAccess(env, id) {
 }
 
 async function bulkAccessAction(request, env) {
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
   const { action, ids } = body;
   if (!action || !ids || !Array.isArray(ids) || ids.length === 0) {
     return json({ error: "Missing action or ids" }, 400);
   }
   if (action !== "approve" && action !== "deny") {
     return json({ error: "Invalid action" }, 400);
+  }
+  if (ids.length > 50) {
+    return json({ error: "Too many IDs (max 50 per request)" }, 400);
+  }
+  if (!ids.every(id => /^\d+$/.test(String(id)))) {
+    return json({ error: "Invalid ID format" }, 400);
   }
 
   let count = 0;
@@ -2293,7 +2468,20 @@ async function serveBansDashboard(env, pw) {
   .toast.success { background: #238636; }
   .toast.error { background: #da3633; }
 
-  @media (max-width: 900px) { .metrics { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 900px) {
+    .metrics { grid-template-columns: repeat(3, 1fr); }
+    .form-row { flex-direction: column; }
+    .form-group input { min-width: 0; width: 100%; }
+    .form-group.reason input { min-width: 0; width: 100%; }
+    .container { padding: 12px; }
+    .table-scroll { overflow-x: auto; }
+    table { min-width: 600px; }
+  }
+  @media (max-width: 600px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .header h1 { font-size: 15px; }
+    div[style*="grid-template-columns:1fr 1fr"] { display: flex !important; flex-direction: column !important; }
+  }
 </style>
 </head>
 <body>
@@ -2351,11 +2539,19 @@ var PW = new URLSearchParams(window.location.search).get("pw");
 var BASE = window.location.origin;
 var allBans = [];
 
+function esc(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
 function api(path, method, body) {
   var sep = path.indexOf("?") >= 0 ? "&" : "?";
   var opts = { method: method || "GET" };
   if (body) { opts.headers = {"Content-Type":"application/json"}; opts.body = JSON.stringify(body); }
-  return fetch(BASE + path + sep + "pw=" + PW, opts).then(function(r) { return r.json(); });
+  return fetch(BASE + path + sep + "pw=" + PW, opts).then(function(r) {
+    if (!r.ok) return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { throw new Error("Server error " + r.status); } });
+    return r.json();
+  });
 }
 
 function toast(msg, type) {
@@ -2396,6 +2592,8 @@ document.getElementById("createBtn").addEventListener("click", function() {
   var perm = document.getElementById("banPerm").value === "true";
   var hours = parseInt(document.getElementById("banDuration").value) || 24;
   if (!value) { toast("Value required", "error"); return; }
+  if (value.length > 200) { toast("Value too long (max 200 chars)", "error"); return; }
+  if (reason.length > 500) { toast("Reason too long (max 500 chars)", "error"); return; }
   var body = { ban_type: type, value: value, reason: reason, permanent: perm };
   if (!perm) body.duration_hours = hours;
   api("/admin/bans/create", "POST", body).then(function(r) {
@@ -2416,9 +2614,9 @@ function renderBans() {
   rows.forEach(function(b) {
     var st = getBanStatus(b);
     html += "<tr>";
-    html += "<td>" + b.ban_type + "</td>";
-    html += '<td class="mono">' + b.value + "</td>";
-    html += "<td>" + (b.reason || "-") + "</td>";
+    html += "<td>" + esc(b.ban_type) + "</td>";
+    html += '<td class="mono">' + esc(b.value) + "</td>";
+    html += "<td>" + esc(b.reason || "-") + "</td>";
     html += "<td>" + timeAgo(b.created_at) + "</td>";
     html += "<td>" + (b.permanent ? "Never" : (b.expires_at ? timeAgo(b.expires_at) : "N/A")) + "</td>";
     html += '<td><span class="badge ' + st + '">' + st + "</span></td>";
@@ -2431,7 +2629,8 @@ function renderBans() {
 document.addEventListener("click", function(e) {
   var btn = e.target.closest("[data-unban]");
   if (btn) {
-    api("/admin/bans/remove/" + btn.dataset.unban, "POST").then(function() { toast("Ban removed"); loadBans(); }).catch(function(e) { toast("Error", "error"); });
+    if (!confirm("Are you sure you want to remove this ban?")) return;
+    api("/admin/bans/remove/" + btn.dataset.unban, "POST").then(function() { toast("Ban removed"); loadBans(); }).catch(function(e) { toast("Error: " + e.message, "error"); });
   }
 });
 
@@ -2497,19 +2696,19 @@ function renderClients() {
   });
   var html = "";
   function copyCell(val) {
-    return val && val !== "-" ? ' <span class="copy-btn" data-copy-val="' + val + '" title="Copy" style="cursor:pointer;opacity:0.4;font-size:10px">&#x2398;</span>' : "";
+    return val && val !== "-" ? ' <span class="copy-btn" data-copy-val="' + esc(val) + '" title="Copy" style="cursor:pointer;opacity:0.4;font-size:10px">&#x2398;</span>' : "";
   }
   rows.forEach(function(c) {
     var isOnline = c.last_seen && (Date.now() - new Date(c.last_seen).getTime()) < 6 * 60 * 1000;
     var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + (isOnline ? "#2ecc71" : "#484f58") + '" title="' + (isOnline ? "Online" : "Offline") + '"></span>';
     html += "<tr>";
-    html += '<td class="mono" title="' + c.machine_id + '">' + dot + (c.machine_id||"").substring(0,16) + "..." + copyCell(c.machine_id) + "</td>";
-    html += '<td class="mono">' + (c.uid || "-") + copyCell(c.uid) + "</td>";
-    html += "<td>" + (c.ip || "-") + copyCell(c.ip) + "</td>";
-    html += "<td>" + (c.app_version || "-") + copyCell(c.app_version) + "</td>";
+    html += '<td class="mono" title="' + esc(c.machine_id) + '">' + dot + esc((c.machine_id||"").substring(0,16)) + "..." + copyCell(c.machine_id) + "</td>";
+    html += '<td class="mono">' + esc(c.uid || "-") + copyCell(c.uid) + "</td>";
+    html += "<td>" + esc(c.ip || "-") + copyCell(c.ip) + "</td>";
+    html += "<td>" + esc(c.app_version || "-") + copyCell(c.app_version) + "</td>";
     html += "<td>" + timeAgo(c.last_seen) + "</td>";
     html += "<td>" + (c.request_count || 0) + "</td>";
-    html += '<td><button class="btn btn-create" style="padding:4px 8px;font-size:10px;margin:0" data-ban-ip="' + (c.ip||"") + '" data-ban-mid="' + (c.machine_id||"") + '">Ban</button></td>';
+    html += '<td><button class="btn btn-create" style="padding:4px 8px;font-size:10px;margin:0" data-ban-ip="' + esc(c.ip||"") + '" data-ban-mid="' + esc(c.machine_id||"") + '">Ban</button></td>';
     html += "</tr>";
   });
   document.getElementById("clientRows").innerHTML = rows.length ? html : '<tr><td colspan="7" style="text-align:center;color:#484f58;padding:20px">No clients</td></tr>';
@@ -2530,9 +2729,13 @@ document.addEventListener("click", function(e) {
     if (!mid && !ip) return;
     var which = mid ? "machine" : "ip";
     var val = mid || ip;
-    if (!confirm("Ban " + which + ": " + val + "?")) return;
-    api("/admin/bans/create", "POST", { ban_type: which, value: val, reason: "Banned from client list", permanent: true }).then(function(r) {
-      if (r.status === "ok") { toast("Banned " + val); loadBans(); }
+    var reason = prompt("Ban " + which + ": " + val + "\\n\\nReason (optional):", "");
+    if (reason === null) return;
+    var permChoice = confirm("Make this ban permanent?\\n\\nOK = Permanent\\nCancel = Temporary (24h)");
+    var body = { ban_type: which, value: val, reason: reason || "Banned from client list", permanent: permChoice };
+    if (!permChoice) body.duration_hours = 24;
+    api("/admin/bans/create", "POST", body).then(function(r) {
+      if (r.status === "ok") { toast("Banned " + val + (permChoice ? " (permanent)" : " (24h)")); loadBans(); }
       else toast(r.error || "Failed", "error");
     });
   }
@@ -2546,7 +2749,7 @@ setInterval(loadClients, 30000);
 </script>
 </body>
 </html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html" } });
+  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" } });
 }
 
 // ---------------------------------------------------------------------------
@@ -2644,11 +2847,19 @@ var allRequests = [];
 var activeFilter = "all";
 var selectedIds = new Set();
 
+function esc(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
 function api(path, method, body) {
   var sep = path.indexOf("?") >= 0 ? "&" : "?";
   var opts = { method: method || "GET" };
   if (body) { opts.headers = {"Content-Type":"application/json"}; opts.body = JSON.stringify(body); }
-  return fetch(BASE + path + sep + "pw=" + PW, opts).then(function(r) { return r.json(); });
+  return fetch(BASE + path + sep + "pw=" + PW, opts).then(function(r) {
+    if (!r.ok) return r.text().then(function(t) { try { return JSON.parse(t); } catch(e) { throw new Error("Server error " + r.status); } });
+    return r.json();
+  });
 }
 
 function toast(msg, type) {
@@ -2709,12 +2920,12 @@ function renderRequests() {
     var isPending = r.status === "pending";
     rows += "<tr>";
     rows += '<td class="check-col">' + (isPending ? '<input type="checkbox" class="row-check" data-id="' + r.id + '"' + (selectedIds.has(r.id) ? " checked" : "") + ">" : "") + "</td>";
-    rows += '<td class="mono" title="' + (r.machine_id||"") + '">' + (r.machine_id||"").substring(0,12) + "...</td>";
-    rows += '<td class="mono">' + (r.uid||"").substring(0,8) + "...</td>";
-    rows += "<td>" + (r.ip||"") + "</td>";
-    rows += "<td>" + (r.app_version||"") + "</td>";
-    rows += "<td>" + (r.reason||"-") + "</td>";
-    rows += '<td><span class="badge ' + r.status + '">' + r.status + "</span></td>";
+    rows += '<td class="mono" title="' + esc(r.machine_id||"") + '">' + esc((r.machine_id||"").substring(0,12)) + "...</td>";
+    rows += '<td class="mono">' + esc((r.uid||"").substring(0,8)) + "...</td>";
+    rows += "<td>" + esc(r.ip||"") + "</td>";
+    rows += "<td>" + esc(r.app_version||"") + "</td>";
+    rows += "<td>" + esc(r.reason||"-") + "</td>";
+    rows += '<td><span class="badge ' + esc(r.status) + '">' + esc(r.status) + "</span></td>";
     rows += "<td>" + timeAgo(r.created_at) + "</td>";
     rows += "<td>" + (isPending ? '<button class="btn btn-approve" data-approve="' + r.id + '">Approve</button> <button class="btn btn-deny" data-deny="' + r.id + '">Deny</button>' : "") + "</td>";
     rows += "</tr>";
@@ -2804,7 +3015,7 @@ setInterval(load, 30000);
 </script>
 </body>
 </html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html" } });
+  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" } });
 }
 
 // ---------------------------------------------------------------------------
@@ -2818,11 +3029,19 @@ async function getCDNSettingsData(env) {
 }
 
 async function updateCDNSetting(request, env) {
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
   const { key, value } = body;
-  if (!key || !value) return json({ error: "Missing key or value" }, 400);
-  const allowed = ["cdn_access"];
-  if (!allowed.includes(key)) return json({ error: "Invalid setting key" }, 400);
+  if (!key || !value || typeof value !== "string") return json({ error: "Missing key or value" }, 400);
+  const allowedSettings = { cdn_access: ["public", "private"] };
+  if (!allowedSettings[key]) return json({ error: "Invalid setting key" }, 400);
+  if (!allowedSettings[key].includes(value)) {
+    return json({ error: `Invalid value for ${key}. Allowed: ${allowedSettings[key].join(", ")}` }, 400);
+  }
   const ok = await setCDNSetting(env, key, value);
   if (!ok) return json({ error: "Failed to update setting" }, 500);
   return json({ status: "ok", key, value });

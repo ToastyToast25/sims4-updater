@@ -11,11 +11,11 @@ from __future__ import annotations
 import hashlib
 import logging
 import platform
+import uuid
 
 log = logging.getLogger(__name__)
 
 _SALT = "sims4updater-v1:"
-_FALLBACK = "unknown"
 _cached: str | None = None
 
 
@@ -23,7 +23,7 @@ def get_machine_id() -> str:
     """Return a deterministic 32-char hex machine fingerprint.
 
     On Windows: SHA256(salt + MachineGuid), truncated to 32 chars.
-    Falls back to ``"unknown"`` if the registry read fails.
+    Falls back to a persistent random ID stored on disk.
     """
     global _cached
     if _cached is not None:
@@ -31,8 +31,7 @@ def get_machine_id() -> str:
 
     guid = _read_machine_guid()
     if not guid:
-        _cached = _FALLBACK
-        return _cached
+        guid = _get_or_create_fallback_id()
 
     _cached = hashlib.sha256((_SALT + guid).encode()).hexdigest()[:32]
     return _cached
@@ -56,3 +55,25 @@ def _read_machine_guid() -> str:
     except Exception as exc:
         log.debug("Could not read MachineGuid: %s", exc)
         return ""
+
+
+def _get_or_create_fallback_id() -> str:
+    """Generate and persist a random machine ID when registry is unavailable."""
+    from ..config import get_app_dir
+
+    fallback_path = get_app_dir() / ".machine_id"
+    try:
+        if fallback_path.is_file():
+            stored = fallback_path.read_text().strip()
+            if stored:
+                return stored
+    except OSError:
+        pass
+
+    new_id = uuid.uuid4().hex
+    try:
+        fallback_path.parent.mkdir(parents=True, exist_ok=True)
+        fallback_path.write_text(new_id)
+    except OSError:
+        pass
+    return new_id

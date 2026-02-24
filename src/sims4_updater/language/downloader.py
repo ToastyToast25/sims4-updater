@@ -32,6 +32,7 @@ class LanguagePackDownloader:
         download_dir: str | Path,
         game_dir: str | Path,
         cancel_event: threading.Event | None = None,
+        auth=None,
     ):
         self._download_dir = Path(download_dir) / "languages"
         self._game_dir = Path(game_dir)
@@ -39,6 +40,7 @@ class LanguagePackDownloader:
         self._downloader = Downloader(
             download_dir=self._download_dir,
             cancel_event=self._cancel,
+            auth=auth,
         )
         self._strings_dir = self._game_dir / "Data" / "Client"
 

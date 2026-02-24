@@ -50,6 +50,7 @@ class Downloader:
         cancel_event: threading.Event | None = None,
         rate_limiter: TokenBucketRateLimiter | None = None,
         proceed_event: threading.Event | None = None,
+        auth: requests.auth.AuthBase | None = None,
     ):
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
@@ -57,11 +58,14 @@ class Downloader:
         self._session: requests.Session | None = None
         self._rate_limiter = rate_limiter
         self._proceed = proceed_event  # None = no pause support
+        self._auth = auth
 
     @property
     def session(self) -> requests.Session:
         if self._session is None:
             self._session = _create_session()
+            if self._auth:
+                self._session.auth = self._auth
         return self._session
 
     def cancel(self):
@@ -98,7 +102,14 @@ class Downloader:
         dest_dir = self.download_dir / subdir if subdir else self.download_dir
         dest_dir.mkdir(parents=True, exist_ok=True)
 
-        final_path = dest_dir / entry.filename
+        # Sanitize filename: strip directory components to prevent path traversal
+        safe_name = Path(entry.filename).name
+        if not safe_name or safe_name in (".", ".."):
+            raise DownloadError(f"Invalid filename in manifest: {entry.filename!r}")
+        dest_resolved = dest_dir.resolve()
+        final_path = dest_dir / safe_name
+        if not str(final_path.resolve()).startswith(str(dest_resolved)):
+            raise DownloadError(f"Path traversal detected: {entry.filename!r}")
         partial_path = final_path.with_suffix(final_path.suffix + ".partial")
 
         # If final file exists and MD5 matches, skip download
@@ -244,7 +255,7 @@ def _create_session() -> requests.Session:
     from ..core import identity
 
     ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-    ctx.options |= 0x4  # OP_LEGACY_SERVER_CONNECT
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
     session = requests.Session()
     retry = requests.adapters.Retry(
@@ -254,7 +265,6 @@ def _create_session() -> requests.Session:
     )
     adapter = _TimeoutSSLAdapter(ctx, max_retries=retry)
     session.mount("https://", adapter)
-    session.mount("http://", requests.adapters.HTTPAdapter(max_retries=retry))
     session.headers["User-Agent"] = "Sims4Updater/2.0"
     session.headers.update(identity.get_headers())
     return session

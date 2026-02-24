@@ -66,15 +66,24 @@ class TestGetMachineId:
         assert id1 == id2
         mock_read.assert_called_once()
 
-    def test_registry_failure_returns_unknown(self):
-        """If the registry read fails, fallback to 'unknown'."""
-        with patch(
-            "sims4_updater.core.machine_id._read_machine_guid",
-            return_value="",
+    def test_registry_failure_returns_valid_fallback(self):
+        """If the registry read fails, fallback to a persistent random ID (still 32 hex)."""
+        with (
+            patch(
+                "sims4_updater.core.machine_id._read_machine_guid",
+                return_value="",
+            ),
+            patch(
+                "sims4_updater.core.machine_id._get_or_create_fallback_id",
+                return_value="abcdef1234567890abcdef1234567890",
+            ),
         ):
             from sims4_updater.core.machine_id import get_machine_id
 
-            assert get_machine_id() == "unknown"
+            mid = get_machine_id()
+            assert len(mid) == 32
+            assert all(c in "0123456789abcdef" for c in mid)
+            assert mid != "unknown"
 
     def test_different_guids_produce_different_ids(self):
         """Different GUIDs should produce different machine IDs."""

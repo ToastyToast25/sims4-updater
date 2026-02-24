@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import threading
 import time
 from typing import Any
 
@@ -58,6 +59,7 @@ class CDNAuth:
         self._app_version = app_version
         self._token: str = ""
         self._expires_at: float = 0
+        self._lock = threading.Lock()
 
     @property
     def api_url(self) -> str:
@@ -67,7 +69,11 @@ class CDNAuth:
         """Return a valid token, refreshing if near expiry (< 60 s left)."""
         if self._token and time.monotonic() < self._expires_at - 60:
             return self._token
-        self._refresh()
+        with self._lock:
+            # Double-check after acquiring lock (another thread may have refreshed)
+            if self._token and time.monotonic() < self._expires_at - 60:
+                return self._token
+            self._refresh()
         return self._token
 
     def get_auth_adapter(self) -> CDNTokenAuth:
@@ -109,7 +115,12 @@ class CDNAuth:
                 timeout=_TIMEOUT,
             )
         except requests.RequestException as exc:
-            log.warning("CDN token request failed: %s", exc)
+            log.warning("CDN token request network error: %s", exc)
+            # Keep existing token if still valid, otherwise clear
+            if self._token and time.monotonic() < self._expires_at:
+                return
+            self._token = ""
+            self._expires_at = 0
             return
 
         if resp.status_code == 403:

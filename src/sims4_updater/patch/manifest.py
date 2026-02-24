@@ -25,6 +25,12 @@ class FileEntry:
     def __post_init__(self):
         if not self.filename:
             self.filename = self.url.rsplit("/", 1)[-1].split("?")[0]
+        # Strip directory components to prevent path traversal
+        from pathlib import PurePosixPath
+
+        self.filename = PurePosixPath(self.filename).name
+        if not self.filename or self.filename in (".", ".."):
+            self.filename = "download"
 
 
 @dataclass

@@ -116,13 +116,25 @@ class PatchClient:
         urls = [self.manifest_url] + [u for u in FALLBACK_MANIFEST_URLS if u != self.manifest_url]
         last_error = None
 
+        _MAX_MANIFEST_SIZE = 10 * 1024 * 1024  # 10 MB
+
         for url in urls:
+            if not url.startswith("https://"):
+                last_error = ManifestError(f"Manifest URL must use HTTPS: {url}")
+                continue
+
             try:
                 resp = self.downloader.session.get(url, timeout=30)
                 from .downloader import _check_ban_response
 
                 _check_ban_response(resp)
                 resp.raise_for_status()
+                if len(resp.content) > _MAX_MANIFEST_SIZE:
+                    last_error = ManifestError(
+                        f"Manifest from {url} exceeds size limit "
+                        f"({len(resp.content)} > {_MAX_MANIFEST_SIZE})"
+                    )
+                    continue
                 data = resp.json()
             except BannedError:
                 raise
@@ -366,13 +378,21 @@ class PatchClient:
             available = ", ".join(main.archived_versions) or "none"
             raise ManifestError(f"Version {version} is not in the archive. Available: {available}")
 
+        if not archived.manifest_url.startswith("https://"):
+            raise ManifestError(f"Archived manifest URL must use HTTPS: {archived.manifest_url}")
+
         try:
             resp = self.downloader.session.get(
                 archived.manifest_url,
                 timeout=30,
             )
+            from .downloader import _check_ban_response
+
+            _check_ban_response(resp)
             resp.raise_for_status()
             data = resp.json()
+        except BannedError:
+            raise
         except json.JSONDecodeError as e:
             raise ManifestError(f"Archived manifest for {version} is not valid JSON: {e}") from e
         except Exception as e:
