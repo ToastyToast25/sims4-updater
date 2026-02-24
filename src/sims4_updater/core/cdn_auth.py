@@ -84,6 +84,7 @@ class CDNAuth:
         """Submit an access request for a private CDN.
 
         Returns the JSON response body on success, or raises on error.
+        Raises BannedError if the server responds with a ban.
         """
         resp = requests.post(
             f"{self._api_url}/access/request",
@@ -96,6 +97,17 @@ class CDNAuth:
             headers=identity.get_headers(),
             timeout=_TIMEOUT,
         )
+        # Check for ban response before generic raise_for_status
+        if resp.status_code == 403:
+            body: dict[str, Any] = {}
+            with contextlib.suppress(Exception):
+                body = resp.json()
+            if body.get("error") == "banned":
+                raise BannedError(
+                    reason=body.get("reason", ""),
+                    ban_type=body.get("ban_type", ""),
+                    expires_at=body.get("expires_at", ""),
+                )
         resp.raise_for_status()
         return resp.json()
 

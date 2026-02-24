@@ -2075,8 +2075,8 @@ async function createBan(request, env) {
   });
 
   if (!resp.ok) {
-    const text = await resp.text();
-    return json({ error: `Supabase error: ${resp.status}`, detail: text }, 502);
+    console.error("createBan Supabase error:", resp.status, await resp.text());
+    return json({ error: `Failed to create ban (status ${resp.status})` }, 502);
   }
 
   // Discord notification
