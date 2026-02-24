@@ -9,8 +9,20 @@ updater from any specific hosting — patches can live anywhere.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 
 from ..core.exceptions import ManifestError
+
+
+def _require_https(url: str) -> str:
+    """Return *url* if it uses HTTPS, otherwise return empty string.
+
+    Silently drops non-HTTPS URLs to prevent cleartext data exfiltration
+    or man-in-the-middle attacks via manifest-injected endpoints.
+    """
+    if isinstance(url, str) and url.startswith("https://"):
+        return url
+    return ""
 
 
 @dataclass
@@ -26,8 +38,6 @@ class FileEntry:
         if not self.filename:
             self.filename = self.url.rsplit("/", 1)[-1].split("?")[0]
         # Strip directory components to prevent path traversal
-        from pathlib import PurePosixPath
-
         self.filename = PurePosixPath(self.filename).name
         if not self.filename or self.filename in (".", ".."):
             self.filename = "download"
@@ -85,6 +95,10 @@ class DLCDownloadEntry:
     def __post_init__(self):
         if not self.filename:
             self.filename = self.url.rsplit("/", 1)[-1].split("?")[0]
+        # Strip directory components to prevent path traversal
+        self.filename = PurePosixPath(self.filename).name
+        if not self.filename or self.filename in (".", ".."):
+            self.filename = "download"
 
     def to_file_entry(self) -> FileEntry:
         """Convert to FileEntry for use with Downloader."""
@@ -109,6 +123,10 @@ class LanguageDownloadEntry:
     def __post_init__(self):
         if not self.filename:
             self.filename = self.url.rsplit("/", 1)[-1].split("?")[0]
+        # Strip directory components to prevent path traversal
+        self.filename = PurePosixPath(self.filename).name
+        if not self.filename or self.filename in (".", ".."):
+            self.filename = "download"
 
     def to_file_entry(self) -> FileEntry:
         """Convert to FileEntry for use with Downloader."""
@@ -264,9 +282,12 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
     if isinstance(raw_dl, dict):
         for dlc_id, dl_data in raw_dl.items():
             if isinstance(dl_data, dict) and "url" in dl_data:
+                dl_url = _require_https(dl_data["url"])
+                if not dl_url:
+                    continue  # skip non-HTTPS download URLs
                 dlc_downloads[dlc_id] = DLCDownloadEntry(
                     dlc_id=dlc_id,
-                    url=dl_data["url"],
+                    url=dl_url,
                     size=int(dl_data.get("size", 0)),
                     md5=dl_data.get("md5", ""),
                     filename=dl_data.get("filename", ""),
@@ -278,9 +299,12 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
     if isinstance(raw_lang, dict):
         for locale_code, lang_data in raw_lang.items():
             if isinstance(lang_data, dict) and "url" in lang_data:
+                lang_url = _require_https(lang_data["url"])
+                if not lang_url:
+                    continue  # skip non-HTTPS download URLs
                 language_downloads[locale_code] = LanguageDownloadEntry(
                     locale_code=locale_code,
-                    url=lang_data["url"],
+                    url=lang_url,
                     size=int(lang_data.get("size", 0)),
                     md5=lang_data.get("md5", ""),
                     filename=lang_data.get("filename", ""),
@@ -292,10 +316,13 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
     if isinstance(raw_versions, dict):
         for ver_str, ver_data in raw_versions.items():
             if isinstance(ver_data, dict) and "manifest_url" in ver_data:
+                ver_manifest_url = _require_https(ver_data["manifest_url"])
+                if not ver_manifest_url:
+                    continue  # skip non-HTTPS manifest URLs
                 archived_versions[ver_str] = ArchivedVersion(
                     version=ver_str,
                     date=ver_data.get("date", ""),
-                    manifest_url=ver_data["manifest_url"],
+                    manifest_url=ver_manifest_url,
                     dlc_count=int(ver_data.get("dlc_count", 0)),
                     language_count=int(ver_data.get("language_count", 0)),
                 )
@@ -311,7 +338,7 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                     dlc_id=gl_data.get("dlc_id", ""),
                     key=gl_data.get("key", ""),
                     manifest_id=gl_data.get("manifest_id", ""),
-                    manifest_url=gl_data.get("manifest_url", ""),
+                    manifest_url=_require_https(gl_data.get("manifest_url", "")),
                 )
 
     # Parse optional CDN config: {name, api_url, telemetry_url, access}
@@ -320,8 +347,8 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
     if isinstance(raw_cdn, dict):
         cdn = CDNConfig(
             name=raw_cdn.get("name", ""),
-            api_url=raw_cdn.get("api_url", ""),
-            telemetry_url=raw_cdn.get("telemetry_url", ""),
+            api_url=_require_https(raw_cdn.get("api_url", "")),
+            telemetry_url=_require_https(raw_cdn.get("telemetry_url", "")),
             access=raw_cdn.get("access", "public"),
         )
 
@@ -329,8 +356,8 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         latest=latest,
         patches=patches,
         fingerprints=fingerprints,
-        fingerprints_url=data.get("fingerprints_url", ""),
-        report_url=data.get("report_url", ""),
+        fingerprints_url=_require_https(data.get("fingerprints_url", "")),
+        report_url=_require_https(data.get("report_url", "")),
         manifest_url=source_url,
         game_latest=data.get("game_latest", ""),
         game_latest_date=data.get("game_latest_date", ""),
@@ -339,9 +366,9 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
         dlc_downloads=dlc_downloads,
         language_downloads=language_downloads,
         archived_versions=archived_versions,
-        entitlements_url=data.get("entitlements_url", ""),
-        self_update_url=data.get("self_update_url", ""),
-        contribute_url=data.get("contribute_url", ""),
+        entitlements_url=_require_https(data.get("entitlements_url", "")),
+        self_update_url=_require_https(data.get("self_update_url", "")),
+        contribute_url=_require_https(data.get("contribute_url", "")),
         greenluma=greenluma,
         cdn=cdn,
     )
@@ -354,9 +381,12 @@ def _parse_patch_entry(entry: dict) -> PatchEntry:
 
     files = []
     for f in entry.get("files", []):
+        file_url = _require_https(f["url"])
+        if not file_url:
+            raise ValueError(f"Patch file URL must use HTTPS: {f['url']}")
         files.append(
             FileEntry(
-                url=f["url"],
+                url=file_url,
                 size=int(f.get("size", 0)),
                 md5=f.get("md5", ""),
                 filename=f.get("filename", ""),
@@ -366,8 +396,11 @@ def _parse_patch_entry(entry: dict) -> PatchEntry:
     crack = None
     crack_data = entry.get("crack")
     if crack_data and isinstance(crack_data, dict):
+        crack_url = _require_https(crack_data["url"])
+        if not crack_url:
+            raise ValueError(f"Crack URL must use HTTPS: {crack_data['url']}")
         crack = FileEntry(
-            url=crack_data["url"],
+            url=crack_url,
             size=int(crack_data.get("size", 0)),
             md5=crack_data.get("md5", ""),
             filename=crack_data.get("filename", ""),

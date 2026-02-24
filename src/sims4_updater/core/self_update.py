@@ -10,10 +10,12 @@ Flow:
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
@@ -24,6 +26,11 @@ from .exceptions import UpdaterError
 GITHUB_REPO = "ToastyToast25/sims4-updater"
 GITHUB_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 EXE_ASSET_NAME = "Sims4Updater.exe"
+
+# Allowed hostnames for self-update URLs
+_ALLOWED_HOSTS = {"api.github.com", "github.com", "objects.githubusercontent.com"}
+# Version strings must be digits and dots only (e.g. "2.1.0")
+_VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 
 
 class SelfUpdateError(UpdaterError):
@@ -60,7 +67,12 @@ def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
     """
     api_url = GITHUB_API
     if manifest and getattr(manifest, "self_update_url", ""):
-        api_url = manifest.self_update_url
+        candidate = manifest.self_update_url
+        # Validate: must be HTTPS and on an allowed host
+        if candidate.startswith("https://"):
+            parsed = urlparse(candidate)
+            if parsed.hostname in _ALLOWED_HOSTS:
+                api_url = candidate
 
     try:
         resp = requests.get(
@@ -89,13 +101,22 @@ def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
     if not latest:
         raise SelfUpdateError("Could not determine latest version from GitHub.")
 
+    # Validate version format — prevent batch script injection
+    if not _VERSION_RE.match(latest):
+        raise SelfUpdateError(f"Invalid version format from API: {latest!r}")
+
     # Find the exe asset
     download_url = ""
     download_size = 0
     for asset in data.get("assets", []):
         if asset.get("name", "").lower() == EXE_ASSET_NAME.lower():
-            download_url = asset["browser_download_url"]
-            download_size = asset.get("size", 0)
+            candidate_url = asset.get("browser_download_url", "")
+            # Validate download URL is HTTPS on GitHub
+            if candidate_url.startswith("https://"):
+                parsed_dl = urlparse(candidate_url)
+                if parsed_dl.hostname and parsed_dl.hostname.endswith("github.com"):
+                    download_url = candidate_url
+                    download_size = asset.get("size", 0)
             break
 
     update_available = _version_newer(latest, VERSION)
@@ -128,6 +149,17 @@ def download_app_update(
             "No download URL for the updater exe. "
             "The release may not have a Sims4Updater.exe asset."
         )
+
+    # Validate download URL is HTTPS on GitHub
+    if not info.download_url.startswith("https://"):
+        raise SelfUpdateError("Download URL must use HTTPS.")
+    parsed_dl = urlparse(info.download_url)
+    if not parsed_dl.hostname or not parsed_dl.hostname.endswith("github.com"):
+        raise SelfUpdateError(f"Download URL must be on GitHub, got: {parsed_dl.hostname}")
+
+    # Validate version format (used in file path and batch script)
+    if not _VERSION_RE.match(info.latest_version):
+        raise SelfUpdateError(f"Invalid version format: {info.latest_version!r}")
 
     updates_dir = get_app_dir() / "updates"
     updates_dir.mkdir(parents=True, exist_ok=True)

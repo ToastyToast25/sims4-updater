@@ -5,6 +5,7 @@ Download manager with resume, progress callbacks, MD5 verification, and cancella
 from __future__ import annotations
 
 import hashlib
+import logging
 import ssl
 import threading
 from collections.abc import Callable
@@ -21,6 +22,8 @@ from .manifest import FileEntry
 
 if TYPE_CHECKING:
     from ..core.rate_limiter import TokenBucketRateLimiter
+
+logger = logging.getLogger(__name__)
 
 # Type alias for progress callbacks: (bytes_downloaded, total_bytes, filename)
 ProgressCallback = Callable[[int, int, str], None]
@@ -187,14 +190,21 @@ class Downloader:
         # Verify MD5 if provided
         verified = False
         if entry.md5:
-            if not _verify_md5(partial_path, entry.md5):
+            actual_md5 = _compute_md5(partial_path)
+            if actual_md5.upper() != entry.md5.upper():
                 partial_path.unlink(missing_ok=True)
                 raise IntegrityError(
                     f"MD5 mismatch for {entry.filename}.\n"
                     f"Expected: {entry.md5}\n"
+                    f"Got:      {actual_md5}\n"
                     f"The file may be corrupted or tampered with."
                 )
             verified = True
+        else:
+            logger.warning(
+                "No MD5 hash for %s — file integrity could not be verified",
+                entry.filename,
+            )
 
         # Rename partial to final
         partial_path.replace(final_path)
@@ -297,7 +307,7 @@ def _check_ban_response(resp: requests.Response) -> None:
         return
     try:
         body = resp.json()
-    except Exception:
+    except (ValueError, requests.JSONDecodeError):
         return
     if body.get("error") == "banned":
         raise BannedError(
@@ -307,10 +317,15 @@ def _check_ban_response(resp: requests.Response) -> None:
         )
 
 
-def _verify_md5(path: Path, expected: str) -> bool:
-    """Verify a file's MD5 hash."""
+def _compute_md5(path: Path) -> str:
+    """Compute a file's MD5 hash, returning uppercase hex digest."""
     m = hashlib.md5()
     with open(path, "rb") as f:
         while chunk := f.read(CHUNK_SIZE):
             m.update(chunk)
-    return m.hexdigest().upper() == expected.upper()
+    return m.hexdigest().upper()
+
+
+def _verify_md5(path: Path, expected: str) -> bool:
+    """Verify a file's MD5 hash."""
+    return _compute_md5(path) == expected.upper()

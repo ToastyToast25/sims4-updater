@@ -18,7 +18,7 @@ from pathlib import Path
 
 from ..core.exceptions import BannedError, DownloadError, ManifestError
 from ..core.learned_hashes import LearnedHashDB
-from .downloader import Downloader, DownloadResult, ProgressCallback
+from .downloader import Downloader, DownloadResult, ProgressCallback, _check_ban_response
 from .manifest import Manifest, PendingDLC, parse_manifest
 from .planner import UpdatePlan, plan_update
 
@@ -125,8 +125,6 @@ class PatchClient:
 
             try:
                 resp = self.downloader.session.get(url, timeout=30)
-                from .downloader import _check_ban_response
-
                 _check_ban_response(resp)
                 resp.raise_for_status()
                 if len(resp.content) > _MAX_MANIFEST_SIZE:
@@ -386,8 +384,6 @@ class PatchClient:
                 archived.manifest_url,
                 timeout=30,
             )
-            from .downloader import _check_ban_response
-
             _check_ban_response(resp)
             resp.raise_for_status()
             data = resp.json()

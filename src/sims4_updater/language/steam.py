@@ -154,7 +154,14 @@ class SteamLanguageDownloader:
 
             try:
                 with zipfile.ZipFile(tmp_path, "r") as zf:
-                    zf.extractall(self._tool_dir)
+                    # Path traversal protection
+                    tool_resolved = self._tool_dir.resolve()
+                    for member in zf.namelist():
+                        target = (self._tool_dir / member).resolve()
+                        if not str(target).startswith(str(tool_resolved)):
+                            log(f"WARNING: Skipping unsafe zip path: {member}")
+                            continue
+                        zf.extract(member, self._tool_dir)
             except zipfile.BadZipFile as e:
                 log(f"ERROR: Corrupt download: {e}")
                 return False

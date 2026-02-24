@@ -823,7 +823,7 @@ class App(ctk.CTk):
 
             # Update telemetry to use CDN-specific telemetry URL
             if manifest.cdn.telemetry_url:
-                self.telemetry._base_url = manifest.cdn.telemetry_url
+                self.telemetry.set_base_url(manifest.cdn.telemetry_url)
 
             # Publish only after everything is set up
             self._cdn_auth = cdn_auth

@@ -116,11 +116,10 @@ class CDNAuth:
             )
         except requests.RequestException as exc:
             log.warning("CDN token request network error: %s", exc)
-            # Keep existing token if still valid, otherwise clear
+            # Keep existing token if still valid, otherwise clear atomically
             if self._token and time.monotonic() < self._expires_at:
                 return
-            self._token = ""
-            self._expires_at = 0
+            self._token, self._expires_at = "", 0
             return
 
         if resp.status_code == 403:

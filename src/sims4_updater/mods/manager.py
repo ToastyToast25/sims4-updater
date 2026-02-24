@@ -140,8 +140,13 @@ class ModManager:
                     if not any(lower.endswith(ext) for ext in MOD_EXTENSIONS):
                         continue
 
-                    # Preserve internal directory structure
+                    # Path traversal protection — reject entries escaping Mods dir
                     dest = self._game_mods_dir / member.filename.replace("/", os.sep)
+                    mods_resolved = self._game_mods_dir.resolve()
+                    if not str(dest.resolve()).startswith(str(mods_resolved) + os.sep):
+                        log(f"  Skipping unsafe path: {member.filename}")
+                        continue
+
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     with zf.open(member) as src, open(dest, "wb") as dst:
                         shutil.copyfileobj(src, dst)

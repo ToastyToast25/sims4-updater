@@ -197,10 +197,28 @@ class DLCPacker:
             raise DownloadError(f"Corrupt archive: {e}") from e
 
     def _extract_rar(self, archive_path: Path, dest_dir: Path):
-        """Extract RAR using bundled unrar.exe."""
+        """Extract RAR using bundled unrar.exe with path traversal protection."""
         unrar = get_tools_dir() / "unrar.exe"
         if not unrar.is_file():
             raise FileNotFoundError("unrar.exe not found. Cannot extract RAR archives.")
+
+        # Pre-extraction: list contents and check for path traversal
+        list_result = subprocess.run(
+            [str(unrar), "lb", str(archive_path)],
+            capture_output=True,
+            timeout=60,
+        )
+        if list_result.returncode == 0:
+            dest_resolved = dest_dir.resolve()
+            for line in list_result.stdout.decode(errors="replace").splitlines():
+                entry = line.strip()
+                if not entry:
+                    continue
+                target = (dest_dir / entry).resolve()
+                if not str(target).startswith(str(dest_resolved)):
+                    raise DownloadError(
+                        f"RAR archive contains path traversal entry: {entry!r}"
+                    )
 
         result = subprocess.run(
             [
