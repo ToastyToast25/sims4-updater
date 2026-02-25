@@ -36,9 +36,6 @@ const PUBLIC_PATHS = new Set(["manifest.json"]);
 // Expected seedbox path prefix (prevents KV route traversal)
 const SEEDBOX_PATH_PREFIX = "files/";
 
-// Allowed seedbox hostname (prevents SSRF via env var manipulation)
-const SEEDBOX_HOSTNAME = "spirit.whatbox.ca";
-
 export default {
   async fetch(request, env) {
     try {
@@ -122,16 +119,21 @@ export default {
         return jsonResponse({ error: "invalid_route" }, 403);
       }
 
-      // Build the full seedbox URL and validate hostname (SSRF prevention)
+      // Build the full seedbox URL and validate origin (SSRF prevention)
+      if (!env.SEEDBOX_BASE_URL) {
+        return jsonResponse({ error: "service_unavailable" }, 503);
+      }
       const baseUrl = env.SEEDBOX_BASE_URL.replace(/\/+$/, "");
       const seedboxUrl = `${baseUrl}/${seedboxPath}`;
       try {
-        const parsed = new URL(seedboxUrl);
-        if (parsed.hostname !== SEEDBOX_HOSTNAME) {
-          console.error("SSRF blocked: unexpected seedbox hostname:", parsed.hostname);
+        const expectedOrigin = new URL(baseUrl);
+        const actualOrigin = new URL(seedboxUrl);
+        // Ensure KV path didn't escape to a different host
+        if (actualOrigin.hostname !== expectedOrigin.hostname) {
+          console.error("SSRF blocked: hostname mismatch:", actualOrigin.hostname);
           return jsonResponse({ error: "invalid_route" }, 403);
         }
-        if (parsed.protocol !== "https:") {
+        if (actualOrigin.protocol !== expectedOrigin.protocol) {
           return jsonResponse({ error: "invalid_route" }, 403);
         }
       } catch {
