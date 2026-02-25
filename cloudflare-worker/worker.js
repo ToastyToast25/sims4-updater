@@ -38,6 +38,7 @@ const SEEDBOX_PATH_PREFIX = "files/";
 
 export default {
   async fetch(request, env) {
+    try {
     // Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -123,8 +124,13 @@ export default {
     // Fetch from seedbox with authentication (no redirect following)
     const seedboxResponse = await fetch(seedboxUrl, {
       headers: fetchHeaders,
-      redirect: "error",
+      redirect: "manual",
     });
+
+    // Reject redirects — seedbox should serve directly, not redirect
+    if (seedboxResponse.status >= 300 && seedboxResponse.status < 400) {
+      return new Response("Upstream redirect rejected", { status: 502 });
+    }
 
     if (!seedboxResponse.ok && seedboxResponse.status !== 206) {
       return new Response("Upstream error", { status: 502 });
@@ -170,6 +176,10 @@ export default {
       status: seedboxResponse.status,
       headers,
     });
+    } catch (err) {
+      console.error("Worker unhandled error:", err.message, err.stack);
+      return jsonResponse({ error: "internal_error" }, 500);
+    }
   },
 };
 
