@@ -62,6 +62,7 @@ a = Analysis(
     hiddenimports=[
         'customtkinter',
         'paramiko',
+        'invoke',
         'bcrypt',
         'nacl',
         'cryptography',
