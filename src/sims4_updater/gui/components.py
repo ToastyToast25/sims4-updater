@@ -5,6 +5,9 @@ Components:
   - InfoCard: CTkFrame with hover border glow
   - StatusBadge: colored pill showing status text
   - ToastNotification: slide-in notification from top-right
+  - ConfirmDialog: themed Yes/No confirmation dialog
+  - ThreeButtonDialog: themed Yes/No/Cancel dialog
+  - Tooltip: hover tooltip for widgets
 """
 
 from __future__ import annotations
@@ -353,3 +356,304 @@ def _reflow_toasts():
                 ),
                 easing=ease_out_cubic,
             )
+
+
+# ── ConfirmDialog ──────────────────────────────────────────────
+
+
+class ConfirmDialog(ctk.CTkToplevel):
+    """Themed Yes/No confirmation dialog replacing tk.messagebox.askyesno."""
+
+    def __init__(self, parent, title: str = "Confirm", message: str = ""):
+        super().__init__(parent)
+        self.title(title)
+        self.resizable(False, False)
+        self.configure(fg_color=theme.COLORS["bg_dark"])
+        self.grab_set()
+        self.focus_force()
+
+        self._result: bool = False
+
+        # Center relative to parent
+        self.transient(parent)
+        self.protocol("WM_DELETE_WINDOW", self._on_no)
+
+        pad = ctk.CTkFrame(self, fg_color="transparent")
+        pad.pack(padx=24, pady=(20, 16), fill="both", expand=True)
+
+        ctk.CTkLabel(
+            pad,
+            text=message,
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text"],
+            wraplength=380,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 16))
+
+        btn_frame = ctk.CTkFrame(pad, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        ctk.CTkButton(
+            btn_frame,
+            text="No",
+            width=90,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._on_no,
+        ).pack(side="right", padx=(6, 0))
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Yes",
+            width=90,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["accent"],
+            hover_color=theme.COLORS["accent_hover"],
+            command=self._on_yes,
+        ).pack(side="right")
+
+        # Wait for user action
+        self.wait_window()
+
+    def _on_yes(self):
+        self._result = True
+        self.grab_release()
+        self.destroy()
+
+    def _on_no(self):
+        self._result = False
+        self.grab_release()
+        self.destroy()
+
+    def get_result(self) -> bool:
+        return self._result
+
+
+def ask_yes_no(parent, title: str, message: str) -> bool:
+    """Show a themed Yes/No dialog. Returns True for Yes, False for No."""
+    dialog = ConfirmDialog(parent, title=title, message=message)
+    return dialog.get_result()
+
+
+# ── ThreeButtonDialog ──────────────────────────────────────────
+
+
+class ThreeButtonDialog(ctk.CTkToplevel):
+    """Themed Yes/No/Cancel dialog replacing tk.messagebox.askyesnocancel.
+
+    get_result() returns True (Yes), False (No), or None (Cancel/closed).
+    """
+
+    def __init__(self, parent, title: str = "Confirm", message: str = ""):
+        super().__init__(parent)
+        self.title(title)
+        self.resizable(False, False)
+        self.configure(fg_color=theme.COLORS["bg_dark"])
+        self.grab_set()
+        self.focus_force()
+
+        self._result: bool | None = None
+
+        self.transient(parent)
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+        pad = ctk.CTkFrame(self, fg_color="transparent")
+        pad.pack(padx=24, pady=(20, 16), fill="both", expand=True)
+
+        ctk.CTkLabel(
+            pad,
+            text=message,
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text"],
+            wraplength=380,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 16))
+
+        btn_frame = ctk.CTkFrame(pad, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Cancel",
+            width=90,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card"],
+            hover_color=theme.COLORS["hover_cancel"],
+            command=self._on_cancel,
+        ).pack(side="right", padx=(6, 0))
+
+        ctk.CTkButton(
+            btn_frame,
+            text="No",
+            width=90,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["bg_card"],
+            hover_color=theme.COLORS["card_hover"],
+            command=self._on_no,
+        ).pack(side="right", padx=(6, 0))
+
+        ctk.CTkButton(
+            btn_frame,
+            text="Yes",
+            width=90,
+            height=theme.BUTTON_HEIGHT_SMALL,
+            corner_radius=theme.CORNER_RADIUS_SMALL,
+            fg_color=theme.COLORS["accent"],
+            hover_color=theme.COLORS["accent_hover"],
+            command=self._on_yes,
+        ).pack(side="right")
+
+        self.wait_window()
+
+    def _on_yes(self):
+        self._result = True
+        self.grab_release()
+        self.destroy()
+
+    def _on_no(self):
+        self._result = False
+        self.grab_release()
+        self.destroy()
+
+    def _on_cancel(self):
+        self._result = None
+        self.grab_release()
+        self.destroy()
+
+    def get_result(self) -> bool | None:
+        return self._result
+
+
+def ask_yes_no_cancel(parent, title: str, message: str) -> bool | None:
+    """Show a themed Yes/No/Cancel dialog.
+
+    Returns True (Yes), False (No), or None (Cancel/closed).
+    """
+    dialog = ThreeButtonDialog(parent, title=title, message=message)
+    return dialog.get_result()
+
+
+# ── Tooltip ────────────────────────────────────────────────────
+
+
+class Tooltip:
+    """Hover tooltip for any widget. Shows a small themed popup after a short delay."""
+
+    def __init__(self, widget, message: str, delay: int = 400):
+        self._widget = widget
+        self._message = message
+        self._delay = delay
+        self._toplevel: ctk.CTkToplevel | None = None
+        self._after_id: str | None = None
+
+        widget.bind("<Enter>", self._on_enter, add="+")
+        widget.bind("<Leave>", self._on_leave, add="+")
+
+    def _on_enter(self, _event):
+        self._after_id = self._widget.after(self._delay, self._show)
+
+    def _on_leave(self, _event):
+        if self._after_id is not None:
+            self._widget.after_cancel(self._after_id)
+            self._after_id = None
+        self._hide()
+
+    def _show(self):
+        if self._toplevel is not None:
+            return
+        x = self._widget.winfo_rootx() + self._widget.winfo_width() // 2
+        y = self._widget.winfo_rooty() + self._widget.winfo_height() + 4
+
+        self._toplevel = tw = ctk.CTkToplevel(self._widget)
+        tw.withdraw()
+        tw.overrideredirect(True)
+        tw.configure(fg_color=theme.COLORS["bg_card"])
+
+        label = ctk.CTkLabel(
+            tw,
+            text=self._message,
+            font=ctk.CTkFont(*theme.FONT_SMALL),
+            text_color=theme.COLORS["text"],
+            corner_radius=4,
+            fg_color=theme.COLORS["bg_card"],
+        )
+        label.pack(padx=8, pady=4)
+
+        tw.update_idletasks()
+        tw_width = tw.winfo_reqwidth()
+        tw.geometry(f"+{x - tw_width // 2}+{y}")
+        tw.deiconify()
+        tw.lift()
+
+    def _hide(self):
+        if self._toplevel is not None:
+            with contextlib.suppress(Exception):
+                self._toplevel.destroy()
+            self._toplevel = None
+
+
+# ── RichTextbox ───────────────────────────────────────────────
+
+
+# Pre-defined style → foreground color mapping
+_RICH_STYLES = {
+    "header": {"foreground": theme.COLORS["accent"], "font": ("Consolas", 11, "bold")},
+    "success": {"foreground": theme.COLORS["success"]},
+    "warning": {"foreground": theme.COLORS["warning"]},
+    "error": {"foreground": theme.COLORS["error"]},
+    "info": {"foreground": theme.COLORS["accent"]},
+    "muted": {"foreground": theme.COLORS["text_muted"]},
+}
+
+
+class RichTextbox(ctk.CTkTextbox):
+    """CTkTextbox with pre-configured semantic text styles (colored output).
+
+    Usage:
+        log = RichTextbox(parent)
+        log.add_line("Connected", style="success")
+        log.add_line("Warning: low disk space", style="warning")
+        log.add_line("=== Header ===", style="header")
+        log.clear()
+    """
+
+    def __init__(self, parent, **kwargs):
+        kwargs.setdefault("font", ctk.CTkFont(*theme.FONT_MONO))
+        kwargs.setdefault("fg_color", theme.COLORS["bg_deeper"])
+        kwargs.setdefault("text_color", theme.COLORS["text_muted"])
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", theme.COLORS["border"])
+        kwargs.setdefault("corner_radius", theme.CORNER_RADIUS_SMALL)
+        kwargs.setdefault("state", "disabled")
+        kwargs.setdefault("wrap", "word")
+        kwargs.setdefault("activate_scrollbars", True)
+        super().__init__(parent, **kwargs)
+
+        # Configure text tags on the underlying tk.Text widget
+        for tag_name, tag_opts in _RICH_STYLES.items():
+            self._textbox.tag_configure(tag_name, **tag_opts)
+
+    def add_text(self, text: str, style: str = ""):
+        """Append text, optionally with a semantic style (color tag)."""
+        self.configure(state="normal")
+        if style and style in _RICH_STYLES:
+            self._textbox.insert("end", text, style)
+        else:
+            self.insert("end", text)
+        self.see("end")
+        self.configure(state="disabled")
+
+    def add_line(self, text: str, style: str = ""):
+        """Append a line (text + newline) with optional style."""
+        self.add_text(text + "\n", style=style)
+
+    def clear(self):
+        """Clear all content."""
+        self.configure(state="normal")
+        self.delete("1.0", "end")
+        self.configure(state="disabled")

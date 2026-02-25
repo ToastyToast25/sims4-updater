@@ -4,13 +4,12 @@ DLC Unlocker tab — install/uninstall the EA DLC Unlocker with real-time logs.
 
 from __future__ import annotations
 
-import tkinter as tk
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
 from .. import theme
-from ..components import InfoCard, StatusBadge
+from ..components import InfoCard, RichTextbox, StatusBadge, ask_yes_no
 
 if TYPE_CHECKING:
     from ..app import App
@@ -163,32 +162,17 @@ class UnlockerFrame(ctk.CTkFrame):
         )
         self._clear_btn.grid(row=0, column=1, sticky="e")
 
-        self._log_box = ctk.CTkTextbox(
-            log_header,
-            font=ctk.CTkFont(*theme.FONT_MONO),
-            fg_color=theme.COLORS["bg_deeper"],
-            text_color=theme.COLORS["text_muted"],
-            border_width=1,
-            border_color=theme.COLORS["border"],
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            state="disabled",
-            wrap="word",
-        )
+        self._log_box = RichTextbox(log_header)
         self._log_box.grid(row=1, column=0, sticky="nsew")
 
     # ── Logging ──────────────────────────────────────────────────
 
-    def _log(self, message: str):
+    def _log(self, message: str, style: str = ""):
         """Append a line to the log viewer (thread-safe via enqueue)."""
-        self._log_box.configure(state="normal")
-        self._log_box.insert("end", message + "\n")
-        self._log_box.see("end")
-        self._log_box.configure(state="disabled")
+        self._log_box.add_line(message, style=style)
 
     def _clear_log(self):
-        self._log_box.configure(state="normal")
-        self._log_box.delete("1.0", "end")
-        self._log_box.configure(state="disabled")
+        self._log_box.clear()
 
     # ── Status Refresh ───────────────────────────────────────────
 
@@ -211,13 +195,13 @@ class UnlockerFrame(ctk.CTkFrame):
             self._status = None
             self._client_badge.set_status("Not Found", "error")
             self._status_badge.set_status("N/A", "muted")
-            self._enqueue_log(f"Detection failed: {e}")
+            self._enqueue_log(f"Detection failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
-    def _enqueue_log(self, msg: str):
+    def _enqueue_log(self, msg: str, style: str = ""):
         """Thread-safe log — enqueue to GUI thread."""
-        self.app._enqueue_gui(self._log, msg)
+        self.app._enqueue_gui(self._log, msg, style)
 
     def _update_badges(self):
         """Update UI badges from self._status."""
@@ -262,11 +246,12 @@ class UnlockerFrame(ctk.CTkFrame):
             self.app.show_toast("Run as Administrator to install the unlocker.", "warning")
             self._log(
                 "Install requires administrator privileges. "
-                "Right-click the app and select 'Run as administrator'."
+                "Right-click the app and select 'Run as administrator'.",
+                style="warning",
             )
             return
         self._set_busy(True)
-        self._log("--- Installing DLC Unlocker ---")
+        self._log("--- Installing DLC Unlocker ---", style="header")
 
         from ...core.unlocker import install
 
@@ -281,7 +266,7 @@ class UnlockerFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Install failed: {e}")
+            self._enqueue_log(f"Install failed: {e}", style="error")
             self.app.show_toast(f"Install failed: {e}", "error")
             self.app.telemetry.track_event(
                 "unlocker_install",
@@ -301,22 +286,23 @@ class UnlockerFrame(ctk.CTkFrame):
             self.app.show_toast("Run as Administrator to uninstall the unlocker.", "warning")
             self._log(
                 "Uninstall requires administrator privileges. "
-                "Right-click the app and select 'Run as administrator'."
+                "Right-click the app and select 'Run as administrator'.",
+                style="warning",
             )
             return
 
         # Confirmation dialog
-        confirmed = tk.messagebox.askyesno(
-            "Confirm Uninstall",
-            "Are you sure you want to uninstall the DLC Unlocker?\n\n"
+        confirmed = ask_yes_no(
+            self.app,
+            title="Confirm Uninstall",
+            message="Are you sure you want to uninstall the DLC Unlocker?\n\n"
             "This will remove the unlocker DLL, config files, and scheduled task.",
-            parent=self.winfo_toplevel(),
         )
         if not confirmed:
             return
 
         self._set_busy(True)
-        self._log("--- Uninstalling DLC Unlocker ---")
+        self._log("--- Uninstalling DLC Unlocker ---", style="header")
 
         from ...core.unlocker import uninstall
 
@@ -331,7 +317,7 @@ class UnlockerFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Uninstall failed: {e}")
+            self._enqueue_log(f"Uninstall failed: {e}", style="error")
             self.app.show_toast(f"Uninstall failed: {e}", "error")
             self.app.telemetry.track_event(
                 "unlocker_uninstall",

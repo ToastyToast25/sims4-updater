@@ -18,7 +18,7 @@ import customtkinter as ctk
 
 from .. import theme
 from ..animations import ease_in_out_cubic
-from ..components import get_animator
+from ..components import RichTextbox, get_animator
 
 if TYPE_CHECKING:
     from ...patch.planner import UpdatePlan
@@ -112,40 +112,8 @@ class ProgressFrame(ctk.CTkFrame):
         self._file_label.grid(row=3, column=0, padx=30, pady=(6, 0), sticky="ew")
 
         # ── Activity log ──
-        self._log = ctk.CTkTextbox(
-            self,
-            font=ctk.CTkFont("Consolas", 11),
-            corner_radius=8,
-            border_width=1,
-            border_color=theme.COLORS["border"],
-            state="disabled",
-            wrap="none",
-            activate_scrollbars=True,
-        )
+        self._log = RichTextbox(self, wrap="none")
         self._log.grid(row=4, column=0, padx=30, pady=(8, 10), sticky="nsew")
-
-        # Configure log text tags for color coding
-        self._log._textbox.tag_configure(
-            "header",
-            foreground=theme.COLORS["accent"],
-            font=("Consolas", 11, "bold"),
-        )
-        self._log._textbox.tag_configure(
-            "success",
-            foreground=theme.COLORS["success"],
-        )
-        self._log._textbox.tag_configure(
-            "warning",
-            foreground=theme.COLORS["warning"],
-        )
-        self._log._textbox.tag_configure(
-            "error",
-            foreground=theme.COLORS["error"],
-        )
-        self._log._textbox.tag_configure(
-            "muted",
-            foreground=theme.COLORS["text_muted"],
-        )
 
         # ── Bottom button bar ──
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -160,7 +128,7 @@ class ProgressFrame(ctk.CTkFrame):
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
-            hover_color="#ff6b6b",
+            hover_color=theme.COLORS["hover_cancel"],
             command=self._on_cancel,
         )
         self._cancel_btn.grid(row=0, column=0, sticky="w")
@@ -454,22 +422,13 @@ class ProgressFrame(ctk.CTkFrame):
 
     def _log_text(self, text: str, tag: str = ""):
         """Append text to the log, optionally with a color tag."""
-        self._log.configure(state="normal")
-        if tag:
-            # Insert with tag via underlying tk textbox
-            self._log._textbox.insert("end", text, tag)
-        else:
-            self._log.insert("end", text)
-        self._log.see("end")
-        self._log.configure(state="disabled")
+        self._log.add_text(text, style=tag)
 
     def _log_header(self, text: str):
         self._log_text(text, "header")
 
     def _clear_log(self):
-        self._log.configure(state="normal")
-        self._log.delete("1.0", "end")
-        self._log.configure(state="disabled")
+        self._log.clear()
 
     def _update_stats(self):
         parts = [f"{self._file_count} files processed"]

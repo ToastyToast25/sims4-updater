@@ -35,6 +35,39 @@ COLORS = {
     "toast_warning": "#3d2a1a",
     "toast_error": "#3d1a1a",
     "toast_info": "#1a2a3d",
+    # Pack type colors
+    "pack_expansion": "#e94560",
+    "pack_game": "#ffa502",
+    "pack_stuff": "#2ed573",
+    "pack_kit": "#a0a0b0",
+    "pack_free": "#70a1ff",
+    "pack_other": "#6a6a8a",
+    # Button hover variants
+    "hover_success": "#3ae882",
+    "hover_warning": "#cc8400",
+    "hover_error": "#cc3944",
+    "hover_cancel": "#ff6b6b",
+    # Status extras
+    "status_ready": "#5b9bd5",
+    "status_ready_bg": "#1a2a3d",
+}
+
+# Button style presets — unpack into CTkButton(..., **BUTTON_STYLES["primary"])
+BUTTON_STYLES = {
+    "primary": {"fg_color": COLORS["accent"], "hover_color": COLORS["accent_hover"]},
+    "success": {
+        "fg_color": COLORS["success"],
+        "hover_color": COLORS["hover_success"],
+        "text_color": COLORS["bg_dark"],
+    },
+    "danger": {"fg_color": COLORS["error"], "hover_color": COLORS["hover_error"]},
+    "warning": {"fg_color": COLORS["warning"], "hover_color": COLORS["hover_warning"]},
+    "ghost": {
+        "fg_color": "transparent",
+        "hover_color": COLORS["card_hover"],
+        "border_width": 1,
+        "border_color": COLORS["border"],
+    },
 }
 
 # Sidebar

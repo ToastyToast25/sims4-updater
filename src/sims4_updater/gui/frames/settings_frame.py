@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import InfoCard, get_animator
+from ..components import InfoCard, Tooltip, ask_yes_no, get_animator
 
 if TYPE_CHECKING:
     from ..app import App
@@ -83,6 +83,7 @@ class SettingsFrame(ctk.CTkFrame):
             placeholder_text=r"C:\Program Files (x86)\Steam\steamapps\common\The Sims 4",
         )
         self._game_dir_entry.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        Tooltip(self._game_dir_entry, message="Path to The Sims 4 installation folder")
 
         ctk.CTkButton(
             path_frame,
@@ -146,6 +147,7 @@ class SettingsFrame(ctk.CTkFrame):
             pady=(0, 10),
             sticky="ew",
         )
+        Tooltip(self._manifest_entry, message="CDN manifest URL for game updates")
         row += 1
 
         # ── Separator ──
@@ -731,7 +733,7 @@ class SettingsFrame(ctk.CTkFrame):
             width=90,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["error"],
-            hover_color="#cc3040",
+            hover_color=theme.COLORS["hover_error"],
             command=self._delete_all_backups,
         ).pack(side="left", padx=(0, 6))
 
@@ -1051,7 +1053,7 @@ class SettingsFrame(ctk.CTkFrame):
                 width=60,
                 corner_radius=4,
                 fg_color=theme.COLORS["warning"],
-                hover_color="#cc8800",
+                hover_color=theme.COLORS["hover_warning"],
                 command=lambda b=backup: self._restore_backup(b),
             )
             restore_btn.pack(side="left", padx=(0, 4))
@@ -1064,7 +1066,7 @@ class SettingsFrame(ctk.CTkFrame):
                 width=55,
                 corner_radius=4,
                 fg_color=theme.COLORS["error"],
-                hover_color="#cc3040",
+                hover_color=theme.COLORS["hover_error"],
                 command=lambda b=backup: self._delete_single_backup(b),
             )
             delete_btn.pack(side="left")
@@ -1079,12 +1081,10 @@ class SettingsFrame(ctk.CTkFrame):
 
     def _delete_all_backups(self):
         """Delete all backups after confirmation."""
-        import tkinter.messagebox
-
-        confirm = tkinter.messagebox.askyesno(
-            "Delete All Backups",
-            "Are you sure you want to delete all backups?\n\nThis cannot be undone.",
-            parent=self.winfo_toplevel(),
+        confirm = ask_yes_no(
+            self.app,
+            title="Delete All Backups",
+            message="Are you sure you want to delete all backups?\n\nThis cannot be undone.",
         )
         if not confirm:
             return
@@ -1095,12 +1095,10 @@ class SettingsFrame(ctk.CTkFrame):
 
     def _delete_single_backup(self, backup):
         """Delete a single backup."""
-        import tkinter.messagebox
-
-        confirm = tkinter.messagebox.askyesno(
-            "Delete Backup",
-            f"Delete backup: {backup.display_name}?",
-            parent=self.winfo_toplevel(),
+        confirm = ask_yes_no(
+            self.app,
+            title="Delete Backup",
+            message=f"Delete backup: {backup.display_name}?",
         )
         if not confirm:
             return
@@ -1111,18 +1109,16 @@ class SettingsFrame(ctk.CTkFrame):
 
     def _restore_backup(self, backup):
         """Restore a backup to the game directory."""
-        import tkinter.messagebox
-
         game_dir = self.app.settings.game_path
         if not game_dir:
             self.app.show_toast("No game directory configured.", "warning")
             return
 
-        confirm = tkinter.messagebox.askyesno(
-            "Restore Backup",
-            f"Restore backup: {backup.display_name}?\n\n"
+        confirm = ask_yes_no(
+            self.app,
+            title="Restore Backup",
+            message=f"Restore backup: {backup.display_name}?\n\n"
             "This will overwrite current game files with the backup.",
-            parent=self.winfo_toplevel(),
         )
         if not confirm:
             return

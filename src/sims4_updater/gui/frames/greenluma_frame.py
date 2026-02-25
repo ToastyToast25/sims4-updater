@@ -5,7 +5,6 @@ GreenLuma Manager tab — manage AppList, config.vdf keys, manifests, and launch
 from __future__ import annotations
 
 import tkinter as tk
-import tkinter.messagebox
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
@@ -14,7 +13,7 @@ from typing import TYPE_CHECKING
 import customtkinter as ctk
 
 from .. import theme
-from ..components import InfoCard, StatusBadge
+from ..components import InfoCard, RichTextbox, StatusBadge, Tooltip, ask_yes_no
 
 if TYPE_CHECKING:
     from ..app import App
@@ -116,6 +115,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             command=lambda: self._on_install_gl(stealth=False),
         )
         self._install_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        Tooltip(self._install_btn, message="Standard GreenLuma installation")
 
         self._install_stealth_btn = ctk.CTkButton(
             btn_frame,
@@ -128,6 +128,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             command=lambda: self._on_install_gl(stealth=True),
         )
         self._install_stealth_btn.grid(row=0, column=1, padx=5, sticky="ew")
+        Tooltip(self._install_stealth_btn, message="Stealth mode — hides from anti-cheat")
 
         self._uninstall_btn = ctk.CTkButton(
             btn_frame,
@@ -164,6 +165,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             command=self._on_apply_lua,
         )
         self._apply_lua_btn.grid(row=0, column=4, padx=5, sticky="ew")
+        Tooltip(self._apply_lua_btn, message="Apply LUA manifest file for DLCs")
 
         self._fix_btn = ctk.CTkButton(
             btn_frame,
@@ -191,6 +193,7 @@ class GreenLumaFrame(ctk.CTkFrame):
         self._apply_cdn_btn.grid(
             row=1, column=0, columnspan=3, padx=(0, 5), pady=(6, 0), sticky="ew"
         )
+        Tooltip(self._apply_cdn_btn, message="Import depot keys from CDN")
 
         self._contribute_btn = ctk.CTkButton(
             btn_frame,
@@ -250,17 +253,7 @@ class GreenLumaFrame(ctk.CTkFrame):
             btn.grid(row=0, column=i, padx=2)
         self._filter_buttons = filter_frame.winfo_children()
 
-        self._readiness_box = ctk.CTkTextbox(
-            readiness_container,
-            font=ctk.CTkFont(*theme.FONT_MONO),
-            fg_color=theme.COLORS["bg_deeper"],
-            text_color=theme.COLORS["text_muted"],
-            border_width=1,
-            border_color=theme.COLORS["border"],
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            state="disabled",
-            wrap="none",
-        )
+        self._readiness_box = RichTextbox(readiness_container, wrap="none")
         self._readiness_box.grid(row=1, column=0, sticky="nsew")
 
         # ── Activity Log ─────────────────────────────────────────
@@ -293,35 +286,20 @@ class GreenLumaFrame(ctk.CTkFrame):
         )
         self._clear_btn.grid(row=0, column=1, sticky="e")
 
-        self._log_box = ctk.CTkTextbox(
-            log_container,
-            font=ctk.CTkFont(*theme.FONT_MONO),
-            fg_color=theme.COLORS["bg_deeper"],
-            text_color=theme.COLORS["text_muted"],
-            border_width=1,
-            border_color=theme.COLORS["border"],
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            state="disabled",
-            wrap="word",
-        )
+        self._log_box = RichTextbox(log_container)
         self._log_box.grid(row=1, column=0, sticky="nsew")
 
     # ── Logging ──────────────────────────────────────────────────
 
-    def _log(self, message: str):
+    def _log(self, message: str, style: str = ""):
         ts = datetime.now().strftime("%H:%M:%S")
-        self._log_box.configure(state="normal")
-        self._log_box.insert("end", f"[{ts}] {message}\n")
-        self._log_box.see("end")
-        self._log_box.configure(state="disabled")
+        self._log_box.add_line(f"[{ts}] {message}", style=style)
 
-    def _enqueue_log(self, msg: str):
-        self.app._enqueue_gui(self._log, msg)
+    def _enqueue_log(self, msg: str, style: str = ""):
+        self.app._enqueue_gui(self._log, msg, style)
 
     def _clear_log(self):
-        self._log_box.configure(state="normal")
-        self._log_box.delete("1.0", "end")
-        self._log_box.configure(state="disabled")
+        self._log_box.clear()
 
     # ── Lifecycle ────────────────────────────────────────────────
 
@@ -441,18 +419,16 @@ class GreenLumaFrame(ctk.CTkFrame):
         elif filt == "Incomplete":
             items = [r for r in items if not r.ready]
 
-        self._readiness_box.configure(state="normal")
-        self._readiness_box.delete("1.0", "end")
+        self._readiness_box.clear()
 
         if not items:
-            self._readiness_box.insert("end", "No DLCs to display.\n")
-            self._readiness_box.configure(state="disabled")
+            self._readiness_box.add_line("No DLCs to display.", style="muted")
             return
 
         # Header
-        header = f"{'DLC':<8} {'Name':<32} {'App':>3} {'Key':>3} {'Man':>3}  Status\n"
-        header += "-" * 70 + "\n"
-        self._readiness_box.insert("end", header)
+        header = f"{'DLC':<8} {'Name':<32} {'App':>3} {'Key':>3} {'Man':>3}  Status"
+        self._readiness_box.add_line(header, style="header")
+        self._readiness_box.add_line("-" * 70)
 
         for r in items:
             app_mark = "Y" if r.in_applist else "-"
@@ -461,10 +437,9 @@ class GreenLumaFrame(ctk.CTkFrame):
             status = "Ready" if r.ready else "Incomplete"
 
             name = r.name[:30] if len(r.name) > 30 else r.name
-            line = f"{r.dlc_id:<8} {name:<32} {app_mark:>3} {key_mark:>3} {man_mark:>3}  {status}\n"
-            self._readiness_box.insert("end", line)
-
-        self._readiness_box.configure(state="disabled")
+            line = f"{r.dlc_id:<8} {name:<32} {app_mark:>3} {key_mark:>3} {man_mark:>3}  {status}"
+            style = "success" if r.ready else "warning"
+            self._readiness_box.add_line(line, style=style)
 
     # ── Busy State ───────────────────────────────────────────────
 
@@ -559,11 +534,11 @@ class GreenLumaFrame(ctk.CTkFrame):
             self.app.show_toast("GreenLuma is not installed.", "info")
             return
 
-        confirm = tkinter.messagebox.askyesno(
-            "Confirm Uninstall",
-            "Remove all GreenLuma files from Steam?\n\n"
+        confirm = ask_yes_no(
+            self.app,
+            title="Confirm Uninstall",
+            message="Remove all GreenLuma files from Steam?\n\n"
             "This will delete GreenLuma DLLs, DLLInjector, and AppList entries.",
-            parent=self.winfo_toplevel(),
         )
         if not confirm:
             return
@@ -614,12 +589,12 @@ class GreenLumaFrame(ctk.CTkFrame):
         from ...greenluma.steam import is_steam_running
 
         if is_steam_running():
-            restart = tkinter.messagebox.askyesno(
-                "Steam is Running",
-                "Steam must be closed to relaunch with GreenLuma.\n\n"
+            restart = ask_yes_no(
+                self.app,
+                title="Steam is Running",
+                message="Steam must be closed to relaunch with GreenLuma.\n\n"
                 "Would you like to close Steam and relaunch it\n"
                 "with GreenLuma DLC unlocking enabled?",
-                parent=self.winfo_toplevel(),
             )
             if not restart:
                 return
@@ -881,12 +856,12 @@ class GreenLumaFrame(ctk.CTkFrame):
 
             # Confirm before submitting
             names = ", ".join(c.dlc_id for c in scan_result.contributions)
-            confirm = tkinter.messagebox.askyesno(
-                "Contribute GreenLuma Keys",
-                f"Found keys + manifests for {scan_result.count} DLC(s):\n\n"
+            confirm = ask_yes_no(
+                self.app,
+                title="Contribute GreenLuma Keys",
+                message=f"Found keys + manifests for {scan_result.count} DLC(s):\n\n"
                 f"{names}\n\n"
                 f"Submit to CDN for review?",
-                parent=self.winfo_toplevel(),
             )
             if not confirm:
                 self._set_busy(False)

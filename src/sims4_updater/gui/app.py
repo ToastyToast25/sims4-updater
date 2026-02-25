@@ -24,6 +24,7 @@ from ..updater import Sims4Updater
 from . import theme
 from .animations import Animator, ease_out_cubic
 from .components import ToastNotification
+from .dialogs import CTkDialog, CTkToolTip
 from .frames.diagnostics_frame import DiagnosticsFrame
 from .frames.dlc_frame import DLCFrame
 from .frames.downloader_frame import DownloaderFrame
@@ -301,6 +302,7 @@ class App(ctk.CTk):
             pady=(6, 0),
             sticky="w",
         )
+        CTkToolTip(self._bell_btn, message="Notification history")
         self._notification_popup = None
 
         # Footer: version, admin status, copyright, creator, GitHub link
@@ -356,6 +358,7 @@ class App(ctk.CTk):
                 "https://github.com/ToastyToast25/sims4-updater"
             ),
         )
+        CTkToolTip(gh_link, message="View on GitHub")
 
     def update_nav_badge(self, key: str, badge: str = ""):
         """Update a sidebar nav button with a badge count, e.g. 'DLCs (3 missing)'."""
@@ -619,7 +622,7 @@ class App(ctk.CTk):
     # ── Questions and Errors ────────────────────────────────────
 
     def _ask_question(self, question: str) -> bool:
-        return tk.messagebox.askyesno("Question", question, parent=self)
+        return CTkDialog.ask_yes_no(self, title="Question", message=question)
 
     def _show_error(self, error: Exception):
         """Display an error to the user."""
@@ -627,10 +630,10 @@ class App(ctk.CTk):
 
         if isinstance(error, BannedError):
             # Prominent dialog — user must see this clearly
-            tk.messagebox.showerror(
-                "CDN Access Suspended",
-                str(error),
-                parent=self,
+            CTkDialog.show_error(
+                self,
+                title="CDN Access Suspended",
+                message=str(error),
             )
             return
 
@@ -641,10 +644,10 @@ class App(ctk.CTk):
         msg = str(error)
         if not msg:
             msg = type(error).__name__
-        tk.messagebox.showerror("Error", msg, parent=self)
+        CTkDialog.show_error(self, title="Error", message=msg)
 
     def show_message(self, title: str, message: str):
-        tk.messagebox.showinfo(title, message, parent=self)
+        CTkDialog.show_info(self, title=title, message=message)
 
     def show_toast(self, message: str, style: str = "success"):
         """Show a slide-in toast notification over the content area."""
@@ -848,46 +851,14 @@ class App(ctk.CTk):
 
     def _show_access_request_dialog(self, error):
         """Show a dialog for requesting access to a private CDN."""
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Access Request Required")
-        dialog.geometry("420x240")
-        dialog.resizable(False, False)
-        dialog.transient(self)
-        dialog.grab_set()
-        dialog.attributes("-topmost", True)
-
-        pad = {"padx": 20}
-
-        ctk.CTkLabel(
-            dialog,
-            text=f"Access to {error.cdn_name} requires approval.",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=theme.COLORS["warning"],
-            wraplength=380,
-        ).pack(pady=(20, 4), **pad)
-
-        ctk.CTkLabel(
-            dialog,
-            text="You may provide a reason for your request (optional):",
-            font=ctk.CTkFont(size=12),
-            text_color=theme.COLORS["text_muted"],
-        ).pack(pady=(4, 8), **pad)
-
-        reason_entry = ctk.CTkEntry(
-            dialog,
-            placeholder_text="Reason for access...",
-            width=360,
-            height=32,
+        reason = CTkDialog.ask_input(
+            self,
+            title="Access Request Required",
+            message=f"Access to {error.cdn_name} requires approval.",
+            detail="You may provide a reason for your request (optional):",
+            placeholder="Reason for access...",
         )
-        reason_entry.pack(**pad)
-
-        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-        btn_frame.pack(pady=(16, 10), **pad)
-
-        def _submit():
-            reason = reason_entry.get().strip()
-            dialog.destroy()
-
+        if reason is not None:
             if not self._cdn_auth:
                 self.show_toast("CDN auth not initialized.", "error")
                 return
@@ -902,22 +873,6 @@ class App(ctk.CTk):
                 self.show_toast(f"Request failed: {e}", "error")
 
             self.run_async(_bg, on_done=_done, on_error=_err)
-
-        ctk.CTkButton(
-            btn_frame,
-            text="Request Access",
-            width=160,
-            fg_color=theme.COLORS["accent"],
-            command=_submit,
-        ).pack(side="left", padx=(0, 8))
-
-        ctk.CTkButton(
-            btn_frame,
-            text="Cancel",
-            width=100,
-            fg_color=theme.COLORS["bg_elevated"],
-            command=dialog.destroy,
-        ).pack(side="left")
 
     # ── Lifecycle ───────────────────────────────────────────────
 

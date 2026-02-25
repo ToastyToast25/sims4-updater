@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 # Status tag colors and background tints
 _STATUS_COLORS = {
     "Owned": theme.COLORS["success"],
-    "Ready": "#5b9bd5",
+    "Ready": theme.COLORS["status_ready"],
     "Disabled": theme.COLORS["text_muted"],
     "Incomplete Install": theme.COLORS["warning"],
     "Not Downloaded": theme.COLORS["warning"],
@@ -33,7 +33,7 @@ _STATUS_COLORS = {
 }
 _STATUS_BG = {
     "Owned": theme.COLORS["toast_success"],
-    "Ready": "#1a2a3d",
+    "Ready": theme.COLORS["status_ready_bg"],
     "Disabled": theme.COLORS["bg_card_alt"],
     "Incomplete Install": theme.COLORS["toast_warning"],
     "Not Downloaded": theme.COLORS["toast_warning"],
@@ -213,7 +213,7 @@ class DLCFrame(ctk.CTkFrame):
 
         legend_items = [
             ("Owned", theme.COLORS["success"], theme.COLORS["toast_success"]),
-            ("Ready", "#5b9bd5", "#1a2a3d"),
+            ("Ready", theme.COLORS["status_ready"], theme.COLORS["status_ready_bg"]),
             ("Disabled", theme.COLORS["text_muted"], theme.COLORS["bg_card_alt"]),
             ("Not Installed", theme.COLORS["text_muted"], theme.COLORS["bg_card_alt"]),
         ]
