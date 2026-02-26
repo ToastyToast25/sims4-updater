@@ -4,6 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>Event Rewards Unlocker - Sims 4 Updater</title>
+
+  <!-- Favicon (plumbob SVG) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4L12 36l20 24 20-24z' fill='%2358a6ff'/%3E%3Cpath d='M32 4L12 36l20-8z' fill='%2379c0ff'/%3E%3Cpath d='M32 4l20 32-20-8z' fill='%233d8bfd'/%3E%3C/svg%3E">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Event Rewards Unlocker - Sims 4 Updater">
+  <meta property="og:description" content="Unlock all Sims 4 live-event rewards instantly. No quests needed. Works entirely in your browser — nothing is uploaded.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://toastytoast25.github.io/sims4-updater/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Event Rewards Unlocker - Sims 4 Updater">
+  <meta name="twitter:description" content="Unlock all Sims 4 live-event rewards instantly. No quests needed. Works entirely in your browser.">
+
+  <meta name="description" content="Unlock all Sims 4 live-event rewards by patching your account data. Works entirely in your browser — nothing is uploaded to any server.">
+
   <style>
     :root {
       --bg-primary: #0d1117;
@@ -119,6 +136,36 @@
 
     b, strong { color: var(--text-primary); }
 
+    /* Collapsible card */
+    .collapsible-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .collapsible-toggle h2 { margin-bottom: 0; }
+    .collapsible-chevron {
+      width: 20px;
+      height: 20px;
+      color: var(--text-muted);
+      transition: transform 0.25s ease;
+      flex-shrink: 0;
+    }
+    .collapsible-content {
+      max-height: 500px;
+      overflow: hidden;
+      transition: max-height 0.35s ease, margin-top 0.35s ease;
+      margin-top: 1rem;
+    }
+    .collapsible-content.collapsed {
+      max-height: 0;
+      margin-top: 0;
+    }
+    .collapsible-chevron.rotated {
+      transform: rotate(180deg);
+    }
+
     /* File picker */
     .file-picker-area {
       display: flex;
@@ -136,13 +183,17 @@
       border-color: var(--accent);
       background-color: rgba(88, 166, 255, 0.05);
     }
-    .file-picker-area svg {
+    .file-picker-area.drag-over {
+      border-color: var(--accent);
+      background-color: rgba(88, 166, 255, 0.08);
+    }
+    .file-picker-area svg.upload-icon {
       width: 48px;
       height: 48px;
       color: var(--text-muted);
       transition: color 0.2s;
     }
-    .file-picker-area:hover svg {
+    .file-picker-area:hover svg.upload-icon {
       color: var(--accent);
     }
     .file-picker-area span {
@@ -154,6 +205,117 @@
       font-weight: 500;
     }
     #file-picker { display: none; }
+
+    /* Progress steps */
+    .progress-steps {
+      display: none;
+      margin: 1.25rem 0;
+    }
+    .progress-steps.visible {
+      display: flex;
+      gap: 0;
+      align-items: center;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+    }
+    .step-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      flex-shrink: 0;
+      background-color: var(--bg-tertiary);
+      border: 2px solid var(--border);
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+    .step-circle.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background-color: rgba(88, 166, 255, 0.1);
+    }
+    .step-circle.done {
+      border-color: var(--green);
+      color: #fff;
+      background-color: var(--green);
+    }
+    .step-circle.error {
+      border-color: var(--red);
+      color: #fff;
+      background-color: var(--red);
+    }
+    .step-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      transition: color 0.3s ease;
+    }
+    .step-label.active { color: var(--accent); }
+    .step-label.done { color: var(--green); }
+    .step-label.error { color: var(--red); }
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      background-color: var(--border);
+      margin: 0 0.5rem;
+      transition: background-color 0.3s ease;
+    }
+    .step-connector.done { background-color: var(--green); }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      margin: 1rem auto;
+      text-align: center;
+    }
+    .spinner.visible { display: block; }
+    .spinner svg {
+      width: 36px;
+      height: 36px;
+      color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+    .spinner-text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Account IDs display */
+    .account-ids {
+      display: none;
+      padding: 0.75rem 1rem;
+      background-color: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    .account-ids.visible { display: block; }
+    .account-ids .label {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+    .account-ids .ids {
+      color: var(--accent);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      word-break: break-all;
+    }
 
     /* Status area */
     .status {
@@ -194,7 +356,9 @@
     }
     .event-badge {
       flex-shrink: 0;
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
       padding: 0.2rem 0.6rem;
       border-radius: 2rem;
       font-size: 0.75rem;
@@ -219,6 +383,20 @@
       color: var(--yellow);
       border: 1px solid rgba(210, 153, 34, 0.3);
     }
+
+    /* Pulsing dot for live events */
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.5); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); }
+    }
+
     .event-name {
       font-weight: 600;
       color: var(--text-primary);
@@ -241,6 +419,106 @@
       margin-top: 0.2rem;
     }
 
+    /* Download banner */
+    .download-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem 1.5rem;
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.08), rgba(163, 113, 247, 0.08));
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .download-banner-text {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+    .download-banner-text strong {
+      color: var(--text-primary);
+    }
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.25rem;
+      background-color: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background-color 0.2s;
+    }
+    .download-btn:hover {
+      background-color: var(--accent-hover);
+      color: #fff;
+    }
+    .download-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* FAQ accordion */
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+    }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-question {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.85rem 0;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-primary);
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .faq-question:hover { color: var(--accent); }
+    .faq-chevron {
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+      flex-shrink: 0;
+    }
+    .faq-chevron.open { transform: rotate(180deg); }
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.7;
+    }
+    .faq-answer.open { max-height: 300px; }
+    .faq-answer-inner {
+      padding-bottom: 0.85rem;
+    }
+
+    /* Privacy notice */
+    .privacy-notice {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background-color: rgba(63, 185, 80, 0.06);
+      border: 1px solid rgba(63, 185, 80, 0.15);
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: var(--green);
+    }
+    .privacy-notice svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
     /* Footer */
     .footer {
       text-align: center;
@@ -256,6 +534,12 @@
     .footer a:hover {
       text-decoration: underline;
     }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
 
     /* Responsive */
     @media (max-width: 600px) {
@@ -263,6 +547,9 @@
       .header h1 { font-size: 1.5rem; }
       .card-body { padding: 1rem; }
       .file-picker-area { padding: 1.5rem; }
+      .download-banner { flex-direction: column; text-align: center; }
+      .step-label { font-size: 0.7rem; }
+      .progress-steps.visible { gap: 0; }
     }
   </style>
 </head>
@@ -272,18 +559,34 @@
   <div class="header">
     <h1>Event Rewards Unlocker</h1>
     <p>Unlock Sims 4 live-event rewards by patching your account data</p>
-    <span class="badge">Sims 4 Updater</span>
+    <span class="badge">Sims 4 Updater v2.5.0</span>
   </div>
 
-  <!-- Instructions card -->
+  <!-- Download banner -->
+  <div class="download-banner">
+    <div class="download-banner-text">
+      <strong>Want more features?</strong> The Sims 4 Updater desktop app includes game updates, DLC management, GreenLuma, language changer, and more.
+    </div>
+    <a href="https://github.com/ToastyToast25/sims4-updater/releases/latest" class="download-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+      Download App
+    </a>
+  </div>
+
+  <!-- Instructions card (collapsible) -->
   <div class="card">
     <div class="card-body">
-      <h2>How it works</h2>
-      <p>The game stores event rewards and progress in an <code>accountDataDB.package</code> file. By modifying that file you can trick the game into thinking you've unlocked all rewards.</p>
-      <ol>
-        <li>When an event is <strong>live</strong>, it lets you claim all rewards without doing a single quest. This works in <strong>online mode only</strong>, since to claim the rewards you need to be online. You can claim all rewards, even from weeks that are still locked, so you <strong>claim the rewards at your own risk</strong>. It's best to wait until all weeks are unlocked.</li>
-        <li>If the event has <strong>already ended</strong>, you can still unlock the rewards, but it will work in <strong>offline mode only</strong>. Every time you start the game online it will replace the rewards data. It's more convenient to use mods instead.</li>
-      </ol>
+      <div class="collapsible-toggle" onclick="toggleCollapsible(this)">
+        <h2>How it works</h2>
+        <svg class="collapsible-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+      </div>
+      <div class="collapsible-content">
+        <p>The game stores event rewards and progress in an <code>accountDataDB.package</code> file. By modifying that file you can trick the game into thinking you've unlocked all rewards.</p>
+        <ol>
+          <li>When an event is <strong>live</strong>, it lets you claim all rewards without doing a single quest. This works in <strong>online mode only</strong>, since to claim the rewards you need to be online. You can claim all rewards, even from weeks that are still locked, so you <strong>claim the rewards at your own risk</strong>. It's best to wait until all weeks are unlocked.</li>
+          <li>If the event has <strong>already ended</strong>, you can still unlock the rewards, but it will work in <strong>offline mode only</strong>. Every time you start the game online it will replace the rewards data. It's more convenient to use mods instead.</li>
+        </ol>
+      </div>
     </div>
   </div>
 
@@ -295,7 +598,7 @@
 
       <label for="file-picker">
         <div class="file-picker-area" id="drop-zone">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
           </svg>
           <span><span class="btn-text">Choose file</span> or drag &amp; drop your UserSetting.ini here</span>
@@ -303,9 +606,53 @@
       </label>
       <input type="file" id="file-picker" accept=".ini">
 
+      <!-- Progress steps -->
+      <div class="progress-steps" id="progress-steps">
+        <div class="step">
+          <div class="step-circle" id="step-1">1</div>
+          <span class="step-label" id="step-1-label">File loaded</span>
+        </div>
+        <div class="step-connector" id="connector-1"></div>
+        <div class="step">
+          <div class="step-circle" id="step-2">2</div>
+          <span class="step-label" id="step-2-label">Parsing</span>
+        </div>
+        <div class="step-connector" id="connector-2"></div>
+        <div class="step">
+          <div class="step-circle" id="step-3">3</div>
+          <span class="step-label" id="step-3-label">Patching</span>
+        </div>
+        <div class="step-connector" id="connector-3"></div>
+        <div class="step">
+          <div class="step-circle" id="step-4">4</div>
+          <span class="step-label" id="step-4-label">Download</span>
+        </div>
+      </div>
+
+      <!-- Spinner -->
+      <div class="spinner" id="spinner">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"></circle>
+          <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+        </svg>
+        <div class="spinner-text" id="spinner-text">Processing...</div>
+      </div>
+
+      <!-- Account IDs -->
+      <div class="account-ids" id="account-ids">
+        <div class="label">Account IDs found</div>
+        <div class="ids" id="account-ids-list"></div>
+      </div>
+
       <div class="status" id="status"></div>
 
       <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">* In some languages this folder is named differently: <code>Die Sims 4</code>, <code>Les Sims 4</code>, <code>Los Sims 4</code>, <code>De Sims 4</code>, etc.</p>
+
+      <!-- Privacy notice -->
+      <div class="privacy-notice">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>
+        Your file is processed entirely in your browser. Nothing is uploaded to any server.
+      </div>
     </div>
     <div class="card-footer">
       To quickly find the event rewards in game, use the <strong>"Special"</strong> &gt; <strong>"Event Rewards"</strong> filter.
@@ -318,7 +665,7 @@
       <h2>Events (newest first)</h2>
 
       <div class="event-item">
-        <span class="event-badge live">Live</span>
+        <span class="event-badge live"><span class="pulse-dot"></span> Live</span>
         <div>
           <div class="event-name"><a href="https://www.ea.com/games/the-sims/the-sims-4/event">Lost Legacies Event</a></div>
           <div class="event-date">February 2026</div>
@@ -386,8 +733,81 @@
     </div>
   </div>
 
+  <!-- FAQ card -->
+  <div class="card">
+    <div class="card-body">
+      <h2>FAQ</h2>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          Where is my UserSetting.ini?
+          <svg class="faq-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </div>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            Open File Explorer and go to <code>Documents</code> &gt; <code>Electronic Arts</code> &gt; <code>The Sims 4</code>. The file <code>UserSetting.ini</code> should be right there. If you don't see it, make sure you've run the game at least once. In some languages the folder is named differently (e.g. <code>Die Sims 4</code>, <code>Les Sims 4</code>).
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          Why do rewards disappear when I go online?
+          <svg class="faq-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </div>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            When you start the game online, EA's servers sync your actual event data and overwrite the local <code>accountDataDB.package</code>. For <strong>ended events</strong>, the rewards only persist in offline mode. For <strong>live events</strong>, the rewards are tied to your EA account permanently once claimed online.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          Where do I put the downloaded file?
+          <svg class="faq-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </div>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            Place <code>accountDataDB.package</code> in the same folder as your <code>UserSetting.ini</code> &mdash; that's <code>Documents</code> &gt; <code>Electronic Arts</code> &gt; <code>The Sims 4</code>. If the file already exists, it will be replaced.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          Is this safe? Can I get banned?
+          <svg class="faq-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </div>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            This tool modifies a local data file, not the game executable. There are no known cases of bans from using this type of tool. However, use it at your own risk. Your file never leaves your browser &mdash; all processing happens locally.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-question" onclick="toggleFaq(this)">
+          It says "too many accounts" &mdash; what do I do?
+          <svg class="faq-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
+        </div>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            The template supports up to 10 accounts. If you have more, delete or rename your <code>UserSetting.ini</code> file, run the game once to generate a fresh one, then try again. The new file will only contain your current account.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div class="footer">
-    <p>Part of the <a href="https://github.com/ToastyToast25/sims4-updater">Sims 4 Updater</a> project &mdash; also available as a desktop feature in the app.</p>
+    <div class="footer-links">
+      <a href="https://github.com/ToastyToast25/sims4-updater">GitHub</a>
+      <a href="https://github.com/ToastyToast25/sims4-updater/releases/latest">Download App</a>
+      <a href="https://github.com/ToastyToast25/sims4-updater/blob/main/docs/index.html">Page Source</a>
+    </div>
+    <p>Part of the <a href="https://github.com/ToastyToast25/sims4-updater">Sims 4 Updater</a> project &mdash; v2.5.0</p>
   </div>
 
 </div>
@@ -409,14 +829,81 @@ const offsets = [
 ];
 
 const statusEl = document.getElementById("status");
+const stepsEl = document.getElementById("progress-steps");
+const spinnerEl = document.getElementById("spinner");
+const spinnerText = document.getElementById("spinner-text");
+const accountIdsEl = document.getElementById("account-ids");
+const accountIdsList = document.getElementById("account-ids-list");
+
+// -- Collapsible --
+function toggleCollapsible(el) {
+  const content = el.nextElementSibling;
+  const chevron = el.querySelector(".collapsible-chevron");
+  content.classList.toggle("collapsed");
+  chevron.classList.toggle("rotated");
+}
+
+// -- FAQ --
+function toggleFaq(el) {
+  const answer = el.nextElementSibling;
+  const chevron = el.querySelector(".faq-chevron");
+  answer.classList.toggle("open");
+  chevron.classList.toggle("open");
+}
+
+// -- Progress steps --
+function resetSteps() {
+  stepsEl.classList.add("visible");
+  for (let i = 1; i <= 4; i++) {
+    const circle = document.getElementById("step-" + i);
+    const label = document.getElementById("step-" + i + "-label");
+    circle.className = "step-circle";
+    circle.textContent = i;
+    label.className = "step-label";
+  }
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById("connector-" + i).className = "step-connector";
+  }
+}
+
+function setStep(n, state) {
+  const circle = document.getElementById("step-" + n);
+  const label = document.getElementById("step-" + n + "-label");
+  circle.className = "step-circle " + state;
+  label.className = "step-label " + state;
+  if (state === "done") {
+    circle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>';
+  } else if (state === "error") {
+    circle.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>';
+  }
+  if (n > 1 && state === "done") {
+    document.getElementById("connector-" + (n - 1)).className = "step-connector done";
+  }
+}
+
+function showSpinner(text) {
+  spinnerText.textContent = text;
+  spinnerEl.classList.add("visible");
+}
+function hideSpinner() {
+  spinnerEl.classList.remove("visible");
+}
 
 function showStatus(message, type) {
   statusEl.textContent = message;
   statusEl.className = "status " + type;
+  statusEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
-
 function hideStatus() {
   statusEl.className = "status";
+}
+
+function showAccountIds(ids) {
+  accountIdsList.textContent = ids.join(", ");
+  accountIdsEl.classList.add("visible");
+}
+function hideAccountIds() {
+  accountIdsEl.classList.remove("visible");
 }
 
 // Read file as text or array buffer
@@ -439,18 +926,35 @@ function downloadBlob(blob, name) {
   link.remove();
 }
 
+// Small delay for visual feedback
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
 // Parse INI and patch the template
 async function processFile(file) {
   hideStatus();
+  hideAccountIds();
+  hideSpinner();
+  resetSteps();
 
+  // Step 1: File loaded
+  setStep(1, "active");
+  showSpinner("Reading file...");
   const text = await readAs(file, "text");
+  await delay(200);
 
   if (file.name.toLowerCase() !== "usersetting.ini") {
+    setStep(1, "error");
+    hideSpinner();
     showStatus("The selected file isn't named UserSetting.ini. Make sure you select the correct file.", "error");
     return;
   }
+  setStep(1, "done");
 
-  // Parse INI sections
+  // Step 2: Parsing
+  setStep(2, "active");
+  showSpinner("Parsing account IDs...");
+  await delay(150);
+
   const ini = {};
   let group = "";
   for (const line of text.split(/\r?\n/)) {
@@ -468,22 +972,27 @@ async function processFile(file) {
   }
 
   if (typeof ini["uiaccountsettings"] === "undefined") {
+    setStep(2, "error");
+    hideSpinner();
     showStatus("No account settings found in this file. Make sure the game has been run at least once.", "error");
     return;
   }
 
-  // Extract unique account IDs (preserve insertion order)
   const userIDs = new Set();
   for (const key of Object.keys(ini["uiaccountsettings"])) {
     userIDs.add(key.split("#")[0]);
   }
 
   if (userIDs.size === 0) {
+    setStep(2, "error");
+    hideSpinner();
     showStatus("No account IDs found. Make sure the game has been run and you've logged in.", "error");
     return;
   }
 
   if (userIDs.size > max_ids) {
+    setStep(2, "error");
+    hideSpinner();
     showStatus(
       `Too many accounts (${userIDs.size}). Maximum supported: ${max_ids}. ` +
       "Delete or rename UserSetting.ini, run the game once, then try again.",
@@ -492,12 +1001,20 @@ async function processFile(file) {
     return;
   }
 
-  // Fetch and patch the template
+  showAccountIds([...userIDs]);
+  setStep(2, "done");
+
+  // Step 3: Patching
+  setStep(3, "active");
+  showSpinner("Fetching template and patching...");
+
   let response;
   try {
     response = await fetch("files/" + filename);
     if (!response.ok) throw new Error(response.statusText);
   } catch (err) {
+    setStep(3, "error");
+    hideSpinner();
     showStatus("Failed to download the template file. Please try again later.", "error");
     return;
   }
@@ -514,8 +1031,18 @@ async function processFile(file) {
     }
     i++;
   }
+  await delay(200);
+  setStep(3, "done");
+
+  // Step 4: Download
+  setStep(4, "active");
+  showSpinner("Starting download...");
+  await delay(150);
 
   downloadBlob(new Blob([buffer]), "accountDataDB.package");
+
+  setStep(4, "done");
+  hideSpinner();
   showStatus(
     `Done! Event rewards unlocked for ${userIDs.size} account(s). ` +
     "Place accountDataDB.package in your Sims 4 folder (same location as UserSetting.ini).",
@@ -534,18 +1061,15 @@ document.getElementById("file-picker").addEventListener("change", e => {
 const dropZone = document.getElementById("drop-zone");
 dropZone.addEventListener("dragover", e => {
   e.preventDefault();
-  dropZone.style.borderColor = "var(--accent)";
-  dropZone.style.backgroundColor = "rgba(88, 166, 255, 0.08)";
+  dropZone.classList.add("drag-over");
 });
 dropZone.addEventListener("dragleave", e => {
   e.preventDefault();
-  dropZone.style.borderColor = "";
-  dropZone.style.backgroundColor = "";
+  dropZone.classList.remove("drag-over");
 });
 dropZone.addEventListener("drop", e => {
   e.preventDefault();
-  dropZone.style.borderColor = "";
-  dropZone.style.backgroundColor = "";
+  dropZone.classList.remove("drag-over");
   const file = e.dataTransfer.files[0];
   if (file) processFile(file);
 });

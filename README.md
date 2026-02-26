@@ -14,6 +14,7 @@
 | Link | Description |
 | --- | --- |
 | [Download Latest Release](../../releases/latest) | Get the latest `Sims4Updater.exe` (portable, no install needed) |
+| [Event Rewards Unlocker](https://toastytoast25.github.io/sims4-updater/) | Web tool to unlock Sims 4 live-event rewards (no download needed) |
 | [Documentation](Documentation/) | Full technical reference for all subsystems |
 | [Report a Bug](../../issues/new) | Open a GitHub issue |
 | [Contributing](CONTRIBUTING.md) | How to contribute to development |
@@ -66,6 +67,16 @@ Pack installed DLC folders into distributable ZIP archives with an auto-generate
 
 One-click install/uninstall of the EA DLC Unlocker with live status detection and automatic admin elevation.
 
+### Event Rewards Unlocker
+
+Unlock Sims 4 live-event rewards by patching the `accountDataDB.package` file. Reads your EA account IDs from `UserSetting.ini` and patches a pre-built template with all known event rewards. Supports up to 10 accounts.
+
+- **Live events**: claim all rewards without completing quests (online mode — rewards are tied permanently to your EA account)
+- **Ended events**: unlock rewards in offline mode (overwritten when going online)
+- Available as a **GUI tab** ("Events") in the desktop app, a **CLI command** (`event-unlock`), and a **web tool** at [toastytoast25.github.io/sims4-updater](https://toastytoast25.github.io/sims4-updater/) (runs entirely in your browser — nothing is uploaded)
+
+Currently supports 8 events: Lost Legacies (Feb 2026), Deck the Palms (Dec 2025), Forever Friends (Sep 2025), Nature's Calling (Jun 2025), Blast From The Past (Feb 2025), Cozy Celebrations (Dec 2024), Reaper's Rewards (Sep 2024), and Happy at Home (Jun 2024).
+
 ### Language Changer
 
 Switch between 18 game languages. Updates the Windows registry (`HKLM\SOFTWARE\Maxis\The Sims 4\Locale`, both 32-bit and 64-bit views), `RldOrigin.ini`, and the anadius crack config simultaneously. Optionally downloads language files from Steam depots via DepotDownloader.
@@ -99,7 +110,7 @@ Checks the GitHub Releases API on startup and offers one-click self-update. Down
 
 ### Modern Dark-Mode GUI
 
-CustomTkinter dark-mode UI with slide animations, hex-interpolated color transitions, ease-out-cubic easing, and toast notifications. Sidebar navigation with 11 named tabs.
+CustomTkinter dark-mode UI with slide animations, hex-interpolated color transitions, ease-out-cubic easing, and toast notifications. Sidebar navigation with 12 named tabs.
 
 ### Notification System
 
@@ -178,7 +189,7 @@ git clone https://github.com/ToastyToast25/patcher.git ../patcher
 
 ### GUI Mode
 
-Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 11 tabs:
+Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 12 tabs:
 
 | Tab | Description |
 | --- | --- |
@@ -188,6 +199,7 @@ Double-click `Sims4Updater.exe` or run with no arguments. The sidebar provides 1
 | **DLC Packer** | Pack installed DLC folders into distributable ZIP archives. Import ZIP archives from others. |
 | **DLC Unlocker** | Install or uninstall the EA DLC Unlocker. Status detection with admin elevation when required. |
 | **GreenLuma** | Install/uninstall GreenLuma 2025, apply LUA manifests, verify configuration, fix AppList, apply CDN keys, contribute keys, and launch Steam via DLLInjector. |
+| **Events** | Unlock live-event rewards. Shows event list with live/ended status, account IDs from UserSetting.ini, and one-click unlock with backup/restore. |
 | **Language** | Select from 18 languages. Optionally download language files from Steam depots. |
 | **Mods** | Manage game modifications. |
 | **Diagnostics** | System health checks and DLC file validator. |
@@ -210,6 +222,7 @@ Sims4Updater.exe <command> [options]
 | `dlc-auto <game_dir>` | Auto-enable installed DLCs and disable missing ones |
 | `pack-dlc <game_dir> <ids...> [-o dir]` | Pack one or more DLCs into ZIP archives with a generated hosting manifest |
 | `learn <game_dir> <version>` | Hash sentinel files and save them to the local version database |
+| `event-unlock [ini]` | Unlock all event rewards (auto-detects UserSetting.ini if not specified) |
 | `language` | Show current language and all 18 available languages |
 | `language <code> [--game-dir DIR]` | Set game language (registry + crack config files) |
 
@@ -242,6 +255,12 @@ Sims4Updater.exe pack-dlc "D:\Games\The Sims 4" all -o ./output
 
 # Teach the updater your current version's hashes
 Sims4Updater.exe learn "D:\Games\The Sims 4" 1.121.372.1020
+
+# Unlock event rewards (auto-detects UserSetting.ini)
+Sims4Updater.exe event-unlock
+
+# Unlock with a specific ini file
+Sims4Updater.exe event-unlock "D:\Sims4\UserSetting.ini"
 
 # Show languages and set to French
 Sims4Updater.exe language
@@ -530,7 +549,7 @@ pytest tests/ -v --tb=short
 sims4-updater/
 ├── src/
 │   ├── sims4_updater/
-│   │   ├── __init__.py              # VERSION string ("2.3.0")
+│   │   ├── __init__.py              # VERSION string ("2.5.0")
 │   │   ├── __main__.py              # CLI argparse entry point + GUI launcher
 │   │   ├── constants.py             # SENTINEL_FILES, registry paths, get_data_dir(), get_tools_dir()
 │   │   ├── config.py                # Settings dataclass, get_app_dir() -> %LOCALAPPDATA%\ToastyToast25\
@@ -581,6 +600,8 @@ sims4-updater/
 │   │   │   ├── downloader.py        # Steam depot-based language file downloader
 │   │   │   ├── packer.py            # Language file packing
 │   │   │   └── steam.py             # Steam language depot configuration
+│   │   ├── events/
+│   │   │   └── unlocker.py          # Event Rewards Unlocker (DBPF patching, INI parsing)
 │   │   ├── mods/
 │   │   │   └── manager.py           # Mod management
 │   │   └── gui/
@@ -595,6 +616,7 @@ sims4-updater/
 │   │           ├── packer_frame.py      # Pack/import DLC archives
 │   │           ├── unlocker_frame.py    # EA DLC Unlocker install/uninstall
 │   │           ├── greenluma_frame.py   # GreenLuma install/apply LUA/verify/launch
+│   │           ├── events_frame.py      # Event Rewards Unlocker GUI
 │   │           ├── language_frame.py    # Language selection and Steam depot downloads
 │   │           ├── mods_frame.py        # Mod management
 │   │           ├── diagnostics_frame.py # System checks and file validator
@@ -603,7 +625,8 @@ sims4-updater/
 │   └── mods/                        # Mod management — install/enable/disable bundled mods
 ├── data/
 │   ├── version_hashes.json          # Bundled sentinel-file hash database (135+ versions)
-│   └── dlc_catalog.json             # All 109 DLCs with localized names, pack types, Steam App IDs
+│   ├── dlc_catalog.json             # All 109 DLCs with localized names, pack types, Steam App IDs
+│   └── accountDataDB_009.package    # Event Rewards Unlocker template (DBPF 2.1, 10 account slots)
 ├── cloudflare-worker/               # Cloudflare Worker source + deployment scripts for cdn.example.com
 │   ├── worker.js                    # CDN proxy worker (JWT validation, ban check, KV route -> seedbox)
 │   ├── api-worker.js                # API worker (token issuance, ban management, admin dashboards, contributions)
@@ -612,6 +635,7 @@ sims4-updater/
 │   ├── cdn_manager/                 # CDN Manager GUI application
 │   ├── cdn_manager.spec             # PyInstaller spec for CDNManager.exe
 │   └── SETUP.md                     # Step-by-step CDN infrastructure setup guide
+├── docs/                            # GitHub Pages — Event Rewards Unlocker web tool
 ├── mods/                            # Bundled mod resources
 ├── tools/                           # Runtime tools: xdelta3, unrar, EA DLC Unlocker DLL
 ├── sims4_updater.spec               # PyInstaller build config (production)
