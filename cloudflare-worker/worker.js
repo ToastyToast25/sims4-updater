@@ -38,138 +38,178 @@ const SEEDBOX_PATH_PREFIX = "files/";
 
 export default {
   async fetch(request, env) {
-    // Handle CORS preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders(),
-      });
-    }
+    try {
+      // Handle CORS preflight
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: corsHeaders(),
+        });
+      }
 
-    // Only allow GET and HEAD
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      return new Response("Method not allowed", {
-        status: 405,
-        headers: { Allow: "GET, HEAD, OPTIONS", ...corsHeaders() },
-      });
-    }
+      // Only allow GET and HEAD
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        return new Response("Method not allowed", {
+          status: 405,
+          headers: { Allow: "GET, HEAD, OPTIONS", ...securityHeaders(), ...corsHeaders() },
+        });
+      }
 
-    const url = new URL(request.url);
-    const path = url.pathname.slice(1); // strip leading slash
+      const url = new URL(request.url);
+      let path = url.pathname.slice(1); // strip leading slash
 
-    // Handle root / empty path
-    if (!path) {
-      return new Response("Sims 4 Updater CDN", {
-        status: 200,
-        headers: { "Content-Type": "text/plain", ...corsHeaders() },
-      });
-    }
+      // Normalize URL-encoded sequences before path validation
+      try {
+        path = decodeURIComponent(path);
+      } catch {
+        return jsonResponse({ error: "invalid_path" }, 400);
+      }
 
-    const isPublic = PUBLIC_PATHS.has(path);
+      // Reject path traversal attempts after decode
+      if (path.includes("..") || path.includes("\\") || path.includes("\0")) {
+        return jsonResponse({ error: "invalid_path" }, 400);
+      }
 
-    // ── Ban check (runs on ALL paths, including public) ──
-    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
-      const banResult = await checkBan(request, env);
-      if (banResult) return banResult;
-    }
+      // Handle root / empty path
+      if (!path) {
+        return new Response("Sims 4 Updater CDN", {
+          status: 200,
+          headers: { "Content-Type": "text/plain", ...securityHeaders(), ...corsHeaders() },
+        });
+      }
 
-    // ── JWT validation (protected paths only) ──
-    if (!isPublic) {
-      // Fail closed: refuse to serve without auth capability
-      if (!env.JWT_SECRET) {
+      const isPublic = PUBLIC_PATHS.has(path);
+
+      // ── Ban check (runs on ALL paths, including public) ──
+      if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
+        const banResult = await checkBan(request, env, isPublic);
+        if (banResult) return banResult;
+      } else if (!isPublic) {
+        // Fail closed: no ban-check capability on protected paths
         return jsonResponse({ error: "service_unavailable" }, 503);
       }
 
-      // Require X-Machine-Id header on protected paths
-      const machineId = request.headers.get("X-Machine-Id");
-      if (!machineId) {
-        return jsonResponse({ error: "machine_id_required" }, 400);
+      // ── JWT validation (protected paths only) ──
+      if (!isPublic) {
+        // Fail closed: refuse to serve without auth capability
+        if (!env.JWT_SECRET) {
+          return jsonResponse({ error: "service_unavailable" }, 503);
+        }
+
+        // Require X-Machine-Id header on protected paths
+        const machineId = request.headers.get("X-Machine-Id");
+        if (!machineId) {
+          return jsonResponse({ error: "machine_id_required" }, 400);
+        }
+
+        const authResult = await validateToken(request, env);
+        if (authResult) return authResult;
       }
 
-      const authResult = await validateToken(request, env);
-      if (authResult) return authResult;
-    }
+      // ── KV lookup → seedbox proxy ──
+      const seedboxPath = await env.CDN_ROUTES.get(path);
 
-    // ── KV lookup → seedbox proxy ──
-    const seedboxPath = await env.CDN_ROUTES.get(path);
+      if (!seedboxPath) {
+        return jsonResponse({ error: "not_found" }, 404);
+      }
 
-    if (!seedboxPath) {
-      return jsonResponse({ error: "not_found" }, 404);
-    }
+      // Validate seedbox path: prevent traversal attacks via KV manipulation
+      const normalizedPath = seedboxPath.replace(/\\/g, "/");
+      if (normalizedPath.includes("..") || !normalizedPath.startsWith(SEEDBOX_PATH_PREFIX)) {
+        return jsonResponse({ error: "invalid_route" }, 403);
+      }
 
-    // Validate seedbox path: prevent traversal attacks via KV manipulation
-    const normalizedPath = seedboxPath.replace(/\\/g, "/");
-    if (normalizedPath.includes("..") || !normalizedPath.startsWith(SEEDBOX_PATH_PREFIX)) {
-      return jsonResponse({ error: "invalid_route" }, 403);
-    }
+      // Build the full seedbox URL and validate origin (SSRF prevention)
+      if (!env.SEEDBOX_BASE_URL) {
+        return jsonResponse({ error: "service_unavailable" }, 503);
+      }
+      const baseUrl = env.SEEDBOX_BASE_URL.replace(/\/+$/, "");
+      const seedboxUrl = `${baseUrl}/${seedboxPath}`;
+      try {
+        const expectedOrigin = new URL(baseUrl);
+        const actualOrigin = new URL(seedboxUrl);
+        // Ensure KV path didn't escape to a different host
+        if (actualOrigin.hostname !== expectedOrigin.hostname) {
+          console.error("SSRF blocked: hostname mismatch:", actualOrigin.hostname);
+          return jsonResponse({ error: "invalid_route" }, 403);
+        }
+        if (actualOrigin.protocol !== expectedOrigin.protocol) {
+          return jsonResponse({ error: "invalid_route" }, 403);
+        }
+      } catch {
+        return jsonResponse({ error: "invalid_route" }, 403);
+      }
 
-    // Build the full seedbox URL
-    const baseUrl = env.SEEDBOX_BASE_URL.replace(/\/+$/, "");
-    const seedboxUrl = `${baseUrl}/${seedboxPath}`;
+      // Create basic auth header from secrets
+      const credentials = btoa(`${env.SEEDBOX_USER}:${env.SEEDBOX_PASS}`);
 
-    // Create basic auth header from secrets
-    const credentials = btoa(`${env.SEEDBOX_USER}:${env.SEEDBOX_PASS}`);
+      // Forward Range header for resume support
+      const fetchHeaders = {
+        "User-Agent": "HyperabyssCDN/1.0",
+        Authorization: `Basic ${credentials}`,
+      };
+      const rangeHeader = request.headers.get("Range");
+      if (rangeHeader) {
+        fetchHeaders["Range"] = rangeHeader;
+      }
 
-    // Forward Range header for resume support
-    const fetchHeaders = {
-      "User-Agent": "HyperabyssCDN/1.0",
-      Authorization: `Basic ${credentials}`,
-    };
-    const rangeHeader = request.headers.get("Range");
-    if (rangeHeader) {
-      fetchHeaders["Range"] = rangeHeader;
-    }
+      // Fetch from seedbox with authentication (no redirect following)
+      const seedboxResponse = await fetch(seedboxUrl, {
+        headers: fetchHeaders,
+        redirect: "manual",
+      });
 
-    // Fetch from seedbox with authentication (no redirect following)
-    const seedboxResponse = await fetch(seedboxUrl, {
-      headers: fetchHeaders,
-      redirect: "error",
-    });
+      // Reject redirects — seedbox should serve directly, not redirect
+      if (seedboxResponse.status >= 300 && seedboxResponse.status < 400) {
+        return new Response("Upstream redirect rejected", { status: 502 });
+      }
 
-    if (!seedboxResponse.ok && seedboxResponse.status !== 206) {
-      return new Response("Upstream error", { status: 502 });
-    }
+      if (!seedboxResponse.ok && seedboxResponse.status !== 206) {
+        return new Response("Upstream error", { status: 502 });
+      }
 
-    // Stream the response back to the user with clean headers (allowlist)
-    const headers = new Headers();
-    headers.set(
-      "Content-Type",
-      seedboxResponse.headers.get("Content-Type") || "application/octet-stream"
-    );
-    const contentLength = seedboxResponse.headers.get("Content-Length");
-    if (contentLength) headers.set("Content-Length", contentLength);
-    headers.set("Accept-Ranges", "bytes");
+      // Stream the response back to the user with clean headers (allowlist)
+      const headers = new Headers();
+      headers.set(
+        "Content-Type",
+        seedboxResponse.headers.get("Content-Type") || "application/octet-stream"
+      );
+      const contentLength = seedboxResponse.headers.get("Content-Length");
+      if (contentLength) headers.set("Content-Length", contentLength);
+      headers.set("Accept-Ranges", "bytes");
 
-    // Public paths can be cached; authenticated responses must not
-    if (isPublic) {
-      headers.set("Cache-Control", "public, max-age=86400");
-    } else {
-      headers.set("Cache-Control", "private, no-store");
-    }
+      // Public paths: short cache (5 min); authenticated paths: no cache
+      if (isPublic) {
+        headers.set("Cache-Control", "public, max-age=300");
+      } else {
+        headers.set("Cache-Control", "private, no-store");
+      }
 
-    // CORS
-    for (const [k, v] of Object.entries(corsHeaders())) {
-      headers.set(k, v);
-    }
+      // Security + CORS headers
+      for (const [k, v] of Object.entries(securityHeaders())) {
+        headers.set(k, v);
+      }
+      for (const [k, v] of Object.entries(corsHeaders())) {
+        headers.set(k, v);
+      }
 
-    // Content-Range for resumed downloads
-    const contentRange = seedboxResponse.headers.get("Content-Range");
-    if (contentRange) headers.set("Content-Range", contentRange);
+      // Content-Range for resumed downloads
+      const contentRange = seedboxResponse.headers.get("Content-Range");
+      if (contentRange) headers.set("Content-Range", contentRange);
 
-    // Content-Disposition: sanitize filename to prevent header injection
-    const disposition = seedboxResponse.headers.get("Content-Disposition");
-    if (disposition && !disposition.includes("\r") && !disposition.includes("\n")) {
-      headers.set("Content-Disposition", disposition);
-    } else {
+      // Content-Disposition: always construct from URL path (never trust upstream)
       const rawFilename = path.split("/").pop() || "download";
       const filename = rawFilename.replace(/["\\\r\n;]/g, "_");
       headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-    }
 
-    return new Response(seedboxResponse.body, {
-      status: seedboxResponse.status,
-      headers,
-    });
+      return new Response(seedboxResponse.body, {
+        status: seedboxResponse.status,
+        headers,
+      });
+    } catch (err) {
+      console.error("Worker unhandled error:", err.message, err.stack);
+      return jsonResponse({ error: "internal_error" }, 500);
+    }
   },
 };
 
@@ -188,13 +228,17 @@ async function validateToken(request, env) {
     return jsonResponse({ error: "invalid_token" }, 401);
   }
 
-  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+  // Require numeric exp claim — reject tokens without expiry
+  if (typeof payload.exp !== "number") {
+    return jsonResponse({ error: "invalid_token" }, 401);
+  }
+  if (payload.exp < Math.floor(Date.now() / 1000)) {
     return jsonResponse({ error: "token_expired" }, 401);
   }
 
-  // Bind token to requesting client's machine_id
+  // Mandatory machine_id binding — token must contain machine_id that matches header
   const requestMachineId = request.headers.get("X-Machine-Id") || "";
-  if (payload.machine_id && requestMachineId && payload.machine_id !== requestMachineId) {
+  if (!payload.machine_id || payload.machine_id !== requestMachineId) {
     return jsonResponse({ error: "token_mismatch" }, 401);
   }
 
@@ -259,7 +303,7 @@ function sanitizeFilterValue(val) {
   return val.replace(/[^a-zA-Z0-9._:\-]/g, "").substring(0, 200);
 }
 
-async function checkBan(request, env) {
+async function checkBan(request, env, isPublic = false) {
   const ip = sanitizeFilterValue(request.headers.get("CF-Connecting-IP") || "");
   const machineId = sanitizeFilterValue(request.headers.get("X-Machine-Id") || "");
   const uid = sanitizeFilterValue(request.headers.get("X-UID") || "");
@@ -285,7 +329,10 @@ async function checkBan(request, env) {
     );
 
     if (!resp.ok) {
-      // Fail open — don't block users if Supabase is down
+      // Fail closed on protected paths, open on public (manifest must be accessible)
+      if (!isPublic) {
+        return jsonResponse({ error: "service_unavailable" }, 503);
+      }
       return null;
     }
 
@@ -303,7 +350,10 @@ async function checkBan(request, env) {
       403
     );
   } catch {
-    // Fail open
+    // Fail closed on protected paths, open on public
+    if (!isPublic) {
+      return jsonResponse({ error: "service_unavailable" }, 503);
+    }
     return null;
   }
 }
@@ -315,9 +365,19 @@ function jsonResponse(data, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json",
+      ...securityHeaders(),
       ...corsHeaders(),
     },
   });
+}
+
+function securityHeaders() {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  };
 }
 
 function corsHeaders() {
@@ -326,5 +386,6 @@ function corsHeaders() {
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Authorization, X-Machine-Id, X-UID",
+    "Access-Control-Max-Age": "86400",
   };
 }

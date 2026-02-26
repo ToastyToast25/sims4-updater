@@ -72,10 +72,19 @@ SELECT event_type, count(*) AS count FROM public.events
 WHERE created_at > now() - interval '30 days'
 GROUP BY event_type ORDER BY count DESC;
 
+-- Safe casting helpers (prevent view errors on malformed JSONB metadata)
+CREATE OR REPLACE FUNCTION public.safe_bigint(val TEXT) RETURNS BIGINT AS $$
+BEGIN RETURN val::BIGINT; EXCEPTION WHEN OTHERS THEN RETURN 0; END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION public.safe_float(val TEXT) RETURNS DOUBLE PRECISION AS $$
+BEGIN RETURN val::DOUBLE PRECISION; EXCEPTION WHEN OTHERS THEN RETURN 0; END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 -- Popular DLCs by download count (last 30 days)
 CREATE OR REPLACE VIEW public.popular_dlcs AS
 SELECT metadata->>'dlc_id' AS dlc_id, count(*) AS downloads,
-  coalesce(sum((metadata->>'size_bytes')::bigint), 0) AS total_bytes
+  coalesce(sum(public.safe_bigint(metadata->>'size_bytes')), 0) AS total_bytes
 FROM public.events
 WHERE event_type = 'dlc_download_complete' AND created_at > now() - interval '30 days'
 GROUP BY metadata->>'dlc_id' ORDER BY downloads DESC LIMIT 20;
@@ -94,9 +103,9 @@ WHERE event_type IN ('update_started', 'update_completed', 'update_failed')
 CREATE OR REPLACE VIEW public.download_volume AS
 SELECT
   count(*) AS total_downloads,
-  coalesce(sum((metadata->>'size_bytes')::bigint), 0) AS total_bytes,
-  coalesce(avg((metadata->>'duration_seconds')::float), 0) AS avg_duration,
-  coalesce(avg((metadata->>'speed_bps')::float), 0) AS avg_speed_bps
+  coalesce(sum(public.safe_bigint(metadata->>'size_bytes')), 0) AS total_bytes,
+  coalesce(avg(public.safe_float(metadata->>'duration_seconds')), 0) AS avg_duration,
+  coalesce(avg(public.safe_float(metadata->>'speed_bps')), 0) AS avg_speed_bps
 FROM public.events
 WHERE event_type = 'dlc_download_complete' AND created_at > now() - interval '30 days';
 
@@ -104,8 +113,8 @@ WHERE event_type = 'dlc_download_complete' AND created_at > now() - interval '30
 CREATE OR REPLACE VIEW public.session_stats AS
 SELECT
   count(*) AS total_sessions,
-  coalesce(avg((metadata->>'duration_seconds')::float), 0) AS avg_duration,
-  coalesce(max((metadata->>'duration_seconds')::float), 0) AS max_duration
+  coalesce(avg(public.safe_float(metadata->>'duration_seconds')), 0) AS avg_duration,
+  coalesce(max(public.safe_float(metadata->>'duration_seconds')), 0) AS max_duration
 FROM public.events
 WHERE event_type = 'session_end' AND created_at > now() - interval '30 days';
 
@@ -115,8 +124,10 @@ WHERE event_type = 'session_end' AND created_at > now() - interval '30 days';
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 
--- Service role bypasses RLS by default, so no policies needed.
--- If you ever expose these via anon key, add restrictive policies.
+-- Service role bypasses RLS by default.
+-- Explicit deny-all policies for anon role to prevent accidental exposure.
+CREATE POLICY deny_anon_users ON public.users FOR ALL TO anon USING (false);
+CREATE POLICY deny_anon_events ON public.events FOR ALL TO anon USING (false);
 
 -- =============================================================
 -- Step 4: CDN Access Control — Bans, Access Requests, Allowlist
@@ -138,6 +149,7 @@ CREATE TABLE IF NOT EXISTS public.bans (
 CREATE INDEX IF NOT EXISTS idx_bans_active ON public.bans (ban_type, value) WHERE active = TRUE;
 
 ALTER TABLE public.bans ENABLE ROW LEVEL SECURITY;
+CREATE POLICY deny_anon_bans ON public.bans FOR ALL TO anon USING (false);
 
 -- Active bans view (excludes expired temp bans — used by worker ban checks)
 CREATE OR REPLACE VIEW public.active_bans AS
@@ -171,6 +183,7 @@ CREATE TABLE IF NOT EXISTS public.access_requests (
 );
 
 ALTER TABLE public.access_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY deny_anon_access_requests ON public.access_requests FOR ALL TO anon USING (false);
 
 -- CDN allowlist (approved machines for private CDNs)
 CREATE TABLE IF NOT EXISTS public.cdn_allowlist (
@@ -181,6 +194,7 @@ CREATE TABLE IF NOT EXISTS public.cdn_allowlist (
 );
 
 ALTER TABLE public.cdn_allowlist ENABLE ROW LEVEL SECURITY;
+CREATE POLICY deny_anon_allowlist ON public.cdn_allowlist FOR ALL TO anon USING (false);
 
 -- CDN settings (dynamic key-value config, e.g. public/private mode)
 CREATE TABLE IF NOT EXISTS public.cdn_settings (
@@ -190,6 +204,7 @@ CREATE TABLE IF NOT EXISTS public.cdn_settings (
 );
 
 ALTER TABLE public.cdn_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY deny_anon_cdn_settings ON public.cdn_settings FOR ALL TO anon USING (false);
 
 -- Seed default settings
 INSERT INTO public.cdn_settings (key, value) VALUES
@@ -209,6 +224,7 @@ CREATE TABLE IF NOT EXISTS public.token_log (
 CREATE INDEX IF NOT EXISTS idx_token_log_last_seen ON public.token_log (last_seen DESC);
 
 ALTER TABLE public.token_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY deny_anon_token_log ON public.token_log FOR ALL TO anon USING (false);
 
 -- Auto-update last_seen and increment request_count on upsert
 CREATE OR REPLACE FUNCTION update_token_log_on_conflict()

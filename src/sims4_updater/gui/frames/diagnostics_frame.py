@@ -73,8 +73,8 @@ class DiagnosticsFrame(ctk.CTkFrame):
             height=theme.BUTTON_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
-            hover_color="#3ae882",
-            text_color="#1a1a2e",
+            hover_color=theme.COLORS["hover_success"],
+            text_color=theme.COLORS["bg_dark"],
             command=self._on_validate_files,
         )
         self._validate_btn.pack(side="left", padx=(0, 10))

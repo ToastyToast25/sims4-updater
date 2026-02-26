@@ -1,6 +1,6 @@
 name = "sims4-cdn"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2025-12-01"
 
 # Route: cdn.hyperabyss.com/* → this worker
 # Set in Cloudflare dashboard: Workers & Pages → sims4-cdn → Settings → Triggers
@@ -14,6 +14,6 @@ id = "21b161fd30af47d19c4b298f597ff259"
 #   SEEDBOX_BASE_URL  — e.g. https://spirit.whatbox.ca/toastytoast/
 #   SEEDBOX_USER      — seedbox HTTP auth user
 #   SEEDBOX_PASS      — seedbox HTTP auth password
-#   SUPABASE_URL      — e.g. https://ginikbkaqnlmrezpkiog.supabase.co
+#   SUPABASE_URL      — e.g. https://yourproject.supabase.co
 #   SUPABASE_SERVICE_KEY — Supabase service_role key
 #   JWT_SECRET        — shared secret for JWT signing (same as api worker)

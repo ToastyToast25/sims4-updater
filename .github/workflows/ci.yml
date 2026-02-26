@@ -19,7 +19,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install ruff
-        run: pip install "ruff>=0.8.0"
+        run: pip install "ruff>=0.15.0"
 
       - name: Lint
         run: ruff check src/

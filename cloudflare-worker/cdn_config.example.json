@@ -8,6 +8,6 @@
     "cloudflare_api_token": "YOUR_CLOUDFLARE_API_TOKEN",
     "cloudflare_kv_namespace_id": "YOUR_KV_NAMESPACE_ID",
 
-    "contribution_api_url": "https://api.hyperabyss.com",
+    "contribution_api_url": "https://api.yourdomain.com",
     "contribution_admin_password": "YOUR_ADMIN_PASSWORD"
 }

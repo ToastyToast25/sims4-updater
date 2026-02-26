@@ -5,7 +5,6 @@ ZIP archives, generate manifest JSON, and import archives into the game director
 
 from __future__ import annotations
 
-import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 from typing import TYPE_CHECKING
@@ -16,6 +15,7 @@ from ...config import get_app_dir
 from ...dlc.packer import DLCPacker
 from ...language.packer import LanguagePacker
 from .. import theme
+from ..components import Tooltip, ask_yes_no, ask_yes_no_cancel
 
 if TYPE_CHECKING:
     from ..app import App
@@ -30,12 +30,12 @@ _TYPE_LABELS = {
     "other": "Other",
 }
 _TYPE_COLORS = {
-    "expansion": "#e94560",
-    "game_pack": "#ffa502",
-    "stuff_pack": "#2ed573",
-    "kit": "#a0a0b0",
-    "free_pack": "#70a1ff",
-    "other": "#6a6a8a",
+    "expansion": theme.COLORS["pack_expansion"],
+    "game_pack": theme.COLORS["pack_game"],
+    "stuff_pack": theme.COLORS["pack_stuff"],
+    "kit": theme.COLORS["pack_kit"],
+    "free_pack": theme.COLORS["pack_free"],
+    "other": theme.COLORS["pack_other"],
 }
 
 
@@ -104,6 +104,7 @@ class PackerFrame(ctk.CTkFrame):
             command=self._select_all,
         )
         self._select_all_btn.grid(row=0, column=0, padx=(0, 4))
+        Tooltip(self._select_all_btn, message="Select all DLCs for packing")
 
         self._deselect_all_btn = ctk.CTkButton(
             bar,
@@ -117,6 +118,7 @@ class PackerFrame(ctk.CTkFrame):
             command=self._deselect_all,
         )
         self._deselect_all_btn.grid(row=0, column=1, padx=(0, 4))
+        Tooltip(self._deselect_all_btn, message="Deselect all DLCs")
 
         self._import_btn = ctk.CTkButton(
             bar,
@@ -130,6 +132,7 @@ class PackerFrame(ctk.CTkFrame):
             command=self._on_import,
         )
         self._import_btn.grid(row=0, column=2, padx=(0, 8))
+        Tooltip(self._import_btn, message="Import a DLC .zip archive")
 
         # Spacer
         ctk.CTkFrame(bar, fg_color="transparent", height=1).grid(row=0, column=3, sticky="ew")
@@ -145,6 +148,7 @@ class PackerFrame(ctk.CTkFrame):
             command=self._on_pack_selected,
         )
         self._pack_selected_btn.grid(row=0, column=4, padx=(0, 4))
+        Tooltip(self._pack_selected_btn, message="Create ZIP archive of selected DLCs")
 
         self._pack_all_btn = ctk.CTkButton(
             bar,
@@ -153,8 +157,8 @@ class PackerFrame(ctk.CTkFrame):
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
-            hover_color="#3ae882",
-            text_color="#1a1a2e",
+            hover_color=theme.COLORS["hover_success"],
+            text_color=theme.COLORS["bg_dark"],
             command=self._on_pack_all,
         )
         self._pack_all_btn.grid(row=0, column=5)
@@ -334,7 +338,7 @@ class PackerFrame(ctk.CTkFrame):
                 lang_hdr,
                 text=f"LANGUAGE PACKS ({len(langs)})",
                 font=ctk.CTkFont(size=11, weight="bold"),
-                text_color="#70a1ff",
+                text_color=theme.COLORS["pack_free"],
             ).pack(side="left")
             self._all_widgets.append(lang_hdr)
             grid_row += 1
@@ -507,12 +511,12 @@ class PackerFrame(ctk.CTkFrame):
             free_space = 0
 
         if free_space > 0 and estimated_size > free_space:
-            answer = tk.messagebox.askyesno(
+            answer = ask_yes_no(
+                self,
                 "Low Disk Space",
                 f"Estimated pack size: {_format_size(estimated_size)}\n"
                 f"Available disk space: {_format_size(free_space)}\n\n"
                 f"You may run out of space. Continue anyway?",
-                parent=self,
             )
             if not answer:
                 return
@@ -540,13 +544,13 @@ class PackerFrame(ctk.CTkFrame):
         existing = existing_dlcs + existing_langs
         if existing:
             names = ", ".join(existing)
-            answer = tk.messagebox.askyesnocancel(
+            answer = ask_yes_no_cancel(
+                self,
                 "Overwrite Existing?",
                 f"The following archives already exist:\n{names}\n\n"
                 "Yes = Overwrite existing\n"
                 "No = Skip existing, pack the rest\n"
                 "Cancel = Abort",
-                parent=self,
             )
             if answer is None:
                 return
@@ -714,10 +718,10 @@ class PackerFrame(ctk.CTkFrame):
             return
 
         filename = Path(file_path).name
-        confirm = tk.messagebox.askyesno(
+        confirm = ask_yes_no(
+            self,
             "Import DLC Archive",
             f'Extract "{filename}" into:\n{game_dir}\n\nContinue?',
-            parent=self,
         )
         if not confirm:
             return
@@ -764,10 +768,10 @@ class PackerFrame(ctk.CTkFrame):
         )
 
         # Ask if user wants to register the DLCs
-        register = tk.messagebox.askyesno(
+        register = ask_yes_no(
+            self,
             "Register DLCs",
             f"The following DLCs were extracted:\n{dlc_list}\n\nEnable them in the crack config?",
-            parent=self,
         )
         if register:
             self.app.run_async(

@@ -4,14 +4,13 @@ Mods tab — manage bundled and installed game modifications.
 
 from __future__ import annotations
 
-import tkinter as tk
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
 from .. import theme
-from ..components import InfoCard, StatusBadge
+from ..components import InfoCard, RichTextbox, StatusBadge, Tooltip, ask_yes_no
 
 if TYPE_CHECKING:
     from ..app import App
@@ -112,6 +111,7 @@ class ModsFrame(ctk.CTkFrame):
             command=self._on_refresh,
         )
         self._refresh_btn.pack(side="left", padx=(0, 5))
+        Tooltip(self._refresh_btn, message="Scan mods folder for changes")
 
         self._open_folder_btn = ctk.CTkButton(
             btn_frame,
@@ -124,6 +124,7 @@ class ModsFrame(ctk.CTkFrame):
             command=self._on_open_folder,
         )
         self._open_folder_btn.pack(side="left", padx=5)
+        Tooltip(self._open_folder_btn, message="Open mods folder in Explorer")
 
         # ── Scrollable content area ──────────────────────────────
         bottom = ctk.CTkFrame(self, fg_color="transparent")
@@ -172,17 +173,7 @@ class ModsFrame(ctk.CTkFrame):
             command=self._clear_log,
         ).grid(row=0, column=1, sticky="e")
 
-        self._log_box = ctk.CTkTextbox(
-            log_container,
-            font=ctk.CTkFont(*theme.FONT_MONO),
-            fg_color=theme.COLORS["bg_deeper"],
-            text_color=theme.COLORS["text_muted"],
-            border_width=1,
-            border_color=theme.COLORS["border"],
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            state="disabled",
-            wrap="word",
-        )
+        self._log_box = RichTextbox(log_container)
         self._log_box.grid(row=1, column=0, sticky="nsew")
 
         # Track mod row widgets for refresh
@@ -199,19 +190,14 @@ class ModsFrame(ctk.CTkFrame):
 
     # ── Logging ──────────────────────────────────────────────────
 
-    def _log(self, message: str):
-        self._log_box.configure(state="normal")
-        self._log_box.insert("end", message + "\n")
-        self._log_box.see("end")
-        self._log_box.configure(state="disabled")
+    def _log(self, message: str, style: str = ""):
+        self._log_box.add_line(message, style=style)
 
-    def _enqueue_log(self, msg: str):
-        self.app._enqueue_gui(self._log, msg)
+    def _enqueue_log(self, msg: str, style: str = ""):
+        self.app._enqueue_gui(self._log, msg, style)
 
     def _clear_log(self):
-        self._log_box.configure(state="normal")
-        self._log_box.delete("1.0", "end")
-        self._log_box.configure(state="disabled")
+        self._log_box.clear()
 
     # ── Status Refresh ────────────────────────────────────────────
 
@@ -255,7 +241,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._status_badge.set_status("Error loading mods", "error")
-            self._log(f"Error: {e}")
+            self._log(f"Error: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
@@ -372,7 +358,7 @@ class ModsFrame(ctk.CTkFrame):
                     width=70,
                     corner_radius=4,
                     fg_color=theme.COLORS["warning"],
-                    hover_color="#cc8400",
+                    hover_color=theme.COLORS["hover_warning"],
                     command=lambda m=mod.name: self._on_disable(m),
                 ).pack(side="left", padx=2)
             else:
@@ -384,7 +370,7 @@ class ModsFrame(ctk.CTkFrame):
                     width=70,
                     corner_radius=4,
                     fg_color=theme.COLORS["success"],
-                    hover_color="#26b863",
+                    hover_color=theme.COLORS["hover_success"],
                     command=lambda m=mod.name: self._on_enable(m),
                 ).pack(side="left", padx=2)
 
@@ -408,7 +394,7 @@ class ModsFrame(ctk.CTkFrame):
             width=60,
             corner_radius=4,
             fg_color=theme.COLORS["error"],
-            hover_color="#cc3944",
+            hover_color=theme.COLORS["hover_error"],
             command=lambda m=mod.name: self._on_delete(m),
         ).pack(side="left", padx=2)
 
@@ -453,7 +439,7 @@ class ModsFrame(ctk.CTkFrame):
                 width=70,
                 corner_radius=4,
                 fg_color=theme.COLORS["warning"],
-                hover_color="#cc8400",
+                hover_color=theme.COLORS["hover_warning"],
                 command=lambda m=mod: self._on_disable_detected(m),
             ).pack(side="left", padx=2)
         else:
@@ -465,7 +451,7 @@ class ModsFrame(ctk.CTkFrame):
                 width=70,
                 corner_radius=4,
                 fg_color=theme.COLORS["success"],
-                hover_color="#26b863",
+                hover_color=theme.COLORS["hover_success"],
                 command=lambda m=mod: self._on_enable_detected(m),
             ).pack(side="left", padx=2)
 
@@ -494,7 +480,7 @@ class ModsFrame(ctk.CTkFrame):
         if self._busy:
             return
         self._set_busy(True)
-        self._log(f"--- Installing {mod_name} ---")
+        self._log(f"--- Installing {mod_name} ---", style="header")
 
         mgr = self._get_manager()
 
@@ -512,7 +498,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Install failed: {e}")
+            self._enqueue_log(f"Install failed: {e}", style="error")
             self.app.show_toast(f"Install failed: {e}", "error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
@@ -520,16 +506,17 @@ class ModsFrame(ctk.CTkFrame):
     def _on_uninstall(self, mod_name: str):
         if self._busy:
             return
-        confirmed = tk.messagebox.askyesno(
-            "Confirm Uninstall",
-            f"Uninstall {mod_name}?\n\nThis will remove the mod files from the game's Mods folder.",
-            parent=self.winfo_toplevel(),
+        confirmed = ask_yes_no(
+            self.app,
+            title="Confirm Uninstall",
+            message=f"Uninstall {mod_name}?\n\n"
+            "This will remove the mod files from the game's Mods folder.",
         )
         if not confirmed:
             return
 
         self._set_busy(True)
-        self._log(f"--- Uninstalling {mod_name} ---")
+        self._log(f"--- Uninstalling {mod_name} ---", style="header")
         mgr = self._get_manager()
 
         def _bg():
@@ -544,7 +531,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Uninstall failed: {e}")
+            self._enqueue_log(f"Uninstall failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
@@ -565,7 +552,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Enable failed: {e}")
+            self._enqueue_log(f"Enable failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
@@ -586,25 +573,25 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Disable failed: {e}")
+            self._enqueue_log(f"Disable failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
     def _on_delete(self, mod_name: str):
         if self._busy:
             return
-        confirmed = tk.messagebox.askyesno(
-            "Confirm Delete",
-            f"Delete bundled mod '{mod_name}'?\n\n"
+        confirmed = ask_yes_no(
+            self.app,
+            title="Confirm Delete",
+            message=f"Delete bundled mod '{mod_name}'?\n\n"
             "This will permanently remove the ZIP file. "
             "Installed mod files in the game will NOT be affected.",
-            parent=self.winfo_toplevel(),
         )
         if not confirmed:
             return
 
         self._set_busy(True)
-        self._log(f"--- Deleting {mod_name} ---")
+        self._log(f"--- Deleting {mod_name} ---", style="header")
         mgr = self._get_manager()
 
         def _bg():
@@ -618,7 +605,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Delete failed: {e}")
+            self._enqueue_log(f"Delete failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
@@ -643,7 +630,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Enable failed: {e}")
+            self._enqueue_log(f"Enable failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
@@ -665,24 +652,24 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Disable failed: {e}")
+            self._enqueue_log(f"Disable failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 
     def _on_uninstall_detected(self, mod):
         if self._busy:
             return
-        confirmed = tk.messagebox.askyesno(
-            "Confirm Uninstall",
-            f"Uninstall {mod.name}?\n\nThis will remove "
+        confirmed = ask_yes_no(
+            self.app,
+            title="Confirm Uninstall",
+            message=f"Uninstall {mod.name}?\n\nThis will remove "
             f"{len(mod.installed_files)} file(s) from the Mods folder.",
-            parent=self.winfo_toplevel(),
         )
         if not confirmed:
             return
 
         self._set_busy(True)
-        self._log(f"--- Uninstalling {mod.name} ---")
+        self._log(f"--- Uninstalling {mod.name} ---", style="header")
         mgr = self._get_manager()
 
         def _bg():
@@ -698,7 +685,7 @@ class ModsFrame(ctk.CTkFrame):
 
         def _err(e):
             self._set_busy(False)
-            self._enqueue_log(f"Uninstall failed: {e}")
+            self._enqueue_log(f"Uninstall failed: {e}", style="error")
 
         self.app.run_async(_bg, on_done=_done, on_error=_err)
 

@@ -25,6 +25,7 @@
 
 export default {
   async fetch(request, env) {
+    try {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -35,6 +36,7 @@ export default {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Machine-Id, X-UID",
+          "Access-Control-Max-Age": "86400",
         },
       });
     }
@@ -42,6 +44,14 @@ export default {
     // Health check
     if (path === "/health") {
       return json({ status: "ok" });
+    }
+
+    // Reject oversized request bodies globally (512KB max)
+    if (request.method === "POST") {
+      const contentLength = parseInt(request.headers.get("Content-Length") || "0");
+      if (contentLength > 524288) {
+        return json({ error: "Request too large" }, 413);
+      }
     }
 
     // ── Ban check for user-facing routes ──
@@ -172,6 +182,10 @@ export default {
     }
 
     return new Response("Not Found", { status: 404 });
+    } catch (err) {
+      console.error("API worker unhandled error:", err.message, err.stack);
+      return json({ error: "internal_error" }, 500);
+    }
   },
 };
 
@@ -215,10 +229,25 @@ function json(data, status = 200) {
     status,
     headers: {
       "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Machine-Id, X-UID",
     },
   });
+}
+
+/**
+ * Escape HTML entities to prevent XSS in rendered dashboard pages.
+ */
+function escapeHtml(str) {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 }
 
 /**
@@ -236,10 +265,15 @@ function timingSafeEqual(a, b) {
   const enc = new TextEncoder();
   const aBuf = enc.encode(a);
   const bBuf = enc.encode(b);
-  if (aBuf.length !== bBuf.length) return false;
-  let result = 0;
-  for (let i = 0; i < aBuf.length; i++) {
-    result |= aBuf[i] ^ bBuf[i];
+  // Pad to equal length to prevent length-based timing leaks
+  const maxLen = Math.max(aBuf.length, bBuf.length);
+  const paddedA = new Uint8Array(maxLen);
+  const paddedB = new Uint8Array(maxLen);
+  paddedA.set(aBuf);
+  paddedB.set(bBuf);
+  let result = aBuf.length ^ bBuf.length; // Non-zero if lengths differ
+  for (let i = 0; i < maxLen; i++) {
+    result |= paddedA[i] ^ paddedB[i];
   }
   return result === 0;
 }
@@ -1202,7 +1236,7 @@ startAutoRefresh();
 </script>
 </body>
 </html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" } });
+  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Strict-Transport-Security": "max-age=31536000; includeSubDomains", "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'" } });
 }
 
 // ---------------------------------------------------------------------------
@@ -1623,7 +1657,7 @@ startAutoRefresh();
 </html>`;
 
   return new Response(html, {
-    headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" },
+    headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Strict-Transport-Security": "max-age=31536000; includeSubDomains", "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'" },
   });
 }
 
@@ -1655,7 +1689,10 @@ async function checkBanApi(request, env) {
       }
     );
 
-    if (!resp.ok) return null; // Fail open
+    if (!resp.ok) {
+      // Fail closed — deny access when ban check is unavailable
+      return json({ error: "service_unavailable" }, 503);
+    }
 
     const bans = await resp.json();
     if (bans.length === 0) return null;
@@ -1671,7 +1708,8 @@ async function checkBanApi(request, env) {
       403
     );
   } catch {
-    return null; // Fail open
+    // Fail closed
+    return json({ error: "service_unavailable" }, 503);
   }
 }
 
@@ -1722,10 +1760,10 @@ async function handleTokenRequest(request, env) {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  const machineId = body.machine_id || "";
-  const uid = body.uid || "";
-  const appVersion = body.app_version || "";
-  const ip = request.headers.get("CF-Connecting-IP") || "";
+  const machineId = (body.machine_id || "").substring(0, 64);
+  const uid = (body.uid || "").substring(0, 128);
+  const appVersion = (body.app_version || "").substring(0, 32);
+  const ip = (request.headers.get("CF-Connecting-IP") || "").substring(0, 45);
 
   if (!machineId || machineId === "unknown") {
     return json({ error: "Missing or invalid machine_id" }, 400);
@@ -1735,6 +1773,7 @@ async function handleTokenRequest(request, env) {
   await logTokenRequest(env, { machine_id: machineId, uid, ip, app_version: appVersion });
 
   // Ban check — use body data (more reliable than headers for token requests)
+  // Fail closed: if Supabase is unreachable, deny token issuance
   if (env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY) {
     const sIp = sanitizeFilterValue(ip);
     const sMid = sanitizeFilterValue(machineId);
@@ -1755,14 +1794,17 @@ async function handleTokenRequest(request, env) {
             },
           }
         );
-        if (banResp.ok) {
-          const bans = await banResp.json();
-          if (bans.length > 0) {
-            const ban = bans[0];
-            return json({ error: "banned", reason: ban.reason || "", ban_type: ban.ban_type || "", expires_at: ban.expires_at || "" }, 403);
-          }
+        if (!banResp.ok) {
+          return json({ error: "service_unavailable" }, 503);
         }
-      } catch { /* Fail open */ }
+        const bans = await banResp.json();
+        if (bans.length > 0) {
+          const ban = bans[0];
+          return json({ error: "banned", reason: ban.reason || "", ban_type: ban.ban_type || "", expires_at: ban.expires_at || "" }, 403);
+        }
+      } catch {
+        return json({ error: "service_unavailable" }, 503);
+      }
     }
   }
 
@@ -1834,8 +1876,10 @@ async function getCDNSetting(env, key) {
 }
 
 async function setCDNSetting(env, key, value) {
+  const safeKey = sanitizeFilterValue(key);
+  if (!safeKey) return false;
   const resp = await fetch(
-    `${env.SUPABASE_URL}/rest/v1/cdn_settings?key=eq.${key}`,
+    `${env.SUPABASE_URL}/rest/v1/cdn_settings?key=eq.${safeKey}`,
     {
       method: "PATCH",
       headers: {
@@ -1853,6 +1897,13 @@ async function setCDNSetting(env, key, value) {
 async function logTokenRequest(env, info) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return;
   try {
+    // Truncate fields to prevent oversized writes
+    const safeInfo = {
+      machine_id: typeof info.machine_id === "string" ? info.machine_id.substring(0, 64) : "",
+      uid: typeof info.uid === "string" ? info.uid.substring(0, 128) : "",
+      ip: typeof info.ip === "string" ? info.ip.substring(0, 45) : "",
+      app_version: typeof info.app_version === "string" ? info.app_version.substring(0, 32) : "",
+    };
     await fetch(`${env.SUPABASE_URL}/rest/v1/token_log`, {
       method: "POST",
       headers: {
@@ -1861,7 +1912,7 @@ async function logTokenRequest(env, info) {
         "Content-Type": "application/json",
         Prefer: "resolution=merge-duplicates",
       },
-      body: JSON.stringify(info),
+      body: JSON.stringify(safeInfo),
     });
   } catch {
     // Non-critical — don't block token issuance
@@ -1928,13 +1979,13 @@ async function handleAccessRequest(request, env) {
     return json({ error: "Missing machine_id" }, 400);
   }
 
-  // Upsert into access_requests (ON CONFLICT machine_id)
+  // Upsert into access_requests (ON CONFLICT machine_id) — truncate fields
   const payload = {
-    machine_id: machineId,
-    uid,
-    app_version: appVersion,
-    reason,
-    ip,
+    machine_id: machineId.substring(0, 64),
+    uid: uid.substring(0, 128),
+    app_version: appVersion.substring(0, 32),
+    reason: reason.substring(0, 500),
+    ip: ip.substring(0, 45),
     status: "pending",
   };
 
@@ -2517,7 +2568,7 @@ ${nav.html}
     <div class="form-card" style="margin-bottom:0">
       <div class="form-title">CDN Info</div>
       <div style="font-size:12px;color:#8b949e">
-        <div>Name: <span style="color:#e1e4e8">${env.CDN_NAME || "HyperAbyss CDN"}</span></div>
+        <div>Name: <span style="color:#e1e4e8">${escapeHtml(env.CDN_NAME || "HyperAbyss CDN")}</span></div>
         <div style="margin-top:4px">Connected Clients: <span style="color:#58a6ff" id="clientCount">...</span></div>
       </div>
     </div>
@@ -2749,7 +2800,7 @@ setInterval(loadClients, 30000);
 </script>
 </body>
 </html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" } });
+  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Strict-Transport-Security": "max-age=31536000; includeSubDomains", "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'" } });
 }
 
 // ---------------------------------------------------------------------------
@@ -3015,7 +3066,7 @@ setInterval(load, 30000);
 </script>
 </body>
 </html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" } });
+  return new Response(html, { headers: { "Content-Type": "text/html", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Strict-Transport-Security": "max-age=31536000; includeSubDomains", "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'" } });
 }
 
 // ---------------------------------------------------------------------------
