@@ -12,6 +12,7 @@ Usage:
     python -m sims4_updater language <code> [dir]    # Set language
     python -m sims4_updater manifest <url|file>     # Inspect a manifest
     python -m sims4_updater learn <game_dir> <ver>  # Learn version hashes
+    python -m sims4_updater event-unlock [ini]      # Unlock event rewards
 """
 
 import argparse
@@ -496,6 +497,45 @@ def pack_dlc(args):
         print("Replace <UPLOAD_URL> with the actual hosting URL.")
 
 
+def event_unlock(args):
+    """Unlock Sims 4 live-event rewards."""
+    from pathlib import Path
+
+    from sims4_updater.events.unlocker import (
+        KNOWN_EVENTS,
+        EventUnlockerError,
+        unlock_events,
+    )
+
+    ini_path = Path(args.ini) if args.ini else None
+
+    print("=== Event Rewards Unlocker ===")
+    print()
+
+    # Show known events
+    print("Supported events:")
+    for event in KNOWN_EVENTS:
+        status = f"[{event.status.upper()}]"
+        note = f" - {event.note}" if event.note else ""
+        print(f"  {status:12s} {event.name} ({event.date}){note}")
+    print()
+
+    try:
+        result = unlock_events(ini_path=ini_path, progress=lambda msg: print(f"  {msg}"))
+    except EventUnlockerError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+
+    print()
+    print(f"Output: {result.output_path}")
+    if result.backup_path:
+        print(f"Backup: {result.backup_path}")
+    print(f"Accounts: {len(result.account_ids)}")
+    print()
+    print("For live events: start the game ONLINE to claim rewards.")
+    print("For ended events: rewards work OFFLINE only.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="sims4-updater",
@@ -564,6 +604,14 @@ def main():
     lang_parser.add_argument("code", nargs="?", help="Language code (e.g. en_US)")
     lang_parser.add_argument("--game-dir", help="Game directory for RldOrigin.ini update")
 
+    # event-unlock
+    event_parser = subparsers.add_parser("event-unlock", help="Unlock live-event rewards")
+    event_parser.add_argument(
+        "ini",
+        nargs="?",
+        help="Path to UserSetting.ini (auto-detected if omitted)",
+    )
+
     args = parser.parse_args()
 
     # Configure machine identity for CDN/API requests (lightweight, always runs)
@@ -587,6 +635,8 @@ def main():
         learn_hashes(args)
     elif args.command == "language":
         show_language(args)
+    elif args.command == "event-unlock":
+        event_unlock(args)
     elif args.command is None:
         # No command — launch the GUI
         try:
@@ -609,6 +659,7 @@ def main():
             print("  pack-dlc <dir> <ids...>   Pack DLC zip archives")
             print("  learn <game_dir> <ver>    Learn version hashes")
             print("  language [code]           Show or set language")
+            print("  event-unlock [ini]        Unlock live-event rewards")
     else:
         parser.print_help()
 

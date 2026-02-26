@@ -28,6 +28,7 @@ from .dialogs import CTkDialog, CTkToolTip
 from .frames.diagnostics_frame import DiagnosticsFrame
 from .frames.dlc_frame import DLCFrame
 from .frames.downloader_frame import DownloaderFrame
+from .frames.events_frame import EventsFrame
 from .frames.greenluma_frame import GreenLumaFrame
 from .frames.home_frame import HomeFrame
 from .frames.language_frame import LanguageFrame
@@ -165,6 +166,7 @@ class App(ctk.CTk):
             ("downloader", "DLC Downloader"),
             ("unlocker", "Unlocker"),
             ("language", "Language"),
+            ("events", "Events"),
             ("settings", "Settings"),
         ]
         tools_items = [
@@ -392,6 +394,7 @@ class App(ctk.CTk):
         self._frames["unlocker"] = UnlockerFrame(self._content, self)
         self._frames["greenluma"] = GreenLumaFrame(self._content, self)
         self._frames["language"] = LanguageFrame(self._content, self)
+        self._frames["events"] = EventsFrame(self._content, self)
         self._frames["mods"] = ModsFrame(self._content, self)
         self._frames["diagnostics"] = DiagnosticsFrame(self._content, self)
         self._frames["settings"] = SettingsFrame(self._content, self)

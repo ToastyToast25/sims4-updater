@@ -34,6 +34,7 @@ a = Analysis(
         # Data files
         (os.path.join(DATA_DIR, 'version_hashes.json'), 'data'),
         (os.path.join(DATA_DIR, 'dlc_catalog.json'), 'data'),
+        (os.path.join(DATA_DIR, 'accountDataDB_009.package'), 'data'),
         # Tools
         (os.path.join(TOOLS_DIR, 'xdelta3-x64.exe'), 'tools'),
         (os.path.join(TOOLS_DIR, 'xdelta3-x86.exe'), 'tools'),
