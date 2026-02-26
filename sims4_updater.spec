@@ -4,7 +4,7 @@ PyInstaller spec for Sims 4 Updater.
 
 Builds a single-file Windows executable with:
   - CustomTkinter GUI
-  - Bundled tools (xdelta3, unrar)
+  - Bundled tools (xdelta3, unrar, DLC Unlocker)
   - Data files (version hashes, DLC catalog)
   - Patcher library (for patch application)
 """
@@ -40,6 +40,8 @@ a = Analysis(
         (os.path.join(TOOLS_DIR, 'xdelta3-x86.exe'), 'tools'),
         (os.path.join(TOOLS_DIR, 'unrar.exe'), 'tools'),
         (os.path.join(TOOLS_DIR, 'unrar-license.txt'), 'tools'),
+        # DLC Unlocker bundle (from sims4-updater/tools/, not patcher/tools/)
+        (os.path.join(SPEC_DIR, 'tools', 'DLC Unlocker for Windows'), 'tools/DLC Unlocker for Windows'),
         # Bundled mods
         (os.path.join(SPEC_DIR, 'mods'), 'mods'),
         # Application icon (for window title bar — PNG for crisp rendering)
