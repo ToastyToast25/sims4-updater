@@ -2895,6 +2895,26 @@
       },
       "type": "kit",
       "steam_app_id": 3985830
+    },
+    {
+      "id": "SP82",
+      "code": "",
+      "code2": "",
+      "names": {
+        "en_us": "Wonderland Playroom Kit"
+      },
+      "type": "kit",
+      "steam_app_id": null
+    },
+    {
+      "id": "SP83",
+      "code": "",
+      "code2": "",
+      "names": {
+        "en_us": "Yard Charm Kit"
+      },
+      "type": "kit",
+      "steam_app_id": null
     }
   ]
 }
