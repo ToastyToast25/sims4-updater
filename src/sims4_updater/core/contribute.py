@@ -77,7 +77,7 @@ def scan_dlc_folder(dlc_dir: Path, progress=None) -> list[FileMetadata]:
 
     for i, fpath in enumerate(files):
         if progress:
-            progress(i, len(files), fpath.name)
+            progress(i + 1, len(files), fpath.name)
 
         try:
             rel_name = fpath.relative_to(dlc_dir).as_posix()

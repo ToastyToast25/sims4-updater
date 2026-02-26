@@ -267,7 +267,7 @@ class DLCDownloader:
                         raise DownloadError("Extraction cancelled.")
                     # Path traversal protection
                     target = (self.game_dir / member).resolve()
-                    if not str(target).startswith(str(game_dir_resolved)):
+                    if not target.is_relative_to(game_dir_resolved):
                         logger.warning("Skipping unsafe zip path: %s", member)
                         continue
                     zf.extract(member, self.game_dir)

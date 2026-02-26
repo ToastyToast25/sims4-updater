@@ -111,7 +111,7 @@ class VersionDatabase:
         elif best_count >= 2:
             confidence = Confidence.PROBABLE
         else:
-            confidence = Confidence.PROBABLE
+            confidence = Confidence.UNKNOWN
 
         return DetectionResult(
             version=best_version,

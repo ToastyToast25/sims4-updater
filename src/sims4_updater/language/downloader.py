@@ -190,7 +190,7 @@ class LanguagePackDownloader:
 
                     # Path traversal protection
                     target = (self._strings_dir / basename).resolve()
-                    if not str(target).startswith(str(strings_dir_resolved)):
+                    if not target.is_relative_to(strings_dir_resolved):
                         logger.warning("Skipping unsafe zip path: %s", member)
                         continue
 
