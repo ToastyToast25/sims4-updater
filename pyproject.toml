@@ -29,6 +29,9 @@ cdn = [
 [project.scripts]
 sims4-updater = "sims4_updater.__main__:main"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.version]
 path = "src/sims4_updater/__init__.py"
 

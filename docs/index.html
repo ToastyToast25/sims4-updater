@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Event Rewards Unlocker - Sims 4 Updater</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --border: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --orange: #db6d28;
+      --code-bg: #1a1f29;
+      --card-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, var(--accent), #a371f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header p {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+    }
+    .header .badge {
+      display: inline-block;
+      margin-top: 0.75rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background-color: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    /* Cards */
+    .card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--card-shadow);
+    }
+    .card-body {
+      padding: 1.5rem;
+    }
+    .card-footer {
+      padding: 1rem 1.5rem;
+      background-color: var(--bg-tertiary);
+      border-top: 1px solid var(--border);
+      border-radius: 0 0 0.75rem 0.75rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .card h2 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .card p {
+      margin-bottom: 0.75rem;
+      color: var(--text-secondary);
+    }
+    .card ol, .card ul {
+      margin-bottom: 0.75rem;
+      padding-left: 1.5rem;
+    }
+    .card li {
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+    }
+
+    code {
+      background-color: var(--code-bg);
+      color: var(--accent);
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.25rem;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    b, strong { color: var(--text-primary); }
+
+    /* File picker */
+    .file-picker-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 2rem;
+      border: 2px dashed var(--border);
+      border-radius: 0.5rem;
+      margin: 1.25rem 0;
+      transition: border-color 0.2s, background-color 0.2s;
+      cursor: pointer;
+    }
+    .file-picker-area:hover {
+      border-color: var(--accent);
+      background-color: rgba(88, 166, 255, 0.05);
+    }
+    .file-picker-area svg {
+      width: 48px;
+      height: 48px;
+      color: var(--text-muted);
+      transition: color 0.2s;
+    }
+    .file-picker-area:hover svg {
+      color: var(--accent);
+    }
+    .file-picker-area span {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+    .file-picker-area .btn-text {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    #file-picker { display: none; }
+
+    /* Status area */
+    .status {
+      display: none;
+      padding: 1rem 1.25rem;
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+      font-size: 0.95rem;
+      border: 1px solid;
+    }
+    .status.success {
+      display: block;
+      background-color: rgba(63, 185, 80, 0.1);
+      border-color: rgba(63, 185, 80, 0.3);
+      color: var(--green);
+    }
+    .status.error {
+      display: block;
+      background-color: rgba(248, 81, 73, 0.1);
+      border-color: rgba(248, 81, 73, 0.3);
+      color: var(--red);
+    }
+
+    /* Events list */
+    .event-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .event-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .event-item:first-child {
+      padding-top: 0;
+    }
+    .event-badge {
+      flex-shrink: 0;
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 2rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      margin-top: 0.15rem;
+    }
+    .event-badge.live {
+      background-color: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+    .event-badge.ended {
+      background-color: rgba(139, 148, 158, 0.15);
+      color: var(--text-secondary);
+      border: 1px solid rgba(139, 148, 158, 0.3);
+    }
+    .event-badge.base-game {
+      background-color: rgba(210, 153, 34, 0.15);
+      color: var(--yellow);
+      border: 1px solid rgba(210, 153, 34, 0.3);
+    }
+    .event-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .event-name a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .event-name a:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
+    }
+    .event-date {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .event-note {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.2rem;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .container { padding: 1rem; }
+      .header h1 { font-size: 1.5rem; }
+      .card-body { padding: 1rem; }
+      .file-picker-area { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>Event Rewards Unlocker</h1>
+    <p>Unlock Sims 4 live-event rewards by patching your account data</p>
+    <span class="badge">Sims 4 Updater</span>
+  </div>
+
+  <!-- Instructions card -->
+  <div class="card">
+    <div class="card-body">
+      <h2>How it works</h2>
+      <p>The game stores event rewards and progress in an <code>accountDataDB.package</code> file. By modifying that file you can trick the game into thinking you've unlocked all rewards.</p>
+      <ol>
+        <li>When an event is <strong>live</strong>, it lets you claim all rewards without doing a single quest. This works in <strong>online mode only</strong>, since to claim the rewards you need to be online. You can claim all rewards, even from weeks that are still locked, so you <strong>claim the rewards at your own risk</strong>. It's best to wait until all weeks are unlocked.</li>
+        <li>If the event has <strong>already ended</strong>, you can still unlock the rewards, but it will work in <strong>offline mode only</strong>. Every time you start the game online it will replace the rewards data. It's more convenient to use mods instead.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Unlocker card -->
+  <div class="card">
+    <div class="card-body">
+      <h2>Unlock your rewards</h2>
+      <p>Select your <code>UserSetting.ini</code> file from <code>Documents</code> &gt; <code>Electronic Arts</code> &gt; <code>The Sims 4</code>*. Your browser will download a patched <code>accountDataDB.package</code> &mdash; place it in the same folder.</p>
+
+      <label for="file-picker">
+        <div class="file-picker-area" id="drop-zone">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+          </svg>
+          <span><span class="btn-text">Choose file</span> or drag &amp; drop your UserSetting.ini here</span>
+        </div>
+      </label>
+      <input type="file" id="file-picker" accept=".ini">
+
+      <div class="status" id="status"></div>
+
+      <p style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">* In some languages this folder is named differently: <code>Die Sims 4</code>, <code>Les Sims 4</code>, <code>Los Sims 4</code>, <code>De Sims 4</code>, etc.</p>
+    </div>
+    <div class="card-footer">
+      To quickly find the event rewards in game, use the <strong>"Special"</strong> &gt; <strong>"Event Rewards"</strong> filter.
+    </div>
+  </div>
+
+  <!-- Events list card -->
+  <div class="card">
+    <div class="card-body">
+      <h2>Events (newest first)</h2>
+
+      <div class="event-item">
+        <span class="event-badge live">Live</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/games/the-sims/the-sims-4/event">Lost Legacies Event</a></div>
+          <div class="event-date">February 2026</div>
+          <div class="event-note">Use the tool to claim rewards and tie them to your EA account!</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge ended">Ended</span>
+        <div>
+          <div class="event-name">Deck the Palms Login Event</div>
+          <div class="event-date">December 2025</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge ended">Ended</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/games/the-sims/the-sims-4/event/forever-friends-event">Forever Friends Event</a></div>
+          <div class="event-date">September 2025</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge ended">Ended</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/games/the-sims/the-sims-4/news/natures-calling-dev-diary">Nature's Calling Event</a></div>
+          <div class="event-date">June 2025</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge ended">Ended</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/games/the-sims/the-sims-4/news/behind-the-sims-episode-4">Blast From The Past Event</a></div>
+          <div class="event-date">February 2025</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge ended">Ended</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/en/games/the-sims/the-sims-4/news/update-12-3-2024">Cozy Celebrations Event</a></div>
+          <div class="event-date">December 2024</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge ended">Ended</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/en/games/the-sims/the-sims-4/news/reapers-rewards-faq">Reaper's Rewards Event</a></div>
+          <div class="event-date">September 2024</div>
+        </div>
+      </div>
+
+      <div class="event-item">
+        <span class="event-badge base-game">Base Game</span>
+        <div>
+          <div class="event-name"><a href="https://www.ea.com/en/games/the-sims/the-sims-4/news/the-sims-4-events">Happy at Home Login Event</a></div>
+          <div class="event-date">June 2024</div>
+          <div class="event-note">Rewards added to base game in update <code>1.109.207</code></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Part of the <a href="https://github.com/ToastyToast25/sims4-updater">Sims 4 Updater</a> project &mdash; also available as a desktop feature in the app.</p>
+  </div>
+
+</div>
+
+<script>
+const max_ids = 10;
+const filename = "accountDataDB_009.package";
+const offsets = [
+  [45198, 45226, 45254, 45282],
+  [45310, 45338, 45366, 45394],
+  [45422, 45450, 45478, 45506],
+  [45534, 45562, 45590, 45618],
+  [45646, 45674, 45702, 45730],
+  [45758, 45786, 45814, 45842],
+  [45870, 45898, 45926, 45954],
+  [45982, 46010, 46038, 46066],
+  [46094, 46122, 46150, 46178],
+  [46206, 46234, 46262, 46290]
+];
+
+const statusEl = document.getElementById("status");
+
+function showStatus(message, type) {
+  statusEl.textContent = message;
+  statusEl.className = "status " + type;
+}
+
+function hideStatus() {
+  statusEl.className = "status";
+}
+
+// Read file as text or array buffer
+const readAs = (file, type) => new Promise(resolve => {
+  const reader = new FileReader();
+  reader.onload = e => resolve(e.target.result);
+  if (type === "text") reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+});
+
+// Trigger download of a blob
+function downloadBlob(blob, name) {
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  URL.revokeObjectURL(url);
+  link.remove();
+}
+
+// Parse INI and patch the template
+async function processFile(file) {
+  hideStatus();
+
+  const text = await readAs(file, "text");
+
+  if (file.name.toLowerCase() !== "usersetting.ini") {
+    showStatus("The selected file isn't named UserSetting.ini. Make sure you select the correct file.", "error");
+    return;
+  }
+
+  // Parse INI sections
+  const ini = {};
+  let group = "";
+  for (const line of text.split(/\r?\n/)) {
+    if (line.length === 0) continue;
+    let m = line.match(/^\s*\[(.*?)\]\s*$/);
+    if (m !== null) {
+      group = m[1];
+      if (typeof ini[group] === "undefined") ini[group] = {};
+    } else {
+      m = line.match(/^\s*(.*?)\s*=\s*(.*?)\s*$/);
+      if (m === null) continue;
+      if (group === "") continue;
+      ini[group][m[1]] = m[2];
+    }
+  }
+
+  if (typeof ini["uiaccountsettings"] === "undefined") {
+    showStatus("No account settings found in this file. Make sure the game has been run at least once.", "error");
+    return;
+  }
+
+  // Extract unique account IDs (preserve insertion order)
+  const userIDs = new Set();
+  for (const key of Object.keys(ini["uiaccountsettings"])) {
+    userIDs.add(key.split("#")[0]);
+  }
+
+  if (userIDs.size === 0) {
+    showStatus("No account IDs found. Make sure the game has been run and you've logged in.", "error");
+    return;
+  }
+
+  if (userIDs.size > max_ids) {
+    showStatus(
+      `Too many accounts (${userIDs.size}). Maximum supported: ${max_ids}. ` +
+      "Delete or rename UserSetting.ini, run the game once, then try again.",
+      "error"
+    );
+    return;
+  }
+
+  // Fetch and patch the template
+  let response;
+  try {
+    response = await fetch("files/" + filename);
+    if (!response.ok) throw new Error(response.statusText);
+  } catch (err) {
+    showStatus("Failed to download the template file. Please try again later.", "error");
+    return;
+  }
+
+  const buffer = await response.arrayBuffer();
+  const view = new DataView(buffer);
+
+  let i = 0;
+  for (const user_id of userIDs) {
+    const numerical_id = BigInt(user_id);
+    const swapped = (numerical_id >> 32n) | ((numerical_id & 0xFFFFFFFFn) << 32n);
+    for (const offset of offsets[i]) {
+      view.setBigUint64(offset, swapped, true);
+    }
+    i++;
+  }
+
+  downloadBlob(new Blob([buffer]), "accountDataDB.package");
+  showStatus(
+    `Done! Event rewards unlocked for ${userIDs.size} account(s). ` +
+    "Place accountDataDB.package in your Sims 4 folder (same location as UserSetting.ini).",
+    "success"
+  );
+}
+
+// File input handler
+document.getElementById("file-picker").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+  e.target.value = "";
+});
+
+// Drag and drop
+const dropZone = document.getElementById("drop-zone");
+dropZone.addEventListener("dragover", e => {
+  e.preventDefault();
+  dropZone.style.borderColor = "var(--accent)";
+  dropZone.style.backgroundColor = "rgba(88, 166, 255, 0.08)";
+});
+dropZone.addEventListener("dragleave", e => {
+  e.preventDefault();
+  dropZone.style.borderColor = "";
+  dropZone.style.backgroundColor = "";
+});
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.style.borderColor = "";
+  dropZone.style.backgroundColor = "";
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+</script>
+
+</body>
+</html>
