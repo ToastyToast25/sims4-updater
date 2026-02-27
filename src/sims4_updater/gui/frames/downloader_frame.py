@@ -1069,6 +1069,8 @@ class DownloaderFrame(ctk.CTkFrame):
         self._set_buttons_state("normal")
         self._overall_progress.set(1.0)
         self._active_downloader = None
+        # Clear the updater cancel flag so subsequent operations aren't affected
+        self.app.updater.reset_cancel()
 
         completed = sum(1 for r in results if r.state == DLCDownloadState.COMPLETED)
         extracted = sum(1 for r in results if r.state == DLCDownloadState.EXTRACTED)
@@ -1164,6 +1166,7 @@ class DownloaderFrame(ctk.CTkFrame):
         self._cancel_btn.grid_remove()
         self._set_buttons_state("normal")
         self._active_downloader = None
+        self.app.updater.reset_cancel()
         self._log(f"[{_timestamp()}] Error: {error}")
         self.app.show_toast(f"Download error: {error}", "error")
 

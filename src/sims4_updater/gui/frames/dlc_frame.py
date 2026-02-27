@@ -1289,6 +1289,8 @@ class DLCFrame(ctk.CTkFrame):
                 "crack_format": getattr(self.app.updater, "_detected_format", None),
             },
         )
+        # Reload DLC states so the UI reflects the new enable/disable state
+        self._load_dlcs()
 
     def set_pending_dlcs(self, pending_dlcs):
         self._pending_dlcs = pending_dlcs
