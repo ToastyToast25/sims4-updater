@@ -74,9 +74,24 @@ class CDNAuth:
         if self._token and time.monotonic() < self._expires_at - 60:
             return self._token
         with self._lock:
-            # Fail fast if the server already denied us (ban / access-required)
+            # Fail fast if the server already denied us (ban / access-required),
+            # but allow recovery for temporary bans that have expired.
             if self._denied is not None:
-                raise self._denied
+                if isinstance(self._denied, BannedError) and self._denied.expires_at:
+                    import datetime
+
+                    try:
+                        exp = datetime.datetime.fromisoformat(
+                            self._denied.expires_at.replace("Z", "+00:00")
+                        )
+                        if datetime.datetime.now(datetime.UTC) >= exp:
+                            self._denied = None  # ban expired, allow retry
+                        else:
+                            raise self._denied
+                    except (ValueError, TypeError):
+                        raise self._denied  # noqa: B904
+                else:
+                    raise self._denied
             # Double-check after acquiring lock (another thread may have refreshed)
             if self._token and time.monotonic() < self._expires_at - 60:
                 return self._token

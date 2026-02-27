@@ -17,7 +17,7 @@ import requests
 import requests.adapters
 import urllib3
 
-from ..core.exceptions import BannedError, DownloadError, IntegrityError
+from ..core.exceptions import AccessRequiredError, BannedError, DownloadError, IntegrityError
 from .manifest import FileEntry
 
 if TYPE_CHECKING:
@@ -111,7 +111,7 @@ class Downloader:
             raise DownloadError(f"Invalid filename in manifest: {entry.filename!r}")
         dest_resolved = dest_dir.resolve()
         final_path = dest_dir / safe_name
-        if not str(final_path.resolve()).startswith(str(dest_resolved)):
+        if not final_path.resolve().is_relative_to(dest_resolved):
             raise DownloadError(f"Path traversal detected: {entry.filename!r}")
         partial_path = final_path.with_suffix(final_path.suffix + ".partial")
 
@@ -187,7 +187,7 @@ class Downloader:
             finally:
                 resp.close()
 
-        except (DownloadError, BannedError):
+        except (DownloadError, BannedError, AccessRequiredError):
             raise
         except requests.RequestException as e:
             raise DownloadError(f"Failed to download {entry.filename}: {e}") from e
@@ -309,18 +309,24 @@ class _TimeoutSSLAdapter(requests.adapters.HTTPAdapter):
 
 
 def _check_ban_response(resp: requests.Response) -> None:
-    """Raise BannedError if the response is a 403 ban from the CDN."""
-    if resp.status_code != 403:
+    """Raise BannedError or AccessRequiredError if the CDN denies access."""
+    if resp.status_code not in (401, 403):
         return
     try:
         body = resp.json()
     except (ValueError, requests.JSONDecodeError):
         return
-    if body.get("error") == "banned":
+    error = body.get("error", "")
+    if error == "banned":
         raise BannedError(
             reason=body.get("reason", ""),
             ban_type=body.get("ban_type", ""),
             expires_at=body.get("expires_at", ""),
+        )
+    if error == "access_required":
+        raise AccessRequiredError(
+            cdn_name=body.get("cdn_name", ""),
+            request_url=body.get("request_url", ""),
         )
 
 

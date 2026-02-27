@@ -108,10 +108,21 @@ class DLCManager:
 
         content = config_path.read_text(encoding=adapter.get_encoding(), errors="replace")
 
+        skipped: list[str] = []
         for dlc in self.catalog.all_dlcs():
             should_enable = dlc.id in enabled_dlcs
+            if not dlc.all_codes:
+                if should_enable:
+                    skipped.append(dlc.id)
+                continue
             for code in dlc.all_codes:
                 content = adapter.set_dlc_state(content, code, should_enable)
+        if skipped:
+            logger.warning(
+                "Skipped %d DLC(s) with no crack config codes: %s",
+                len(skipped),
+                ", ".join(skipped),
+            )
 
         # Write back
         config_path.write_text(content, encoding=adapter.get_encoding())
