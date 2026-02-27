@@ -50,6 +50,19 @@ COLORS = {
     # Status extras
     "status_ready": "#5b9bd5",
     "status_ready_bg": "#1a2a3d",
+    # Bright text / button foregrounds
+    "text_bright": "#ffffff",
+    "btn_white": "#ffffff",
+    "btn_white_hover": "#e0e0e0",
+    # Progress bar
+    "progress_track": "#4a1a2a",
+    # Steam-branded
+    "steam_bg": "#1b2838",
+    "steam_hover": "#2a475e",
+    "steam_text": "#c7d5e0",
+    # Skeleton loading
+    "skeleton_base": "#1a2744",
+    "skeleton_shimmer": "#243556",
 }
 
 # Button style presets — unpack into CTkButton(..., **BUTTON_STYLES["primary"])
@@ -68,6 +81,15 @@ BUTTON_STYLES = {
         "border_width": 1,
         "border_color": COLORS["border"],
     },
+    "secondary": {
+        "fg_color": COLORS["bg_card_alt"],
+        "hover_color": COLORS["card_hover"],
+    },
+    "steam": {
+        "fg_color": COLORS["steam_bg"],
+        "hover_color": COLORS["steam_hover"],
+        "text_color": COLORS["steam_text"],
+    },
 }
 
 # Sidebar
@@ -85,6 +107,14 @@ CARD_ROW_PAD = 6
 SECTION_PAD = 30
 SECTION_GAP = 15
 
+# Spacing scale (4px base)
+SPACE_XS = 4
+SPACE_SM = 8
+SPACE_MD = 12
+SPACE_LG = 16
+SPACE_XL = 24
+SPACE_2XL = 30
+
 # Fonts (family, size, weight)
 FONT_TITLE = ("Segoe UI", 20, "bold")
 FONT_HEADING = ("Segoe UI", 15, "bold")
@@ -92,6 +122,22 @@ FONT_BODY = ("Segoe UI", 12)
 FONT_BODY_BOLD = ("Segoe UI", 12, "bold")
 FONT_SMALL = ("Segoe UI", 10)
 FONT_MONO = ("Consolas", 10)
+
+# Navigation icons (Unicode)
+NAV_ICONS = {
+    "home": "\u2302",  # ⌂
+    "dlc": "\u25a6",  # ▦
+    "downloader": "\u2913",  # ⤓
+    "unlocker": "\u26bf",  # ⚿
+    "language": "\u2637",  # ☷
+    "events": "\u2605",  # ★
+    "settings": "\u2699",  # ⚙
+    "packer": "\u2750",  # ❐
+    "greenluma": "\u2618",  # ☘
+    "mods": "\u2692",  # ⚒
+    "diagnostics": "\u2695",  # ⚕
+    "progress": "\u21bb",  # ↻
+}
 
 # Animation timing (ms)
 ANIM_FAST = 150

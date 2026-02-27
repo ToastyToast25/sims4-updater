@@ -68,7 +68,7 @@ class HomeFrame(ctk.CTkFrame):
             self._app_update_inner,
             text="",
             font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#ffffff",
+            text_color=theme.COLORS["text_bright"],
             anchor="w",
         )
         self._app_update_label.pack(side="left", fill="x", expand=True)
@@ -80,9 +80,9 @@ class HomeFrame(ctk.CTkFrame):
             height=28,
             width=110,
             corner_radius=6,
-            fg_color="#ffffff",
+            fg_color=theme.COLORS["btn_white"],
             text_color=theme.COLORS["accent"],
-            hover_color="#e0e0e0",
+            hover_color=theme.COLORS["btn_white_hover"],
             command=self._on_self_update,
         )
         self._app_update_btn.pack(side="right", padx=(10, 0))
@@ -102,7 +102,7 @@ class HomeFrame(ctk.CTkFrame):
             dl_top,
             text="Downloading...",
             font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#ffffff",
+            text_color=theme.COLORS["text_bright"],
             anchor="w",
         )
         self._dl_title_label.pack(side="left")
@@ -111,7 +111,7 @@ class HomeFrame(ctk.CTkFrame):
             dl_top,
             text="",
             font=ctk.CTkFont(size=10),
-            text_color="#b3b3b3",
+            text_color=theme.COLORS["text_muted"],
             anchor="e",
         )
         self._dl_speed_label.pack(side="right")
@@ -121,8 +121,8 @@ class HomeFrame(ctk.CTkFrame):
             self._dl_progress_frame,
             height=8,
             corner_radius=4,
-            progress_color="#ffffff",
-            fg_color="#4a1a2a",
+            progress_color=theme.COLORS["text_bright"],
+            fg_color=theme.COLORS["progress_track"],
         )
         self._dl_progress_bar.pack(fill="x", padx=16, pady=(6, 0))
         self._dl_progress_bar.set(0)
@@ -135,7 +135,7 @@ class HomeFrame(ctk.CTkFrame):
             dl_bottom,
             text="0 B / 0 B",
             font=ctk.CTkFont(size=10),
-            text_color="#b3b3b3",
+            text_color=theme.COLORS["text_muted"],
             anchor="w",
         )
         self._dl_size_label.pack(side="left")
@@ -144,7 +144,7 @@ class HomeFrame(ctk.CTkFrame):
             dl_bottom,
             text="0%",
             font=ctk.CTkFont(size=10, weight="bold"),
-            text_color="#ffffff",
+            text_color=theme.COLORS["text_bright"],
             anchor="e",
         )
         self._dl_pct_label.pack(side="right")
@@ -560,7 +560,7 @@ class HomeFrame(ctk.CTkFrame):
             height=theme.BUTTON_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
-            hover_color="#26b863",
+            hover_color=theme.COLORS["hover_success"],
             command=self._on_legit_launch,
             state="disabled",
         )
@@ -1492,14 +1492,14 @@ class HomeFrame(ctk.CTkFrame):
             self._legit_launch_btn.configure(
                 text="Legit Launch",
                 fg_color=theme.COLORS["success"],
-                hover_color="#26b863",
+                hover_color=theme.COLORS["hover_success"],
                 state="normal",
             )
         else:
             self._legit_launch_btn.configure(
                 text="Legit Launch",
                 fg_color=theme.COLORS["success"],
-                hover_color="#26b863",
+                hover_color=theme.COLORS["hover_success"],
                 state="disabled",
             )
 

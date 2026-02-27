@@ -165,8 +165,8 @@ class LanguageFrame(ctk.CTkFrame):
             height=36,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
-            hover_color="#3ae882",
-            text_color="#1a1a2e",
+            hover_color=theme.COLORS["hover_success"],
+            text_color=theme.COLORS["bg_dark"],
             command=self._on_download_all,
         )
         self._dl_all_btn.grid(row=0, column=2, padx=(0, 6), sticky="ew")
@@ -177,9 +177,9 @@ class LanguageFrame(ctk.CTkFrame):
             font=ctk.CTkFont(size=13),
             height=36,
             corner_radius=theme.CORNER_RADIUS_SMALL,
-            fg_color="#1b2838",
-            hover_color="#2a475e",
-            text_color="#c7d5e0",
+            fg_color=theme.COLORS["steam_bg"],
+            hover_color=theme.COLORS["steam_hover"],
+            text_color=theme.COLORS["steam_text"],
             command=self._on_steam_download,
         )
         self._steam_dl_btn.grid(row=0, column=3, padx=(0, 6), sticky="ew")
@@ -629,8 +629,8 @@ class LanguageFrame(ctk.CTkFrame):
                     height=24,
                     font=ctk.CTkFont(size=11),
                     fg_color=theme.COLORS["success"],
-                    hover_color="#3ae882",
-                    text_color="#1a1a2e",
+                    hover_color=theme.COLORS["hover_success"],
+                    text_color=theme.COLORS["bg_dark"],
                     corner_radius=4,
                     command=lambda c=code: self._on_download_pack(c),
                 )

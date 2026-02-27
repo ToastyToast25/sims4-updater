@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
+from customtkinter import CTkChip, CTkSearchEntry, CTkSkeleton, CTkToolTip
 
 from ...dlc.catalog import DLCInfo, DLCStatus
 from ...dlc.steam import SteamPrice, fetch_prices_batch
@@ -72,7 +73,6 @@ class DLCFrame(ctk.CTkFrame):
         self._animator = get_animator()
 
         # Widget-reuse state
-        self._search_after_id: str | None = None
         self._built = False
         self._loading = False  # guard against re-entrant _load_dlcs calls
         self._all_states: list[DLCStatus] = []
@@ -130,12 +130,13 @@ class DLCFrame(ctk.CTkFrame):
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color=theme.COLORS["success"],
-            hover_color="#3ae882",
-            text_color="#1a1a2e",
+            hover_color=theme.COLORS["hover_success"],
+            text_color=theme.COLORS["bg_dark"],
             command=lambda: self.app._show_frame("downloader"),
         )
         self._go_to_downloader_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
         self._go_to_downloader_btn.grid_remove()  # hidden until manifest loads
+        CTkToolTip(self._go_to_downloader_btn, message="Open the DLC downloader tab")
 
         self._auto_btn = ctk.CTkButton(
             btn_frame,
@@ -148,6 +149,7 @@ class DLCFrame(ctk.CTkFrame):
             command=self._on_auto_toggle,
         )
         self._auto_btn.grid(row=0, column=1, padx=(0, 5), sticky="ew")
+        CTkToolTip(self._auto_btn, message="Auto-enable all owned DLCs")
 
         self._apply_btn = ctk.CTkButton(
             btn_frame,
@@ -159,56 +161,37 @@ class DLCFrame(ctk.CTkFrame):
             command=self._on_apply,
         )
         self._apply_btn.grid(row=0, column=2, sticky="ew")
+        CTkToolTip(self._apply_btn, message="Save checkbox changes to crack config")
 
-        # ── Search box ──
+        # ── Search box (CTkSearchEntry with built-in debounce + clear) ──
         search_frame = ctk.CTkFrame(self, fg_color="transparent")
         search_frame.grid(row=1, column=0, padx=30, pady=(0, 5), sticky="ew")
         search_frame.grid_columnconfigure(0, weight=1)
 
-        self._search_var = ctk.StringVar()
-        self._search_var.trace_add("write", self._on_search_changed)
-
-        self._search_entry = ctk.CTkEntry(
+        self._search_entry = CTkSearchEntry(
             search_frame,
-            textvariable=self._search_var,
             placeholder_text="Search DLCs...",
             font=ctk.CTkFont(size=12),
             height=theme.BUTTON_HEIGHT_SMALL,
             corner_radius=theme.CORNER_RADIUS_SMALL,
+            command=lambda _text: self._apply_filter(),
+            debounce_ms=250,
         )
         self._search_entry.grid(row=0, column=0, sticky="ew")
 
-        self._clear_btn = ctk.CTkButton(
-            search_frame,
-            text="\u2715",
-            width=30,
-            height=theme.BUTTON_HEIGHT_SMALL,
-            corner_radius=theme.CORNER_RADIUS_SMALL,
-            fg_color=theme.COLORS["bg_card"],
-            command=self._clear_search,
-        )
-        self._clear_btn.grid(row=0, column=1, padx=(5, 0))
-
-        # ── Filter Chips ──
+        # ── Filter Chips (CTkChip with selectable toggle) ──
         filter_frame = ctk.CTkFrame(self, fg_color="transparent")
         filter_frame.grid(row=2, column=0, padx=30, pady=(0, 5), sticky="ew")
 
         for i, (key, label) in enumerate(_FILTER_DEFS):
-            btn = ctk.CTkButton(
+            chip = CTkChip(
                 filter_frame,
                 text=label,
-                font=ctk.CTkFont(size=11),
-                height=26,
-                corner_radius=13,
-                fg_color=theme.COLORS["bg_card_alt"],
-                hover_color=theme.COLORS["card_hover"],
-                text_color=theme.COLORS["text_muted"],
-                border_width=1,
-                border_color=theme.COLORS["border"],
+                style="default",
                 command=lambda k=key: self._toggle_filter(k),
             )
-            btn.grid(row=0, column=i, padx=(0 if i == 0 else 4, 0))
-            self._filter_buttons[key] = btn
+            chip.grid(row=0, column=i, padx=(0 if i == 0 else 4, 0))
+            self._filter_buttons[key] = chip
 
         # ── Indicator Legend ──
         legend_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -296,7 +279,7 @@ class DLCFrame(ctk.CTkFrame):
             self._empty_frame,
             text="Try adjusting your search or filters",
             font=ctk.CTkFont(*theme.FONT_SMALL),
-            text_color=theme.COLORS.get("text_dim", "#6a6a8a"),
+            text_color=theme.COLORS["text_dim"],
         ).pack()
 
         # ── No game dir message ──
@@ -310,29 +293,13 @@ class DLCFrame(ctk.CTkFrame):
     # ── Filter Chip Logic ──────────────────────────────────────
 
     def _toggle_filter(self, key: str):
+        chip = self._filter_buttons[key]
         if key in self._active_filters:
             self._active_filters.discard(key)
-            btn = self._filter_buttons[key]
-            btn.configure(
-                fg_color=theme.COLORS["bg_card_alt"],
-                text_color=theme.COLORS["text_muted"],
-                border_color=theme.COLORS["border"],
-            )
+            chip.deselect()
         else:
             self._active_filters.add(key)
-            btn = self._filter_buttons[key]
-            if key in ("on_sale", "downloadable"):
-                btn.configure(
-                    fg_color=theme.COLORS["success"],
-                    text_color="#1a1a2e",
-                    border_color=theme.COLORS["success"],
-                )
-            else:
-                btn.configure(
-                    fg_color=theme.COLORS["accent"],
-                    text_color=theme.COLORS["text"],
-                    border_color=theme.COLORS["accent"],
-                )
+            chip.select()
         self._apply_filter()
 
     def _is_on_sale(self, dlc: DLCInfo) -> bool:
@@ -444,35 +411,15 @@ class DLCFrame(ctk.CTkFrame):
 
     def _show_loading_skeleton(self):
         for i in range(6):
-            skel = ctk.CTkFrame(
+            skel = CTkSkeleton(
                 self._scroll_frame,
-                fg_color=theme.COLORS["bg_card_alt"],
-                corner_radius=6,
+                width=0,
                 height=36,
+                corner_radius=6,
+                fg_color=theme.COLORS["skeleton_base"],
+                shimmer_color=theme.COLORS["skeleton_shimmer"],
             )
             skel.grid(row=i, column=0, padx=5, pady=3, sticky="ew")
-            skel.grid_propagate(False)
-            ctk.CTkFrame(
-                skel,
-                fg_color=theme.COLORS["separator"],
-                corner_radius=4,
-                width=20,
-                height=20,
-            ).place(x=12, rely=0.5, anchor="w")
-            ctk.CTkFrame(
-                skel,
-                fg_color=theme.COLORS["separator"],
-                corner_radius=4,
-                width=180,
-                height=14,
-            ).place(x=44, rely=0.5, anchor="w")
-            ctk.CTkFrame(
-                skel,
-                fg_color=theme.COLORS["separator"],
-                corner_radius=4,
-                width=50,
-                height=14,
-            ).place(relx=0.85, rely=0.5, anchor="e")
             self._skeleton_widgets.append(skel)
 
     def _destroy_skeleton(self):
@@ -552,14 +499,8 @@ class DLCFrame(ctk.CTkFrame):
 
     # ── Search & Filter ────────────────────────────────────────
 
-    def _on_search_changed(self, *_args):
-        if self._all_states and self._built:
-            if hasattr(self, "_search_after_id") and self._search_after_id:
-                self.after_cancel(self._search_after_id)
-            self._search_after_id = self.after(250, self._apply_filter)
-
     def _clear_search(self):
-        self._search_var.set("")
+        self._search_entry.clear()
 
     def _apply_filter(self):
         """Show/hide pre-built rows based on current filters."""
@@ -569,7 +510,7 @@ class DLCFrame(ctk.CTkFrame):
         filtered = list(self._all_states)
 
         # Text search
-        query = self._search_var.get().strip().lower()
+        query = self._search_entry.get().strip().lower()
         if query:
             filtered = [
                 s
@@ -700,6 +641,12 @@ class DLCFrame(ctk.CTkFrame):
             self._hide_empty_state()
         else:
             self._show_empty_state()
+
+        # Update search result count on search entry
+        if query or self._active_filters:
+            self._search_entry.set_result_count(len(filtered_ids))
+        else:
+            self._search_entry.set_result_count(None)
 
         # Status label
         total_owned = sum(1 for s in self._all_states if s.owned)
@@ -926,7 +873,7 @@ class DLCFrame(ctk.CTkFrame):
                     price_frame,
                     text=f"-{price.discount_percent}%",
                     font=ctk.CTkFont(size=10, weight="bold"),
-                    text_color="#1a1a2e",
+                    text_color=theme.COLORS["bg_dark"],
                     fg_color=theme.COLORS["success"],
                     corner_radius=4,
                     width=42,
@@ -1066,8 +1013,8 @@ class DLCFrame(ctk.CTkFrame):
                 height=24,
                 font=ctk.CTkFont(size=12),
                 fg_color=theme.COLORS["error"],
-                hover_color="#ff6b6b",
-                text_color="#ffffff",
+                hover_color=theme.COLORS["hover_cancel"],
+                text_color=theme.COLORS["text_bright"],
                 corner_radius=4,
                 command=lambda did=dlc.id, dn=name: self._on_uninstall_single(did, dn),
             )

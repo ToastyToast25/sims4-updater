@@ -353,7 +353,7 @@ class DownloaderFrame(ctk.CTkFrame):
             bar,
             text="Cancel",
             fg_color=theme.COLORS["error"],
-            hover_color="#cc3a47",
+            hover_color=theme.COLORS["hover_error"],
             command=self._on_cancel,
             **btn_kw,
         )

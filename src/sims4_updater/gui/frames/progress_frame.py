@@ -378,7 +378,7 @@ class ProgressFrame(ctk.CTkFrame):
         animator.animate_color(
             self._stage_label,
             "text_color",
-            "#ffffff",
+            theme.COLORS["text_bright"],
             theme.COLORS["success"],
             400,
             tag="done_flash",
