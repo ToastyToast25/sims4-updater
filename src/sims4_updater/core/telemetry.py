@@ -101,6 +101,7 @@ class TelemetryClient:
 
         data: dict[str, Any] = {
             "uid": self.uid,
+            "session_id": self._session_id,
             "app_version": VERSION,
             "os_version": self._os_version,
             "game_detected": game_detected,

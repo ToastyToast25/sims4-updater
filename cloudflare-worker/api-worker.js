@@ -137,7 +137,8 @@ export default {
         return serveStatsDashboard(env, pw);
       }
       if (path === "/admin/stats/api" && request.method === "GET") {
-        return getStatsData(env);
+        const days = url.searchParams.get("days") || "30";
+        return getStatsData(env, days);
       }
       if (path === "/admin/stats/recent" && request.method === "GET") {
         return getRecentEvents(env);
@@ -207,11 +208,12 @@ function adminNav(active, pw) {
     { id: "access", path: "/admin/access", label: "Access", icon: "\u{1F511}" },
   ];
   const css = `
-  .admin-nav { background: #0d1117; border-bottom: 1px solid #21262d; padding: 8px 24px; display: flex; gap: 4px; position: sticky; top: 53px; z-index: 99; }
-  .admin-nav a { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; color: #8b949e; text-decoration: none; transition: all 0.15s; white-space: nowrap; }
+  .admin-nav { background: #0d1117; border-bottom: 1px solid #21262d; padding: 8px 24px; display: flex; gap: 4px; position: sticky; top: 53px; z-index: 99; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .admin-nav a { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; color: #8b949e; text-decoration: none; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
   .admin-nav a:hover { color: #e1e4e8; background: #161b22; }
   .admin-nav a.active { color: #e1e4e8; background: #21262d; font-weight: 600; }
-  .admin-nav .nav-icon { margin-right: 5px; }`;
+  .admin-nav .nav-icon { margin-right: 5px; }
+  @media (max-width: 768px) { .admin-nav { padding: 6px 12px; top: 0; } .admin-nav a { padding: 6px 10px; font-size: 12px; } }`;
   const epw = encodeURIComponent(pw || "");
   const links = pages
     .map(
@@ -407,6 +409,7 @@ async function handleStatsHeartbeat(request, env) {
   // Forward upsert to Supabase (server-side timestamp, truncated fields)
   const payload = {
     uid: trunc(body.uid, 128),
+    session_id: trunc(body.session_id || "", 64) || null,
     app_version: trunc(body.app_version, 32),
     game_version: trunc(body.game_version || "", 32) || null,
     os_version: trunc(body.os_version || "", 64) || null,
@@ -484,6 +487,18 @@ async function supabasePost(env, path, data, upsert = false) {
     method: "POST",
     headers,
     body: JSON.stringify(data),
+  });
+}
+
+async function supabaseRpc(env, funcName, params = {}) {
+  return fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${funcName}`, {
+    method: "POST",
+    headers: {
+      "apikey": env.SUPABASE_SERVICE_KEY,
+      "Authorization": `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params),
   });
 }
 
@@ -927,18 +942,31 @@ async function supabaseGet(env, path) {
   });
 }
 
-async function getStatsData(env) {
-  // Query all Supabase views in parallel
+async function getStatsData(env, days) {
+  // Use the get_stats RPC function with a configurable time range
+  const d = parseInt(days) || 30;
+  // Clamp: 0 (all-time) or 1–3650
+  const clampedDays = d <= 0 ? 0 : Math.min(Math.max(d, 1), 3650);
+
+  const resp = await supabaseRpc(env, "get_stats", { p_days: clampedDays });
+  if (resp.ok) {
+    const data = await resp.json();
+    return json(data);
+  }
+
+  // Fallback: query views directly if RPC fails (e.g., function not deployed yet)
   const views = [
     "online_users", "active_users", "version_stats", "crack_format_stats",
     "locale_stats", "event_stats", "popular_dlcs", "update_stats",
-    "download_volume", "session_stats",
+    "download_volume", "session_stats", "game_version_stats",
+    "daily_active_trend", "new_users_daily", "feature_usage",
+    "error_summary", "dlc_count_distribution", "daily_events_trend",
   ];
   const results = {};
   const settled = await Promise.allSettled(
     views.map(async (v) => {
-      const resp = await supabaseGet(env, `/rest/v1/${v}?select=*`);
-      if (resp.ok) return { name: v, data: await resp.json() };
+      const r = await supabaseGet(env, `/rest/v1/${v}?select=*`);
+      if (r.ok) return { name: v, data: await r.json() };
       return { name: v, data: [] };
     })
   );
@@ -946,6 +974,7 @@ async function getStatsData(env) {
     if (s.status === "fulfilled") results[s.value.name] = s.value.data;
     else results[s.reason?.name || "unknown"] = [];
   }
+  results._fallback = true;
   return json(results);
 }
 
@@ -1026,10 +1055,45 @@ async function serveStatsDashboard(env, pw) {
 
   .loading { text-align: center; padding: 40px; color: #484f58; }
 
-  @media (max-width: 900px) {
-    .metrics { grid-template-columns: repeat(2, 1fr); }
-    .metrics.three { grid-template-columns: repeat(2, 1fr); }
+  /* Sparkline SVG charts */
+  .sparkline-card { background: #161b22; border-radius: 10px; border: 1px solid #30363d; padding: 18px; }
+  .sparkline-title { font-size: 13px; color: #e1e4e8; font-weight: 600; margin-bottom: 8px; }
+  .sparkline-card svg { width: 100%; height: 80px; }
+  .sparkline-card .spark-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .sparkline-card .spark-area { opacity: 0.15; }
+  .sparkline-card .spark-label { font-size: 10px; fill: #484f58; }
+  .sparkline-card .spark-val { font-size: 10px; fill: #8b949e; text-anchor: end; }
+  .sparklines { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
+
+  /* Error/warning metric */
+  .metric-value.red { color: #e74c3c; }
+  .metric-subtext { font-size: 10px; color: #484f58; margin-top: 2px; }
+
+  @media (max-width: 1100px) {
+    .metrics { grid-template-columns: repeat(3, 1fr) !important; }
     .charts { grid-template-columns: 1fr; }
+    .sparklines { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+    .header h1 { font-size: 15px; }
+    .header-right { width: 100%; justify-content: space-between; }
+    .container { padding: 12px; }
+    .metrics { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+    .metric { padding: 12px; }
+    .metric-value { font-size: 22px; }
+    .charts { grid-template-columns: 1fr; gap: 8px; }
+    .sparklines { grid-template-columns: 1fr; gap: 8px; }
+    .section-title { font-size: 12px; margin: 16px 0 8px; }
+    .feed-table th, .feed-table td { padding: 6px 8px; font-size: 11px; }
+    .meta-preview { max-width: 120px; }
+  }
+  @media (max-width: 480px) {
+    .metrics { grid-template-columns: 1fr 1fr !important; gap: 6px; }
+    .metric-value { font-size: 18px; }
+    .metric-label { font-size: 9px; }
+    .bar-label { min-width: 60px; font-size: 10px; }
+    .bar-count { font-size: 10px; min-width: 30px; }
   }
 </style>
 </head>
@@ -1040,8 +1104,16 @@ async function serveStatsDashboard(env, pw) {
     <h1>Sims 4 Updater &mdash; Analytics</h1>
   </div>
   <div class="header-right">
+    <select id="timeRange" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 10px;color:#e1e4e8;font-size:12px;outline:none;cursor:pointer">
+      <option value="7">7 days</option>
+      <option value="30" selected>30 days</option>
+      <option value="60">60 days</option>
+      <option value="90">90 days</option>
+      <option value="365">1 year</option>
+      <option value="0">All time</option>
+    </select>
     <label class="auto-refresh-toggle">
-      <input type="checkbox" id="autoRefresh" checked> Auto-refresh (30s)
+      <input type="checkbox" id="autoRefresh" checked> Auto-refresh
     </label>
     <span class="last-updated" id="lastUpdated"></span>
   </div>
@@ -1054,6 +1126,13 @@ ${nav.html}
 var PW = new URLSearchParams(window.location.search).get("pw");
 var BASE = window.location.origin;
 var refreshTimer = null;
+var currentDays = 30;
+
+function getRangeLabel() {
+  if (currentDays <= 0) return "All Time";
+  if (currentDays === 365) return "1 Year";
+  return currentDays + "d";
+}
 
 function esc(s) {
   if (!s) return "";
@@ -1113,43 +1192,102 @@ function barChart(title, items, colorClass) {
   return html;
 }
 
+function sparkline(title, data, valueKey, color) {
+  if (!data || data.length === 0) return '<div class="sparkline-card"><div class="sparkline-title">' + title + '</div><div style="color:#484f58;font-size:12px">No data</div></div>';
+  var vals = data.map(function(d) { return d[valueKey] || 0; });
+  var max = Math.max.apply(null, vals);
+  if (max === 0) max = 1;
+  var w = 400, ht = 80, pad = 2;
+  var step = vals.length > 1 ? (w - pad * 2) / (vals.length - 1) : 0;
+  var pts = vals.map(function(v, i) { return (pad + i * step).toFixed(1) + "," + (ht - pad - ((v / max) * (ht - pad * 2 - 10))).toFixed(1); });
+  var line = pts.join(" ");
+  var area = pts.join(" ") + " " + (pad + (vals.length - 1) * step).toFixed(1) + "," + (ht - pad) + " " + pad + "," + (ht - pad);
+  var first = data[0].day ? data[0].day.substring(5) : "";
+  var last = data[data.length - 1].day ? data[data.length - 1].day.substring(5) : "";
+  var total = vals.reduce(function(a, b) { return a + b; }, 0);
+  var latest = vals[vals.length - 1];
+  var html = '<div class="sparkline-card"><div class="sparkline-title">' + title;
+  html += ' <span style="color:' + color + ';font-size:14px;font-weight:700;float:right">' + latest + ' today</span></div>';
+  html += '<svg viewBox="0 0 ' + w + ' ' + ht + '" preserveAspectRatio="none">';
+  html += '<polygon class="spark-area" points="' + area + '" fill="' + color + '"/>';
+  html += '<polyline class="spark-line" points="' + line + '" stroke="' + color + '"/>';
+  html += '<text x="' + pad + '" y="' + (ht - 1) + '" class="spark-label">' + first + '</text>';
+  html += '<text x="' + (w - pad) + '" y="' + (ht - 1) + '" class="spark-val">' + last + '</text>';
+  html += '</svg></div>';
+  return html;
+}
+
 function render(stats, events) {
   var au = row(stats.active_users || []);
   var on = row(stats.online_users || []);
   var us = row(stats.update_stats || []);
   var dv = row(stats.download_volume || []);
   var ss = row(stats.session_stats || []);
+  var errs = stats.error_summary || [];
+
+  // Calculate new users today from daily trend (only if last entry is actually today)
+  var nud = stats.new_users_daily || [];
+  var todayStr = new Date().toISOString().substring(0, 10);
+  var lastEntry = nud.length > 0 ? nud[nud.length - 1] : null;
+  var newToday = (lastEntry && lastEntry.day && lastEntry.day.substring(0, 10) === todayStr) ? (lastEntry.new_users || 0) : 0;
+
+  // Total errors (' + getRangeLabel() + ')
+  var totalErrors = errs.reduce(function(s, e) { return s + (e.count || 0); }, 0);
+  var errorUsers = errs.reduce(function(s, e) { return s + (e.affected_users || 0); }, 0);
 
   var h = '';
+  if (stats._fallback) {
+    h += '<div style="background:#5c3d00;border:1px solid #d29922;color:#e3b341;padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:13px">';
+    h += 'RPC function unavailable — showing default 30-day data. Time range selection is disabled.</div>';
+  }
 
   // Top metrics
   h += '<div class="section-title">Users</div>';
-  h += '<div class="metrics">';
+  h += '<div class="metrics" style="grid-template-columns:repeat(6,1fr)">';
   h += '<div class="metric"><div class="metric-value green"><span class="online-dot"></span>' + (on.count || 0) + '</div><div class="metric-label">Online Now</div></div>';
   h += '<div class="metric"><div class="metric-value blue">' + (au.dau || 0) + '</div><div class="metric-label">Daily Active</div></div>';
   h += '<div class="metric"><div class="metric-value blue">' + (au.wau || 0) + '</div><div class="metric-label">Weekly Active</div></div>';
   h += '<div class="metric"><div class="metric-value blue">' + (au.mau || 0) + '</div><div class="metric-label">Monthly Active</div></div>';
   h += '<div class="metric"><div class="metric-value blue">' + (au.total || 0) + '</div><div class="metric-label">Total Users</div></div>';
+  h += '<div class="metric"><div class="metric-value green">' + newToday + '</div><div class="metric-label">New Today</div></div>';
   h += '</div>';
 
-  // Downloads + updates
+  // Daily trends (sparklines)
+  var trendNote = (currentDays > 90 || currentDays <= 0) ? ' <span style="color:#484f58;font-size:12px">(charts show last 90 days)</span>' : '';
+  h += '<div class="section-title">Activity Trends (' + getRangeLabel() + ')' + trendNote + '</div>';
+  h += '<div class="sparklines">';
+  h += sparkline("Daily Active Users", stats.daily_active_trend || [], "active_users", "#58a6ff");
+  h += sparkline("New Users", stats.new_users_daily || [], "new_users", "#2ecc71");
+  h += sparkline("Daily Events", stats.daily_events_trend || [], "event_count", "#f0ad4e");
+  // DLC count distribution as a bar chart in the 4th sparkline slot
+  var dc = (stats.dlc_count_distribution || []).map(function(r) { return {label: r.bucket || "?", count: r.count}; });
+  h += barChart("DLC Count Distribution", dc, "purple");
+  h += '</div>';
+
+  // Downloads + updates + errors
   h += '<div class="section-title">Downloads &amp; Updates</div>';
-  h += '<div class="metrics three">';
-  h += '<div class="metric"><div class="metric-value orange">' + (dv.total_downloads || 0) + '</div><div class="metric-label">DLC Downloads (30d)</div></div>';
-  h += '<div class="metric"><div class="metric-value orange">' + fmtSize(dv.total_bytes || 0) + '</div><div class="metric-label">Download Volume (30d)</div></div>';
+  h += '<div class="metrics" style="grid-template-columns:repeat(5,1fr)">';
+  h += '<div class="metric"><div class="metric-value orange">' + (dv.total_downloads || 0) + '</div><div class="metric-label">DLC Downloads (' + getRangeLabel() + ')</div></div>';
+  h += '<div class="metric"><div class="metric-value orange">' + fmtSize(dv.total_bytes || 0) + '</div><div class="metric-label">Download Volume (' + getRangeLabel() + ')</div></div>';
   h += '<div class="metric"><div class="metric-value green">' + fmtPct(us.completed || 0, us.started || 0) + '</div><div class="metric-label">Update Success Rate</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + (us.started || 0) + '</div><div class="metric-label">Updates Started (' + getRangeLabel() + ')</div></div>';
+  h += '<div class="metric"><div class="metric-value red">' + totalErrors + '</div><div class="metric-label">Errors (' + getRangeLabel() + ')</div><div class="metric-subtext">' + errorUsers + ' users affected</div></div>';
   h += '</div>';
 
   // Charts
-  h += '<div class="section-title">Distributions (30 days)</div>';
+  h += '<div class="section-title">Distributions (' + getRangeLabel() + ')</div>';
   h += '<div class="charts">';
   var vs = (stats.version_stats || []).map(function(r) { return {label: r.app_version || "?", count: r.count}; });
+  var gv = (stats.game_version_stats || []).map(function(r) { return {label: r.game_version || "unknown", count: r.count}; });
   var cs = (stats.crack_format_stats || []).map(function(r) { return {label: r.crack_format || "unknown", count: r.count}; });
   var ls = (stats.locale_stats || []).map(function(r) { return {label: r.locale || "unknown", count: r.count}; });
+  var fu = (stats.feature_usage || []).map(function(r) { return {label: r.feature || "?", count: r.visits}; });
   var pd = (stats.popular_dlcs || []).map(function(r) { return {label: r.dlc_id || "?", count: r.downloads, extra: fmtSize(r.total_bytes)}; });
   h += barChart("App Version", vs, "blue");
+  h += barChart("Game Version", gv, "green");
   h += barChart("Crack Format", cs, "green");
   h += barChart("Locale", ls, "orange");
+  h += barChart("Feature Usage (Tab Visits)", fu, "blue");
 
   // Popular DLCs — custom to show size
   if (pd.length > 0) {
@@ -1157,7 +1295,7 @@ function render(stats, events) {
     h += '<div class="chart-card"><div class="chart-title">Popular DLCs</div>';
     pd.slice(0, 10).forEach(function(item) {
       var pct = maxDl > 0 ? Math.max(2, (item.count / maxDl) * 100) : 2;
-      h += '<div class="bar-row"><span class="bar-label">' + item.label + '</span>';
+      h += '<div class="bar-row"><span class="bar-label">' + esc(item.label) + '</span>';
       h += '<div class="bar-track"><div class="bar-fill purple" style="width:' + pct + '%"></div></div>';
       h += '<span class="bar-count">' + item.count + ' (' + item.extra + ')</span></div>';
     });
@@ -1167,10 +1305,19 @@ function render(stats, events) {
   }
   h += '</div>';
 
+  // Error breakdown (if any errors)
+  if (errs.length > 0) {
+    h += '<div class="section-title">Errors &amp; Failures (' + getRangeLabel() + ')</div>';
+    h += '<div class="charts"><div style="grid-column:1/-1">';
+    var errItems = errs.map(function(r) { return {label: r.event_type + " (" + r.affected_users + " users)", count: r.count}; });
+    h += barChart("Error Breakdown", errItems, "orange").replace('<div class="chart-card">', '<div class="chart-card" style="grid-column:1/-1">');
+    h += '</div></div>';
+  }
+
   // Session & download stats
   h += '<div class="section-title">Sessions &amp; Performance</div>';
   h += '<div class="metrics">';
-  h += '<div class="metric"><div class="metric-value blue">' + (ss.total_sessions || 0) + '</div><div class="metric-label">Sessions (30d)</div></div>';
+  h += '<div class="metric"><div class="metric-value blue">' + (ss.total_sessions || 0) + '</div><div class="metric-label">Sessions (' + getRangeLabel() + ')</div></div>';
   h += '<div class="metric"><div class="metric-value blue">' + fmtDuration(ss.avg_duration || 0) + '</div><div class="metric-label">Avg Session</div></div>';
   h += '<div class="metric"><div class="metric-value blue">' + fmtDuration(ss.max_duration || 0) + '</div><div class="metric-label">Max Session</div></div>';
   h += '<div class="metric"><div class="metric-value orange">' + fmtSpeed(dv.avg_speed_bps || 0) + '</div><div class="metric-label">Avg DL Speed</div></div>';
@@ -1179,7 +1326,7 @@ function render(stats, events) {
 
   // Event type breakdown
   var es = (stats.event_stats || []).map(function(r) { return {label: r.event_type, count: r.count}; });
-  h += '<div class="section-title">Event Types (30 days)</div>';
+  h += '<div class="section-title">Event Types (' + getRangeLabel() + ')</div>';
   h += '<div class="charts"><div style="grid-column:1/-1">';
   h += barChart("Events by Type", es, "blue").replace('<div class="chart-card">', '<div class="chart-card" style="grid-column:1/-1">');
   h += '</div></div>';
@@ -1209,8 +1356,9 @@ function render(stats, events) {
 }
 
 function loadStats() {
+  var daysParam = currentDays <= 0 ? "0" : String(currentDays);
   Promise.all([
-    api("/admin/stats/api"),
+    api("/admin/stats/api?days=" + daysParam),
     api("/admin/stats/recent"),
   ]).then(function(results) {
     render(results[0], results[1]);
@@ -1220,6 +1368,12 @@ function loadStats() {
   });
 }
 
+document.getElementById("timeRange").addEventListener("change", function(e) {
+  currentDays = parseInt(e.target.value);
+  document.getElementById("content").innerHTML = '<div class="loading">Loading analytics...</div>';
+  loadStats();
+});
+
 document.getElementById("autoRefresh").addEventListener("change", function(e) {
   if (e.target.checked) startAutoRefresh();
   else if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
@@ -1228,7 +1382,7 @@ function startAutoRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(function() {
     if (document.getElementById("autoRefresh").checked) loadStats();
-  }, 30000);
+  }, 60000);
 }
 
 loadStats();
@@ -1845,11 +1999,11 @@ async function checkAllowlist(env, machineId) {
         },
       }
     );
-    if (!resp.ok) return true; // Fail open
+    if (!resp.ok) return false; // Fail closed — deny when Supabase is unreachable
     const data = await resp.json();
     return data.length > 0;
   } catch {
-    return true; // Fail open
+    return false; // Fail closed
   }
 }
 
@@ -2553,18 +2707,7 @@ ${nav.html}
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px">
-    <div class="form-card" style="margin-bottom:0">
-      <div class="form-title">CDN Access Mode</div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <select id="accessMode" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px 12px;color:#e1e4e8;font-size:13px;outline:none">
-          <option value="public">Public (anyone can download)</option>
-          <option value="private">Private (allowlist only)</option>
-        </select>
-        <button class="btn" style="background:#58a6ff;font-size:12px;padding:6px 14px" onclick="saveAccessMode()">Save</button>
-        <span id="accessStatus" style="font-size:11px;color:#8b949e"></span>
-      </div>
-    </div>
+  <div style="margin-bottom:24px">
     <div class="form-card" style="margin-bottom:0">
       <div class="form-title">CDN Info</div>
       <div style="font-size:12px;color:#8b949e">
@@ -2701,28 +2844,6 @@ function loadBans() {
   });
 }
 
-// --- CDN Settings ---
-function loadSettings() {
-  api("/admin/settings/api").then(function(data) {
-    var settings = data.settings || [];
-    settings.forEach(function(s) {
-      if (s.key === "cdn_access") {
-        document.getElementById("accessMode").value = s.value;
-      }
-    });
-  });
-}
-
-function saveAccessMode() {
-  var val = document.getElementById("accessMode").value;
-  var status = document.getElementById("accessStatus");
-  status.textContent = "Saving...";
-  api("/admin/settings/update", "POST", { key: "cdn_access", value: val }).then(function(r) {
-    if (r.status === "ok") { toast("Access mode set to " + val); status.textContent = "Saved"; setTimeout(function() { status.textContent = ""; }, 2000); }
-    else { toast(r.error || "Failed", "error"); status.textContent = ""; }
-  }).catch(function() { toast("Error saving", "error"); status.textContent = ""; });
-}
-
 // --- Connected Clients ---
 var allClients = [];
 
@@ -2793,7 +2914,6 @@ document.addEventListener("click", function(e) {
 });
 
 loadBans();
-loadSettings();
 loadClients();
 setInterval(loadBans, 30000);
 setInterval(loadClients, 30000);
@@ -2872,6 +2992,15 @@ async function serveAccessDashboard(env, pw) {
 <div class="header"><h1>Access Requests</h1><span style="font-size:11px;color:#484f58" id="lastUpdated"></span></div>
 ${nav.html}
 <div class="container">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="font-size:13px;font-weight:600">CDN Access Mode</div>
+    <select id="accessMode" style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px 12px;color:#e1e4e8;font-size:13px;outline:none">
+      <option value="public">Public (anyone can download)</option>
+      <option value="private">Private (allowlist only)</option>
+    </select>
+    <button class="btn btn-approve" style="padding:6px 14px;font-size:12px" onclick="saveAccessMode()">Save</button>
+    <span id="accessStatus" style="font-size:11px;color:#8b949e"></span>
+  </div>
   <div class="metrics" id="stats"></div>
   <div class="table-card">
     <div class="filter-bar">
@@ -3061,7 +3190,29 @@ document.getElementById("bulkDeny").addEventListener("click", function() {
   }).catch(function() { toast("Bulk deny failed", "error"); });
 });
 
+// --- CDN Access Mode ---
+function loadSettings() {
+  api("/admin/settings/api").then(function(data) {
+    var settings = data.settings || [];
+    settings.forEach(function(s) {
+      if (s.key === "cdn_access") {
+        document.getElementById("accessMode").value = s.value;
+      }
+    });
+  });
+}
+function saveAccessMode() {
+  var val = document.getElementById("accessMode").value;
+  var status = document.getElementById("accessStatus");
+  status.textContent = "Saving...";
+  api("/admin/settings/update", "POST", { key: "cdn_access", value: val }).then(function(r) {
+    if (r.status === "ok") { toast("Access mode set to " + val); status.textContent = "Saved"; setTimeout(function() { status.textContent = ""; }, 2000); }
+    else { toast(r.error || "Failed", "error"); status.textContent = ""; }
+  }).catch(function() { toast("Error saving", "error"); status.textContent = ""; });
+}
+
 load();
+loadSettings();
 setInterval(load, 30000);
 </script>
 </body>
