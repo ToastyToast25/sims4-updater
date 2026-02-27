@@ -538,11 +538,16 @@ class App(ctk.CTk):
             self._animator.cancel_all(btn, tag="nav_hover")
             indicator = self._nav_indicators[key]
             if key == name:
-                # Resolve start color — "transparent" isn't valid hex for lerp
+                # Resolve start color — "transparent" isn't valid hex for lerp,
+                # and cget() may return a (light, dark) tuple.
                 btn_fg = btn.cget("fg_color")
+                if isinstance(btn_fg, (list, tuple)):
+                    btn_fg = btn_fg[0]
                 if not btn_fg or btn_fg == "transparent":
                     btn_fg = sidebar_bg
                 ind_fg = indicator.cget("fg_color")
+                if isinstance(ind_fg, (list, tuple)):
+                    ind_fg = ind_fg[0]
                 if not ind_fg or ind_fg == "transparent":
                     ind_fg = sidebar_bg
                 self._animator.animate_color(
