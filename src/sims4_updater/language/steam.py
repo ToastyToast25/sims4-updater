@@ -158,7 +158,7 @@ class SteamLanguageDownloader:
                     tool_resolved = self._tool_dir.resolve()
                     for member in zf.namelist():
                         target = (self._tool_dir / member).resolve()
-                        if not str(target).startswith(str(tool_resolved)):
+                        if not target.is_relative_to(tool_resolved):
                             log(f"WARNING: Skipping unsafe zip path: {member}")
                             continue
                         zf.extract(member, self._tool_dir)
@@ -485,8 +485,11 @@ class SteamLanguageDownloader:
                             proc.interrupt()
                             return (-1, "No password provided")
 
-                        proc.stdin.write((pw + "\n").encode("utf-8"))
-                        proc.stdin.flush()
+                        try:
+                            proc.stdin.write((pw + "\n").encode("utf-8"))
+                            proc.stdin.flush()
+                        except (BrokenPipeError, OSError):
+                            return (-1, "DepotDownloader exited unexpectedly")
                         password_sent = True
                         log("Password submitted.")
                         stall_cycles = 0
@@ -520,8 +523,11 @@ class SteamLanguageDownloader:
                             proc.interrupt()
                             return (-1, "No auth code provided")
 
-                        proc.stdin.write((code + "\n").encode("utf-8"))
-                        proc.stdin.flush()
+                        try:
+                            proc.stdin.write((code + "\n").encode("utf-8"))
+                            proc.stdin.flush()
+                        except (BrokenPipeError, OSError):
+                            return (-1, "DepotDownloader exited unexpectedly")
                         auth_code_sent = True
                         log("Auth code submitted.")
                         stall_cycles = 0

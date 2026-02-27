@@ -347,10 +347,17 @@ class PatchClient:
         """List all available versions (latest first, then archived)."""
         manifest = self.fetch_manifest()
         archived = list(manifest.archived_versions.keys())
-        archived.sort(
-            key=lambda v: [int(x) for x in v.split(".")],
-            reverse=True,
-        )
+
+        def _version_key(v: str) -> list[int]:
+            parts = []
+            for x in v.split("."):
+                try:
+                    parts.append(int(x))
+                except ValueError:
+                    parts.append(0)
+            return parts
+
+        archived.sort(key=_version_key, reverse=True)
         return [manifest.latest] + archived if manifest.latest else archived
 
     def fetch_version_manifest(self, version: str) -> Manifest:

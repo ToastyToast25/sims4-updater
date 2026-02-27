@@ -1482,6 +1482,10 @@ class HomeFrame(ctk.CTkFrame):
         """Restore launch buttons to their default Ready/Disabled state."""
         self._game_running = False
         self._game_launching = False
+        if self._poll_after_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._poll_after_id)
+            self._poll_after_id = None
         self._stop_play_timer()
 
         if self._legit_exe:

@@ -16,6 +16,7 @@ from __future__ import annotations
 import concurrent.futures
 import contextlib
 import logging
+import shutil
 import threading
 import zipfile
 from collections.abc import Callable
@@ -108,6 +109,20 @@ class DLCDownloader:
         task = DLCDownloadTask(entry=entry, total_bytes=entry.size)
 
         try:
+            # Pre-flight: check disk space (need ~2x entry size for download + extraction)
+            required = entry.size * 2 if entry.size > 0 else 0
+            if required > 0:
+                try:
+                    free = shutil.disk_usage(self.game_dir).free
+                    if free < required:
+                        raise DownloadError(
+                            f"Not enough disk space for {entry.dlc_id}: "
+                            f"need {required // 1_048_576} MB, "
+                            f"have {free // 1_048_576} MB free"
+                        )
+                except OSError:
+                    pass  # disk_usage can fail on network drives — skip check
+
             # Phase 1: Download
             self._wait_if_paused()
             if self.cancelled:
@@ -138,10 +153,33 @@ class DLCDownloader:
                         filename,
                     )
 
-            result = self._downloader.download_file(
-                file_entry,
-                progress=dl_progress,
-            )
+            # Retry up to 2 times on mid-stream failures (resume picks up where left off)
+            last_exc = None
+            for attempt in range(3):
+                try:
+                    result = self._downloader.download_file(
+                        file_entry,
+                        progress=dl_progress,
+                    )
+                    break
+                except DownloadError as e:
+                    last_exc = e
+                    if self.cancelled or "cancelled" in str(e).lower():
+                        raise
+                    if attempt < 2:
+                        logger.warning(
+                            "DLC download attempt %d failed for %s: %s",
+                            attempt + 1,
+                            entry.dlc_id,
+                            e,
+                        )
+                        import time
+
+                        time.sleep(2**attempt)
+                        continue
+                    raise
+            else:
+                raise last_exc  # type: ignore[misc]
 
             if self.cancelled:
                 task.state = DLCDownloadState.CANCELLED

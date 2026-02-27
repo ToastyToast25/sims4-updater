@@ -45,11 +45,17 @@ class TokenBucketRateLimiter:
             self._last_refill = time.monotonic()
 
     def acquire(self, byte_count: int) -> None:
-        """Block until *byte_count* tokens are available."""
+        """Block until *byte_count* tokens are consumed.
+
+        Consumes tokens incrementally so that chunks larger than the per-second
+        rate limit (e.g. 64 KB chunk at 50 KB/s) are handled correctly instead
+        of looping forever.
+        """
         if self._max_rate <= 0:
             return  # unlimited
 
-        while True:
+        remaining = float(byte_count)
+        while remaining > 0:
             with self._lock:
                 now = time.monotonic()
                 elapsed = now - self._last_refill
@@ -59,12 +65,14 @@ class TokenBucketRateLimiter:
                 if self._tokens > self._max_rate:
                     self._tokens = float(self._max_rate)
 
-                if self._tokens >= byte_count:
-                    self._tokens -= byte_count
+                consume = min(remaining, self._tokens)
+                if consume > 0:
+                    self._tokens -= consume
+                    remaining -= consume
+
+                if remaining <= 0:
                     return
 
-                # Calculate sleep time for the deficit
-                deficit = byte_count - self._tokens
-                wait_time = deficit / self._max_rate
+                wait_time = remaining / self._max_rate
 
-            time.sleep(wait_time)
+            time.sleep(min(wait_time, 1.0))

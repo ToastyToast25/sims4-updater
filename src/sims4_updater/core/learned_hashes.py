@@ -54,9 +54,13 @@ class LearnedHashDB:
             "updated": int(time.time()),
         }
         tmp = self.path.with_suffix(".json_tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, self.path)
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, self.path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         self._dirty = False
 
     def add_version(self, version: str, hashes: dict[str, str]):

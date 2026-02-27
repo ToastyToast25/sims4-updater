@@ -26,8 +26,8 @@ def load(path):
 
 def save(path, obj):
     try:
-        serialized = json.dumps(obj)
-    except TypeError:
+        serialized = json.dumps(obj, default=str)
+    except (TypeError, ValueError):
         return
 
     path = str(path)

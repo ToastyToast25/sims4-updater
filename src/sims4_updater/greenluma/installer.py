@@ -156,7 +156,7 @@ def _validate_archive_paths(names: list[str], target_dir: Path) -> None:
     resolved_target = target_dir.resolve()
     for name in names:
         entry_path = (target_dir / name).resolve()
-        if not str(entry_path).startswith(str(resolved_target)):
+        if not entry_path.is_relative_to(resolved_target):
             raise ValueError(f"Archive contains path traversal entry: {name!r}")
 
 

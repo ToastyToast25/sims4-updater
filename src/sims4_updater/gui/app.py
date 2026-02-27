@@ -72,7 +72,7 @@ class App(ctk.CTk):
         self._notification_history: list[tuple[str, str, float]] = []  # (msg, style, time)
 
         # Threading
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
         self._callback_queue: deque = deque()
         self._lock = Lock()
         self._current_future = None
@@ -578,7 +578,9 @@ class App(ctk.CTk):
                 if on_done:
                     self._enqueue_gui(on_done, result)
             except (BannedError, AccessRequiredError) as e:
-                # Always route CDN auth errors to the prominent dialog
+                # Let caller clean up first (e.g. reset _loading flag), then show dialog
+                if on_error:
+                    self._enqueue_gui(on_error, e)
                 self._enqueue_gui(self._show_error, e)
             except Exception as e:
                 if on_error:
@@ -625,7 +627,22 @@ class App(ctk.CTk):
     # ── Questions and Errors ────────────────────────────────────
 
     def _ask_question(self, question: str) -> bool:
-        return CTkDialog.ask_yes_no(self, title="Question", message=question)
+        """Show a yes/no dialog, safe to call from any thread."""
+        import threading as _th
+
+        if _th.current_thread() is _th.main_thread():
+            return CTkDialog.ask_yes_no(self, title="Question", message=question)
+        # Marshal to GUI thread and wait for the result
+        result: list[bool] = []
+        event = _th.Event()
+
+        def _show():
+            result.append(CTkDialog.ask_yes_no(self, title="Question", message=question))
+            event.set()
+
+        self._enqueue_gui(_show)
+        event.wait()
+        return result[0] if result else False
 
     def _show_error(self, error: Exception):
         """Display an error to the user."""

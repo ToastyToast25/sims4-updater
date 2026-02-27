@@ -189,7 +189,7 @@ class DLCPacker:
                 dest_resolved = dest_dir.resolve()
                 for member in zf.namelist():
                     target = (dest_dir / member).resolve()
-                    if not str(target).startswith(str(dest_resolved)):
+                    if not target.is_relative_to(dest_resolved):
                         logger.warning("Skipping unsafe zip path: %s", member)
                         continue
                     zf.extract(member, dest_dir)
@@ -215,7 +215,7 @@ class DLCPacker:
                 if not entry:
                     continue
                 target = (dest_dir / entry).resolve()
-                if not str(target).startswith(str(dest_resolved)):
+                if not target.is_relative_to(dest_resolved):
                     raise DownloadError(f"RAR archive contains path traversal entry: {entry!r}")
 
         result = subprocess.run(

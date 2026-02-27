@@ -90,7 +90,10 @@ class GreenLumaOrchestrator:
         """
         # Read current state
         al_state = applist.read_applist(self.steam.applist_dir)
-        vdf_state = config_vdf.read_depot_keys(self.steam.config_vdf_path)
+        try:
+            vdf_state = config_vdf.read_depot_keys(self.steam.config_vdf_path)
+        except (FileNotFoundError, ValueError, PermissionError):
+            vdf_state = config_vdf.VdfKeyState(keys={}, total_keys=0)
         mc_state = manifest_cache.read_depotcache(self.steam.depotcache_dir)
 
         results = []
@@ -344,7 +347,10 @@ class GreenLumaOrchestrator:
             return 0, 0, 0
 
         # Read current state
-        vdf_state = config_vdf.read_depot_keys(self.steam.config_vdf_path)
+        try:
+            vdf_state = config_vdf.read_depot_keys(self.steam.config_vdf_path)
+        except (FileNotFoundError, ValueError, PermissionError):
+            vdf_state = config_vdf.VdfKeyState(keys={}, total_keys=0)
         mc_state = manifest_cache.read_depotcache(self.steam.depotcache_dir)
         al_state = applist.read_applist(self.steam.applist_dir)
 
@@ -373,7 +379,12 @@ class GreenLumaOrchestrator:
                         _log(f"  Skipped: manifest too small ({len(resp.content)} bytes)")
                         continue
                     self.steam.depotcache_dir.mkdir(parents=True, exist_ok=True)
-                    dest.write_bytes(resp.content)
+                    # Atomic write to avoid corrupted partial files
+                    tmp = dest.with_suffix(dest.suffix + ".tmp")
+                    tmp.write_bytes(resp.content)
+                    import os as _os
+
+                    _os.replace(tmp, dest)
                     manifests_downloaded += 1
                     _log(f"  Saved: {filename} ({len(resp.content):,} bytes)")
                 except Exception as e:

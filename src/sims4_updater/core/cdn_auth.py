@@ -62,6 +62,7 @@ class CDNAuth:
         self._token: str = ""
         self._expires_at: float = 0
         self._lock = threading.Lock()
+        self._refresh_lock = threading.Lock()  # serialises network refresh calls
         self._denied: BannedError | AccessRequiredError | None = None
         self._last_refresh_attempt: float = 0
 
@@ -69,30 +70,50 @@ class CDNAuth:
     def api_url(self) -> str:
         return self._api_url
 
+    def _check_denied(self) -> None:
+        """Raise a *copy* of the denied error if still active (call under _lock)."""
+        if self._denied is None:
+            return
+        if isinstance(self._denied, BannedError) and self._denied.expires_at:
+            import datetime
+
+            try:
+                exp = datetime.datetime.fromisoformat(
+                    self._denied.expires_at.replace("Z", "+00:00")
+                )
+                if datetime.datetime.now(datetime.UTC) >= exp:
+                    self._denied = None  # ban expired, allow retry
+                    return
+            except (ValueError, TypeError):
+                pass
+        # Raise a fresh copy so each thread gets its own traceback
+        denied = self._denied
+        if isinstance(denied, BannedError):
+            raise BannedError(
+                reason=denied.reason,
+                ban_type=denied.ban_type,
+                expires_at=denied.expires_at,
+            )
+        if isinstance(denied, AccessRequiredError):
+            raise AccessRequiredError(
+                cdn_name=denied.cdn_name,
+                request_url=denied.request_url,
+            )
+        raise denied  # pragma: no cover
+
     def get_token(self) -> str:
         """Return a valid token, refreshing if near expiry (< 60 s left)."""
+        # Fast path: token still valid (no lock needed)
         if self._token and time.monotonic() < self._expires_at - 60:
             return self._token
         with self._lock:
-            # Fail fast if the server already denied us (ban / access-required),
-            # but allow recovery for temporary bans that have expired.
-            if self._denied is not None:
-                if isinstance(self._denied, BannedError) and self._denied.expires_at:
-                    import datetime
-
-                    try:
-                        exp = datetime.datetime.fromisoformat(
-                            self._denied.expires_at.replace("Z", "+00:00")
-                        )
-                        if datetime.datetime.now(datetime.UTC) >= exp:
-                            self._denied = None  # ban expired, allow retry
-                        else:
-                            raise self._denied
-                    except (ValueError, TypeError):
-                        raise self._denied  # noqa: B904
-                else:
-                    raise self._denied
+            self._check_denied()
             # Double-check after acquiring lock (another thread may have refreshed)
+            if self._token and time.monotonic() < self._expires_at - 60:
+                return self._token
+        # Only one thread refreshes at a time; others wait then re-check
+        with self._refresh_lock:
+            # Triple-check: another thread may have refreshed while we waited
             if self._token and time.monotonic() < self._expires_at - 60:
                 return self._token
             self._refresh()
@@ -136,7 +157,11 @@ class CDNAuth:
     # ── internal ───────────────────────────────────────────────
 
     def _refresh(self) -> None:
-        """Request a new JWT from the CDN API (with cooldown and single retry)."""
+        """Request a new JWT from the CDN API (with cooldown and single retry).
+
+        Must be called under ``_refresh_lock`` to serialise concurrent callers.
+        Shared state writes are protected by ``_lock``.
+        """
         now = time.monotonic()
         if now - self._last_refresh_attempt < self._MIN_RETRY_INTERVAL:
             # Still in cooldown — keep existing token if valid, else silently skip
@@ -158,16 +183,21 @@ class CDNAuth:
                     headers=identity.get_headers(),
                     timeout=_TIMEOUT,
                 )
+                # Retry on 5xx server errors
+                if resp.status_code >= 500 and attempt == 0:
+                    log.warning("CDN token request returned %d, retrying", resp.status_code)
+                    time.sleep(1)
+                    continue
                 break
             except requests.RequestException as exc:
                 if attempt == 0:
                     time.sleep(1)
                     continue
                 log.warning("CDN token request network error: %s", exc)
-                # Keep existing token if still valid, otherwise clear
-                if self._token and time.monotonic() < self._expires_at:
-                    return
-                self._token, self._expires_at = "", 0
+                with self._lock:
+                    if self._token and time.monotonic() < self._expires_at:
+                        return
+                    self._token, self._expires_at = "", 0
                 return
 
         if resp is None:
@@ -177,19 +207,22 @@ class CDNAuth:
             body: dict[str, Any] = {}
             with contextlib.suppress(Exception):
                 body = resp.json()
-            self._token, self._expires_at = "", 0
-            if body.get("error") == "access_required":
-                self._denied = AccessRequiredError(
-                    cdn_name=body.get("cdn_name", ""),
-                    request_url=body.get("request_url", ""),
-                )
-                raise self._denied
-            self._denied = BannedError(
-                reason=body.get("reason", ""),
-                ban_type=body.get("ban_type", ""),
-                expires_at=body.get("expires_at", ""),
-            )
-            raise self._denied
+            with self._lock:
+                self._token, self._expires_at = "", 0
+                if body.get("error") == "access_required":
+                    self._denied = AccessRequiredError(
+                        cdn_name=body.get("cdn_name", ""),
+                        request_url=body.get("request_url", ""),
+                    )
+                    denied = self._denied
+                else:
+                    self._denied = BannedError(
+                        reason=body.get("reason", ""),
+                        ban_type=body.get("ban_type", ""),
+                        expires_at=body.get("expires_at", ""),
+                    )
+                    denied = self._denied
+            raise denied
 
         if resp.status_code != 200:
             log.warning("CDN token request returned %d", resp.status_code)
@@ -197,7 +230,8 @@ class CDNAuth:
 
         try:
             data = resp.json()
-            self._token = data["token"]
-            self._expires_at = time.monotonic() + data.get("expires_in", 3600)
+            with self._lock:
+                self._token = data["token"]
+                self._expires_at = time.monotonic() + data.get("expires_in", 3600)
         except Exception as exc:
             log.warning("CDN token parse error: %s", exc)

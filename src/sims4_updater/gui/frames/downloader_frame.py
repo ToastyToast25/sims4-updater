@@ -135,6 +135,7 @@ class DownloaderFrame(ctk.CTkFrame):
         self._failed_count = 0
         self._extracted_count = 0
         self._active_downloader: ParallelDLCDownloader | None = None
+        self._dl_lock = threading.Lock()  # guards _active_downloader
         self._selected_version: str | None = None  # None = latest
 
         # Speed / timing
@@ -880,7 +881,8 @@ class DownloaderFrame(ctk.CTkFrame):
             speed_limit_bytes=speed_bytes,
             auth=auth,
         )
-        self._active_downloader = downloader
+        with self._dl_lock:
+            self._active_downloader = downloader
 
         def progress_cb(dlc_id, state, downloaded, total, message):
             # Throttle per-DLC progress updates to avoid GUI flooding
@@ -909,7 +911,8 @@ class DownloaderFrame(ctk.CTkFrame):
             else:
                 self.app._enqueue_gui(self._on_downloads_error, e)
         finally:
-            self._active_downloader = None
+            with self._dl_lock:
+                self._active_downloader = None
             downloader.close()
 
     def _update_dlc_progress(self, dlc_id, state, downloaded, total, message):
@@ -1173,7 +1176,8 @@ class DownloaderFrame(ctk.CTkFrame):
     # ── Pause / Resume / Cancel ──────────────────────────────────
 
     def _on_pause(self):
-        dl = self._active_downloader
+        with self._dl_lock:
+            dl = self._active_downloader
         if dl:
             dl.pause()
         self._pause_btn.grid_remove()
@@ -1182,7 +1186,8 @@ class DownloaderFrame(ctk.CTkFrame):
         self.app.telemetry.track_event("dlc_download_paused")
 
     def _on_resume(self):
-        dl = self._active_downloader
+        with self._dl_lock:
+            dl = self._active_downloader
         if dl:
             dl.resume()
         self._resume_btn.grid_remove()
@@ -1191,7 +1196,8 @@ class DownloaderFrame(ctk.CTkFrame):
         self.app.telemetry.track_event("dlc_download_resumed")
 
     def _on_cancel(self):
-        dl = self._active_downloader
+        with self._dl_lock:
+            dl = self._active_downloader
         if dl:
             dl.cancel()
         self._cancel_event.set()

@@ -342,16 +342,27 @@ class ToastNotification(ctk.CTkFrame):
 def _reflow_toasts():
     """Reposition all visible toasts after one is removed."""
     for toast in ToastNotification._active_toasts:
-        y = toast._compute_y_offset()
+        try:
+            if not toast.winfo_exists():
+                continue
+        except Exception:
+            continue
+        target_y = toast._compute_y_offset()
+        try:
+            current_y = toast.winfo_y()
+        except Exception:
+            current_y = target_y
+        if current_y == target_y:
+            continue
         with contextlib.suppress(Exception):
             _animator.animate(
                 toast,
                 150,
-                on_tick=lambda t, _toast=toast, _y=y: _toast.place(
+                on_tick=lambda t, _toast=toast, _from=current_y, _to=target_y: _toast.place(
                     relx=1.0,
                     rely=0.0,
                     x=-10,
-                    y=_y,
+                    y=int(_from + (_to - _from) * t),
                     anchor="ne",
                 ),
                 easing=ease_out_cubic,

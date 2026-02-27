@@ -92,7 +92,8 @@ def _detect_client() -> tuple[str, Path]:
 
 
 def _get_appdata_dir() -> Path:
-    return Path(os.environ["APPDATA"]) / _COMMON_DIR
+    appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+    return Path(appdata) / _COMMON_DIR
 
 
 def _get_tools_unlocker_dir() -> Path:

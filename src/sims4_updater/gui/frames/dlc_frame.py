@@ -74,6 +74,7 @@ class DLCFrame(ctk.CTkFrame):
         # Widget-reuse state
         self._search_after_id: str | None = None
         self._built = False
+        self._loading = False  # guard against re-entrant _load_dlcs calls
         self._all_states: list[DLCStatus] = []
         self._row_widgets: dict[str, dict] = {}  # dlc_id -> widget refs
         self._checkbox_vars: dict[str, ctk.BooleanVar] = {}
@@ -348,16 +349,20 @@ class DLCFrame(ctk.CTkFrame):
     # ── Data Loading ───────────────────────────────────────────
 
     def on_show(self):
-        self._load_dlcs()
+        if not self._loading:
+            self._load_dlcs()
 
     def _load_dlcs(self):
+        if self._loading:
+            return  # prevent re-entrant duplicate scans
+        self._loading = True
         self._status_label.configure(text="Loading DLCs...")
         if not self._built:
             self._show_loading_skeleton()
         self.app.run_async(
             self._get_dlc_states,
             on_done=self._on_states_loaded,
-            on_error=self._on_dlc_error,
+            on_error=self._on_dlc_load_error,
         )
 
     def _get_dlc_states(self):
@@ -389,6 +394,7 @@ class DLCFrame(ctk.CTkFrame):
         return states, gl_readiness, gl_installed
 
     def _on_states_loaded(self, result):
+        self._loading = False
         self._destroy_skeleton()
 
         # Unpack tuple from _get_dlc_states
@@ -1025,8 +1031,9 @@ class DLCFrame(ctk.CTkFrame):
                     corner_radius=6,
                     height=24,
                 )
-                x = w.winfo_rootx()
-                y = w.winfo_rooty() - 26
+                top = w.winfo_toplevel()
+                x = w.winfo_rootx() - top.winfo_rootx()
+                y = w.winfo_rooty() - top.winfo_rooty() - 26
                 tip.place(x=x, y=y)
                 w._gl_tip = tip
 
@@ -1295,6 +1302,12 @@ class DLCFrame(ctk.CTkFrame):
     def set_pending_dlcs(self, pending_dlcs):
         self._pending_dlcs = pending_dlcs
 
+    def _on_dlc_load_error(self, error):
+        """Error handler for initial DLC load — clears loading state and skeleton."""
+        self._loading = False
+        self._destroy_skeleton()
+        self._on_dlc_error(error)
+
     def _on_dlc_error(self, error):
         import logging
         import traceback
@@ -1352,8 +1365,7 @@ class DLCFrame(ctk.CTkFrame):
         else:
             self._go_to_downloader_btn.grid_remove()
 
-        # Rebuild rows to update downloadable filter
-        self._rebuild_rows()
+        # Re-filter only (rows already built — download data only affects filter chips)
         self._apply_filter()
 
     def _on_dlc_downloads_error(self, error):

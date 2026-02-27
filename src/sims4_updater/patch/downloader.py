@@ -59,6 +59,7 @@ class Downloader:
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self._cancel = cancel_event or threading.Event()
         self._session: requests.Session | None = None
+        self._session_lock = threading.Lock()
         self._rate_limiter = rate_limiter
         self._proceed = proceed_event  # None = no pause support
         self._auth = auth
@@ -66,9 +67,11 @@ class Downloader:
     @property
     def session(self) -> requests.Session:
         if self._session is None:
-            self._session = _create_session()
-            if self._auth:
-                self._session.auth = self._auth
+            with self._session_lock:
+                if self._session is None:
+                    self._session = _create_session()
+                    if self._auth:
+                        self._session.auth = self._auth
         return self._session
 
     def cancel(self):
@@ -213,8 +216,19 @@ class Downloader:
                 entry.filename,
             )
 
-        # Rename partial to final
-        partial_path.replace(final_path)
+        # Rename partial to final (retry on Windows file-locking contention)
+        import os
+        import time as _time
+
+        for _attempt in range(3):
+            try:
+                os.replace(partial_path, final_path)
+                break
+            except OSError:
+                if _attempt < 2:
+                    _time.sleep(0.5)
+                else:
+                    raise
 
         return DownloadResult(
             entry=entry,
@@ -282,7 +296,9 @@ def _create_session() -> requests.Session:
     )
     adapter = _TimeoutSSLAdapter(ctx, max_retries=retry)
     session.mount("https://", adapter)
-    session.headers["User-Agent"] = "Sims4Updater/2.0"
+    from .. import VERSION
+
+    session.headers["User-Agent"] = f"Sims4Updater/{VERSION}"
     session.headers.update(identity.get_headers())
     return session
 

@@ -15,6 +15,18 @@ from .formats import DLCConfigAdapter, detect_format
 logger = logging.getLogger(__name__)
 
 
+def _atomic_write(path: Path, content: str, encoding: str) -> None:
+    """Write content to a file atomically using temp file + os.replace."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_text(content, encoding=encoding)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
+
+
 class DLCManager:
     """Orchestrates DLC management across all config formats."""
 
@@ -124,8 +136,8 @@ class DLCManager:
                 ", ".join(skipped),
             )
 
-        # Write back
-        config_path.write_text(content, encoding=adapter.get_encoding())
+        # Write back atomically (temp file + os.replace to prevent corruption)
+        _atomic_write(config_path, content, adapter.get_encoding())
 
         # Copy to Bin_LE variant if it exists (matches AutoIt behavior)
         bin_le_path = config_path.parent.parent / "Bin_LE" / config_path.name
@@ -169,8 +181,21 @@ class DLCManager:
         return {s.dlc.id: s.enabled for s in states if s.enabled is not None}
 
     def import_states(self, game_dir: str | Path, saved_states: dict[str, bool]) -> None:
-        """Restore DLC states from a previous export."""
-        enabled_set = {dlc_id for dlc_id, enabled in saved_states.items() if enabled}
+        """Restore DLC states from a previous export.
+
+        DLCs not present in saved_states keep their current state (not disabled).
+        """
+        # Start with currently enabled DLCs to preserve state for unlisted ones
+        current = self.get_dlc_states(game_dir)
+        enabled_set = {s.dlc.id for s in current if s.enabled is True}
+
+        # Apply saved states: override only what's in the saved file
+        for dlc_id, enabled in saved_states.items():
+            if enabled:
+                enabled_set.add(dlc_id)
+            else:
+                enabled_set.discard(dlc_id)
+
         self.apply_changes(game_dir, enabled_set)
 
     def uninstall_dlc(
@@ -234,9 +259,10 @@ class DLCManager:
                         if dlc:
                             for code in dlc.all_codes:
                                 content = adapter.set_dlc_state(content, code, False)
-                            config_path.write_text(
+                            _atomic_write(
+                                config_path,
                                 content,
-                                encoding=adapter.get_encoding(),
+                                adapter.get_encoding(),
                             )
                             # Mirror to Bin_LE if present
                             bin_le = config_path.parent.parent / "Bin_LE" / config_path.name
