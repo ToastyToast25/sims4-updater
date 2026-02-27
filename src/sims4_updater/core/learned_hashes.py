@@ -11,12 +11,15 @@ Persisted at %LocalAppData%/ToastyToast25/sims4_updater/learned_hashes.json
 """
 
 import json
+import logging
 import os
 import threading
 import time
 from pathlib import Path
 
 from ..config import get_app_dir
+
+logger = logging.getLogger(__name__)
 
 
 def _default_path() -> Path:
@@ -40,10 +43,21 @@ class LearnedHashDB:
         try:
             with open(self.path, encoding="utf-8") as f:
                 data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("Root must be a JSON object")
             self.sentinel_files = data.get("sentinel_files", [])
             self.versions = data.get("versions", {})
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning("Corrupt learned hash DB at %s: %s — starting fresh", self.path, e)
+            # Back up corrupt file so user data isn't lost
+            backup = self.path.with_suffix(".json.corrupt")
+            try:
+                os.replace(self.path, backup)
+                logger.info("Backed up corrupt DB to %s", backup)
+            except OSError:
+                pass
+        except OSError as e:
+            logger.warning("Could not read learned hash DB: %s", e)
 
     def save(self):
         """Write the database to disk (atomic)."""

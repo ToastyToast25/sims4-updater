@@ -7,6 +7,7 @@ and never raise.  The module respects the ``telemetry_enabled`` setting.
 
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import datetime
 import logging
@@ -41,6 +42,7 @@ class TelemetryClient:
         self._game_info: dict[str, Any] = {}
         self._heartbeat_stop: threading.Event | None = None
         self._disabled = False  # set True on 403 to stop further requests
+        self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._ensure_uid()
 
     # ── UID management ────────────────────────────────────────
@@ -61,7 +63,7 @@ class TelemetryClient:
 
     def set_base_url(self, url: str) -> None:
         """Update the telemetry endpoint URL (e.g. from CDN manifest config)."""
-        if url:
+        if url and url.startswith("https://"):
             self._base_url = url
 
     # ── Game info cache ───────────────────────────────────────
@@ -186,7 +188,8 @@ class TelemetryClient:
 
     def _post(self, endpoint: str, data: dict) -> None:
         """POST to the stats API in a background thread. Never blocks the caller."""
-        threading.Thread(target=self._do_post, args=(endpoint, data), daemon=True).start()
+        with contextlib.suppress(RuntimeError):
+            self._pool.submit(self._do_post, endpoint, data)
 
     def _do_post(self, endpoint: str, data: dict) -> None:
         """Actual HTTP POST. Runs on a daemon thread — never raises."""

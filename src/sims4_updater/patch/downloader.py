@@ -179,7 +179,9 @@ class Downloader:
                 with open(partial_path, mode) as f:
                     for chunk in resp.iter_content(CHUNK_SIZE):
                         if self._proceed is not None:
-                            self._proceed.wait()  # block if paused
+                            while not self._proceed.wait(timeout=5):
+                                if self.cancelled:
+                                    raise DownloadError("Download cancelled.")
                         if self.cancelled:
                             raise DownloadError("Download cancelled.")
                         f.write(chunk)

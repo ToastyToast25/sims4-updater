@@ -202,7 +202,8 @@ class ModsFrame(ctk.CTkFrame):
     # ── Status Refresh ────────────────────────────────────────────
 
     def on_show(self):
-        self._refresh()
+        if not self._busy:
+            self._refresh()
 
     def _on_refresh(self):
         self._refresh()

@@ -235,8 +235,12 @@ class CDNAuth:
 
         try:
             data = resp.json()
+            token = data.get("token", "")
+            if not token or not isinstance(token, str):
+                log.warning("CDN token response missing valid 'token' field")
+                return
             with self._lock:
-                self._token = data["token"]
+                self._token = token
                 self._expires_at = time.monotonic() + data.get("expires_in", 3600)
         except Exception as exc:
             log.warning("CDN token parse error: %s", exc)

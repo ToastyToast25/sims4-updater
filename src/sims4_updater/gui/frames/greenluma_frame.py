@@ -304,7 +304,8 @@ class GreenLumaFrame(ctk.CTkFrame):
     # ── Lifecycle ────────────────────────────────────────────────
 
     def on_show(self):
-        self._refresh_status()
+        if not self._busy:
+            self._refresh_status()
 
     def _refresh_status(self):
         self._steam_path_badge.set_status("Scanning...", "muted")

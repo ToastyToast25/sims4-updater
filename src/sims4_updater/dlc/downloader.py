@@ -96,7 +96,9 @@ class DLCDownloader:
     def _wait_if_paused(self) -> None:
         """Block until proceed event is set (unpaused). No-op if no event."""
         if self._proceed is not None:
-            self._proceed.wait()
+            while not self._proceed.wait(timeout=5):
+                if self._cancel.is_set():
+                    return
 
     # ── Single DLC ──────────────────────────────────────────────
 

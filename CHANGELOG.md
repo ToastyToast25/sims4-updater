@@ -2,6 +2,25 @@
 
 All notable changes to The Sims 4 Updater will be documented in this file.
 
+## [2.9.0] - 2026-02-27
+
+### Fixed
+
+- **Shutdown hang: `_on_close()` doesn't cancel downloads** — window close now sets `updater._cancel` to unblock background download threads before destroying
+- **Indefinite hang: `_proceed.wait()` without timeout** — download pause/resume in both `patch/downloader.py` and `dlc/downloader.py` now loops with 5s timeout + cancel check
+- **Indefinite hang: `_ask_question` event.wait()** — added 120s timeout to prevent permanent hang if GUI thread dies while background thread waits for user answer
+- **Non-atomic GreenLuma install manifest** — `_save_install_manifest()` now writes via temp file + `os.replace()` with cleanup on failure
+- **Non-atomic AppList writes** — `write_applist()` now writes each numbered `.txt` file atomically via temp + `os.replace()`
+- **Non-atomic anadius_override.cfg writes** — all 3 write paths in `_ensure_language_override()` now use `_atomic_write_cfg()` helper
+- **Learned hash DB corruption swallowed silently** — corrupt JSON now logged as warning, backed up to `.json.corrupt`, and starts fresh instead of silently ignoring
+- **DLC uninstall: silent exception swallowing** — `except Exception: pass` in crack config disable replaced with logged warning; non-atomic `shutil.copy2` for Bin_LE replaced with `_atomic_write()`
+- **Cache encoding: system-default file encoding** — `cache.py` `load()`/`save()` now explicitly use `encoding="utf-8"`
+- **Telemetry HTTPS enforcement** — `set_base_url()` rejects non-HTTPS URLs
+- **CDN auth token key validation** — `_refresh()` validates `token` field exists and is a non-empty string before accepting
+- **Telemetry unbounded threads** — replaced per-call `Thread` spawning with bounded `ThreadPoolExecutor(max_workers=2)`
+- **5 frames missing on_show busy guards** — `greenluma_frame`, `language_frame`, `unlocker_frame`, `events_frame`, `mods_frame` now skip `on_show()` refresh if already busy
+- **Unused import** — removed `shutil` from `dlc/manager.py`
+
 ## [2.8.0] - 2026-02-27
 
 ### Fixed

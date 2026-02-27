@@ -434,6 +434,18 @@ def _update_anadius_configs(
     return updated
 
 
+def _atomic_write_cfg(path: Path, content: str) -> None:
+    """Write a config file atomically via temp file + os.replace."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
+
+
 def _ensure_language_override(
     override_path: Path,
     language_code: str,
@@ -455,7 +467,7 @@ def _ensure_language_override(
                 content,
             )
             if new_content != content:
-                override_path.write_text(new_content, encoding="utf-8")
+                _atomic_write_cfg(override_path, new_content)
                 log(f"Updated override: {override_path}")
                 log(f'  Language = "{language_code}"')
             else:
@@ -477,7 +489,7 @@ def _ensure_language_override(
             idx = content.rfind("}")
             if idx >= 0:
                 new_content = content[:idx] + game_section + content[idx:]
-                override_path.write_text(new_content, encoding="utf-8")
+                _atomic_write_cfg(override_path, new_content)
                 log(f"Added language section to override: {override_path}")
                 return
 
@@ -486,7 +498,7 @@ def _ensure_language_override(
         languages=_ALL_LANGUAGES_CSV,
         language=language_code,
     )
-    override_path.write_text(content, encoding="utf-8")
+    _atomic_write_cfg(override_path, content)
     log(f"Created override: {override_path}")
 
 

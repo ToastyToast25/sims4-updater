@@ -715,7 +715,7 @@ class App(ctk.CTk):
             event.set()
 
         self._enqueue_gui(_show)
-        event.wait()
+        event.wait(timeout=120)
         return result[0] if result else False
 
     def _show_error(self, error: Exception):
@@ -1157,6 +1157,8 @@ class App(ctk.CTk):
         try:
             self._animator.cancel_all()
             self.updater.exiting.set()
+            # Cancel any in-progress downloads so background threads unblock
+            self.updater._cancel.set()
             # Save window geometry before closing
             self.settings.window_geometry = self.geometry()
             self.settings.save()

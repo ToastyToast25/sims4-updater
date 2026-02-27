@@ -332,7 +332,8 @@ class LanguageFrame(ctk.CTkFrame):
     # ── Status ───────────────────────────────────────────────────
 
     def on_show(self):
-        self._refresh_status()
+        if not self._busy:
+            self._refresh_status()
 
     def _on_version_changed(self, choice: str):
         """Handle version dropdown change — reload language packs from archived manifest."""

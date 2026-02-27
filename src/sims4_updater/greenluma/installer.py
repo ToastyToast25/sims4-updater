@@ -43,13 +43,23 @@ def _get_manifest_path() -> Path:
 
 def _save_install_manifest(target_dir: Path, files: list[str]) -> None:
     """Save list of installed file paths relative to target_dir."""
+    import os as _os
+
     path = _get_manifest_path()
     data = {
         "install_dir": str(target_dir),
         "files": files,
         "installed_at": datetime.now().isoformat(),
     }
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json_tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        _os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
     log.info("Saved install manifest: %d files to %s", len(files), path)
 
 
