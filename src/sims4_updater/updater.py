@@ -11,6 +11,7 @@ Subclasses the base Patcher to add:
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from enum import Enum
@@ -31,6 +32,8 @@ from .dlc.downloader import DLCDownloader
 from .dlc.manager import DLCManager
 from .patch.client import PatchClient, UpdateInfo
 from .patch.planner import UpdatePlan
+
+logger = logging.getLogger(__name__)
 
 
 class UpdateState(Enum):
@@ -138,7 +141,7 @@ class Sims4Updater(BasePatcher):
             self.settings.save()
         except Exception:
             # May fail during interpreter shutdown when builtins are gone
-            pass
+            logger.debug("Cleanup error in __del__ (expected during shutdown)", exc_info=True)
 
     # ── Version Detection ──────────────────────────────────────────
 

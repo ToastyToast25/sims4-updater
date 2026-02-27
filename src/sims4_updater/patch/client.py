@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -21,6 +22,8 @@ from ..core.learned_hashes import LearnedHashDB
 from .downloader import Downloader, DownloadResult, ProgressCallback, _check_ban_response
 from .manifest import Manifest, PendingDLC, parse_manifest
 from .planner import UpdatePlan, plan_update
+
+logger = logging.getLogger(__name__)
 
 # Callback types for status updates: (message: str)
 StatusCallback = Callable[[str], None]
@@ -417,7 +420,7 @@ class PatchClient:
                     self._learned_db.merge(versions)
                     self._learned_db.save()
         except Exception:
-            pass  # non-critical, silently ignore
+            logger.debug("Failed to fetch crowd fingerprints", exc_info=True)
 
     def report_hashes(
         self,

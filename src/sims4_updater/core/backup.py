@@ -34,7 +34,7 @@ class BackupManager:
 
     def __init__(self, app_dir: Path, max_count: int = 3):
         self.backup_dir = app_dir / BACKUP_DIR_NAME
-        self.max_count = max(1, max_count)
+        self.max_count = max(0, max_count)
 
     def estimate_backup_size(
         self,
@@ -58,12 +58,15 @@ class BackupManager:
         game_dir: Path,
         files_to_patch: list[str],
         version_label: str,
-    ) -> Path:
+    ) -> Path | None:
         """Copy affected files into a timestamped backup folder.
 
         Structure: backups/<timestamp>_<version>/<relative_path>
-        Returns backup folder path.
+        Returns backup folder path, or None if max_count is 0 (backups disabled).
         """
+        if self.max_count == 0:
+            logger.info("Backups disabled (max_count=0), skipping")
+            return None
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_version = version_label.replace(" ", "_").replace("/", "-")
@@ -200,7 +203,10 @@ class BackupManager:
             logger.info("Deleted all backups")
 
     def prune_old_backups(self) -> None:
-        """Keep only max_count newest backups, delete the rest."""
+        """Keep only max_count newest backups, delete the rest.
+
+        When max_count is 0, all existing backups are deleted.
+        """
         backups = self.list_backups()
         if len(backups) <= self.max_count:
             return

@@ -665,7 +665,7 @@ class SettingsFrame(ctk.CTkFrame):
 
         ctk.CTkLabel(
             card3,
-            text="Number of backups to keep (oldest auto-deleted)",
+            text="Number of backups to keep (oldest auto-deleted, 0 = disable backups)",
             font=ctk.CTkFont(*theme.FONT_SMALL),
             text_color=theme.COLORS["text_muted"],
         ).grid(
@@ -920,9 +920,37 @@ class SettingsFrame(ctk.CTkFrame):
     def _save_settings(self):
         settings = self.app.settings
 
+        # Snapshot old values for change detection
+        old_game_path = settings.game_path
+        old_language = settings.language
+        old_manifest_url = settings.manifest_url
+
         # Card 1 fields
-        settings.game_path = self._game_dir_entry.get().strip()
-        settings.manifest_url = self._manifest_entry.get().strip()
+        game_path = self._game_dir_entry.get().strip()
+        if game_path:
+            from pathlib import Path as _Path
+
+            gp = _Path(game_path)
+            if not gp.is_dir():
+                self.app.show_toast("Game directory does not exist.", "error")
+                return
+            # Check for Sims 4 install markers
+            if not (gp / "Game" / "Bin").is_dir() and not (gp / "Game-cracked" / "Bin").is_dir():
+                self.app.show_toast(
+                    "Game directory doesn't contain Game/Bin — is this the right folder?",
+                    "warning",
+                )
+        settings.game_path = game_path
+
+        # Validate manifest URL
+        manifest_url = self._manifest_entry.get().strip()
+        if manifest_url:
+            from ...config import _is_valid_https_url
+
+            if not _is_valid_https_url(manifest_url):
+                self.app.show_toast("Manifest URL must be a valid HTTPS URL.", "error")
+                return
+        settings.manifest_url = manifest_url
 
         lang_display = self._lang_var.get()
         if " — " in lang_display:
@@ -937,17 +965,38 @@ class SettingsFrame(ctk.CTkFrame):
         settings.telemetry_enabled = self._telemetry_var.get()
 
         # Card 2 fields (GreenLuma)
-        settings.steam_path = self._steam_path_entry.get().strip()
-        settings.greenluma_archive_path = self._gl_archive_entry.get().strip()
-        settings.greenluma_lua_path = self._gl_lua_entry.get().strip()
-        settings.greenluma_manifest_dir = self._gl_manifest_dir_entry.get().strip()
+        from pathlib import Path as _Path
+
+        steam_path = self._steam_path_entry.get().strip()
+        if steam_path and not _Path(steam_path).is_dir():
+            self.app.show_toast("Steam path does not exist.", "error")
+            return
+        settings.steam_path = steam_path
+
+        gl_archive = self._gl_archive_entry.get().strip()
+        if gl_archive and not _Path(gl_archive).is_file():
+            self.app.show_toast("GreenLuma archive file does not exist.", "error")
+            return
+        settings.greenluma_archive_path = gl_archive
+
+        gl_lua = self._gl_lua_entry.get().strip()
+        if gl_lua and not _Path(gl_lua).is_file():
+            self.app.show_toast("LUA manifest file does not exist.", "error")
+            return
+        settings.greenluma_lua_path = gl_lua
+
+        gl_manifest_dir = self._gl_manifest_dir_entry.get().strip()
+        if gl_manifest_dir and not _Path(gl_manifest_dir).is_dir():
+            self.app.show_toast("Manifest files directory does not exist.", "error")
+            return
+        settings.greenluma_manifest_dir = gl_manifest_dir
         settings.greenluma_auto_backup = self._gl_auto_backup_var.get()
 
         # Card 3 fields (Backup)
         settings.backup_enabled = self._backup_enabled_var.get()
         try:
             max_count = int(self._backup_max_entry.get().strip())
-            settings.backup_max_count = max(1, max_count)
+            settings.backup_max_count = max(0, max_count)
         except ValueError:
             settings.backup_max_count = 3
 
@@ -955,6 +1004,15 @@ class SettingsFrame(ctk.CTkFrame):
             settings.save()
             self._status_label.configure(text="")
             self.app.show_toast("Settings saved!", "success")
+
+            # Context-specific toasts for important changes
+            if settings.language != old_language:
+                self.app.show_toast("Language changed — restart may be needed.", "info")
+            if settings.manifest_url != old_manifest_url:
+                self.app.show_toast("Manifest URL changed — restart to load new data.", "info")
+            if settings.game_path != old_game_path and settings.game_path:
+                self.app.show_toast("Game path changed — re-detecting version.", "info")
+
             self.app.telemetry.track_event(
                 "settings_saved",
                 {

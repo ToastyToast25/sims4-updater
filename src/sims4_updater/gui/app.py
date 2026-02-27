@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import contextlib
+import logging
 import tkinter as tk
 import traceback
 from collections import deque
@@ -37,6 +38,8 @@ from .frames.packer_frame import PackerFrame
 from .frames.progress_frame import ProgressFrame
 from .frames.settings_frame import SettingsFrame
 from .frames.unlocker_frame import UnlockerFrame
+
+logger = logging.getLogger(__name__)
 
 
 class App(ctk.CTk):
@@ -83,6 +86,7 @@ class App(ctk.CTk):
             try:
                 self.geometry(self.settings.window_geometry)
             except Exception:
+                logger.debug("Invalid saved geometry, using default", exc_info=True)
                 self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
         else:
             self.geometry(f"{theme.WINDOW_WIDTH}x{theme.WINDOW_HEIGHT}")
@@ -780,6 +784,7 @@ class App(ctk.CTk):
             bx = self._bell_btn.winfo_rootx()
             by = self._bell_btn.winfo_rooty()
         except Exception:
+            logger.debug("Could not get bell button position, using fallback", exc_info=True)
             bx, by = 100, 400
         popup_w, popup_h = 300, min(320, 60 + len(self._notification_history) * 38)
         popup_h = max(popup_h, 80)
@@ -1085,7 +1090,7 @@ class App(ctk.CTk):
                         result = detector.detect(game_dir)
                         game_version = result.version
                     except Exception:
-                        pass
+                        logger.debug("Telemetry: version detection failed", exc_info=True)
                     try:
                         from ..dlc.formats import detect_format
 
@@ -1093,12 +1098,12 @@ class App(ctk.CTk):
                         if adapter:
                             crack_format = adapter.get_format_name()
                     except Exception:
-                        pass
+                        logger.debug("Telemetry: crack format detection failed", exc_info=True)
                     try:
                         dlc_states = self.updater._dlc_manager.get_dlc_states(game_dir)
                         dlc_count = sum(1 for s in dlc_states if s.installed)
                     except Exception:
-                        pass
+                        logger.debug("Telemetry: DLC count failed", exc_info=True)
 
                 locale = self.settings.language or None
                 self.telemetry.heartbeat(
@@ -1124,7 +1129,7 @@ class App(ctk.CTk):
                 )
                 self.telemetry.start_periodic_heartbeat(300)
             except Exception:
-                pass  # Never fail
+                logger.debug("Telemetry initialization failed", exc_info=True)
 
         threading.Thread(target=_bg, daemon=True).start()
 
@@ -1146,7 +1151,7 @@ class App(ctk.CTk):
             except (BannedError, AccessRequiredError) as e:
                 self._enqueue_gui(self._show_error, e)
             except Exception:
-                pass  # Non-critical, will retry on download
+                logger.debug("CDN auth init failed, will retry on download", exc_info=True)
 
         threading.Thread(target=_bg, daemon=True).start()
 
@@ -1165,7 +1170,7 @@ class App(ctk.CTk):
             self.updater.close()
             self._executor.shutdown(wait=False, cancel_futures=True)
         except Exception:
-            pass
+            logger.debug("Error during shutdown cleanup", exc_info=True)
         self.destroy()
 
     def switch_to_progress(self):

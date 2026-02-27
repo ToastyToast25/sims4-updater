@@ -13,6 +13,7 @@ Components:
 from __future__ import annotations
 
 import contextlib
+import logging
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -23,6 +24,7 @@ from .animations import Animator, ease_out_cubic
 if TYPE_CHECKING:
     pass
 
+logger = logging.getLogger(__name__)
 
 # Shared animator instance for all components
 _animator = Animator()
@@ -332,7 +334,7 @@ class ToastNotification(ctk.CTkFrame):
             self.place_forget()
             self.destroy()
         except Exception:
-            pass
+            logger.debug("Toast cleanup error", exc_info=True)
         # Reposition remaining toasts
         _reflow_toasts()
 

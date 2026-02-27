@@ -4,6 +4,7 @@ import os
 import shutil
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 _OLD_DIR_NAME = "anadius"
 _NEW_DIR_NAME = "ToastyToast25"
@@ -46,6 +47,15 @@ with contextlib.suppress(Exception):
 SETTINGS_PATH = get_app_dir() / "settings.json"
 
 
+def _is_valid_https_url(url: str) -> bool:
+    """Return True if *url* is a valid HTTPS URL with a hostname."""
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme == "https" and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
 @dataclass
 class Settings:
     game_path: str = ""
@@ -77,6 +87,11 @@ class Settings:
         if not self.manifest_url:
             self.manifest_url = "https://cdn.hyperabyss.com/manifest.json"
         if not self.contribute_url:
+            self.contribute_url = "https://api.hyperabyss.com/contribute"
+        # Enforce HTTPS scheme on URLs
+        if not _is_valid_https_url(self.manifest_url):
+            self.manifest_url = "https://cdn.hyperabyss.com/manifest.json"
+        if not _is_valid_https_url(self.contribute_url):
             self.contribute_url = "https://api.hyperabyss.com/contribute"
 
     @classmethod

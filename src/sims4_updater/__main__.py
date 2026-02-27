@@ -12,6 +12,7 @@ Usage:
     python -m sims4_updater language <code> [dir]    # Set language
     python -m sims4_updater manifest <url|file>     # Inspect a manifest
     python -m sims4_updater learn <game_dir> <ver>  # Learn version hashes
+    python -m sims4_updater check-update [game_dir] # Scripted update check (exit codes)
     python -m sims4_updater event-unlock [ini]      # Unlock event rewards
 """
 
@@ -428,8 +429,62 @@ def _configure_identity():
 
         settings = Settings.load()
         identity.configure(get_machine_id(), settings.uid)
-    except Exception:
-        pass  # Non-critical — CLI still works without identity
+    except Exception as e:
+        print(f"[debug] Identity setup skipped: {e}", file=sys.stderr)
+
+
+def check_update_scripted(args):
+    """Machine-friendly update check with exit codes (0=current, 1=update, 2=error)."""
+    try:
+        from sims4_updater.core.version_detect import VersionDetector
+        from sims4_updater.patch.client import PatchClient
+    except ImportError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    detector = VersionDetector()
+
+    game_dir = getattr(args, "game_dir", None)
+    if not game_dir:
+        game_dir = detector.find_game_dir()
+        if not game_dir:
+            print("ERROR: Could not detect game directory.", file=sys.stderr)
+            sys.exit(2)
+
+    if not detector.validate_game_dir(game_dir):
+        print("ERROR: Invalid game directory.", file=sys.stderr)
+        sys.exit(2)
+
+    result = detector.detect(game_dir)
+    if not result.version:
+        print("ERROR: Could not detect version.", file=sys.stderr)
+        sys.exit(2)
+
+    manifest_url = getattr(args, "manifest_url", None)
+    if not manifest_url:
+        from sims4_updater.constants import MANIFEST_URL
+
+        manifest_url = MANIFEST_URL
+    if not manifest_url:
+        print("ERROR: No manifest URL configured.", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        client = PatchClient(manifest_url=manifest_url)
+        info = client.check_update(result.version)
+        client.close()
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    print(f"installed={result.version}")
+    print(f"latest={info.latest_version}")
+    print(f"update_available={info.update_available}")
+
+    if info.update_available:
+        sys.exit(1)
+    else:
+        sys.exit(0)
 
 
 def pack_dlc(args):
@@ -604,6 +659,14 @@ def main():
     lang_parser.add_argument("code", nargs="?", help="Language code (e.g. en_US)")
     lang_parser.add_argument("--game-dir", help="Game directory for RldOrigin.ini update")
 
+    # check-update (scripted, exit codes: 0=current, 1=update, 2=error)
+    check_update_parser = subparsers.add_parser(
+        "check-update",
+        help="Machine-friendly update check (exit 0=current, 1=update, 2=error)",
+    )
+    check_update_parser.add_argument("game_dir", nargs="?", help="Path to Sims 4 install dir")
+    check_update_parser.add_argument("--manifest-url", help="Manifest URL")
+
     # event-unlock
     event_parser = subparsers.add_parser("event-unlock", help="Unlock live-event rewards")
     event_parser.add_argument(
@@ -635,6 +698,8 @@ def main():
         learn_hashes(args)
     elif args.command == "language":
         show_language(args)
+    elif args.command == "check-update":
+        check_update_scripted(args)
     elif args.command == "event-unlock":
         event_unlock(args)
     elif args.command is None:
@@ -659,6 +724,7 @@ def main():
             print("  pack-dlc <dir> <ids...>   Pack DLC zip archives")
             print("  learn <game_dir> <ver>    Learn version hashes")
             print("  language [code]           Show or set language")
+            print("  check-update [game_dir]  Scripted update check (exit codes)")
             print("  event-unlock [ini]        Unlock live-event rewards")
     else:
         parser.print_help()
