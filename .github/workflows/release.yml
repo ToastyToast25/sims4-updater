@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install customtkinter requests pywin32 pyinstaller py7zr
+          pip install "customtkinter @ git+https://github.com/ToastyToast25/CustomTkinter.git@v5.4.0" requests pywin32 pyinstaller py7zr
 
       - name: Verify version matches tag
         shell: bash
@@ -80,7 +80,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install customtkinter requests pyinstaller paramiko bcrypt cryptography pynacl
+          pip install "customtkinter @ git+https://github.com/ToastyToast25/CustomTkinter.git@v5.4.0" requests pyinstaller paramiko bcrypt cryptography pynacl
 
       - name: Move patcher to expected location
         shell: bash

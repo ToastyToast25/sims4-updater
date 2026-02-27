@@ -45,9 +45,7 @@ class InfoCard(ctk.CTkFrame):
         super().__init__(parent, **kwargs)
 
         self._base_border = kwargs.get("border_color", theme.COLORS["border"])
-        self._base_fg = self.cget("fg_color")
         self._hover_border = theme.COLORS["accent_glow"]
-        self._hover_fg = theme.COLORS["card_hover"]
 
         self.bind("<Enter>", self._on_enter)
         self.bind("<Leave>", self._on_leave)
