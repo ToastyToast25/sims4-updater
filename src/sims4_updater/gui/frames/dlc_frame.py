@@ -1220,6 +1220,9 @@ class DLCFrame(ctk.CTkFrame):
         self._status_label.configure(text="Applying changes...")
 
         enabled_set = {dlc_id for dlc_id, var in self._checkbox_vars.items() if var.get()}
+        # Snapshot current state for telemetry diff
+        self._pre_apply_enabled = {s.dlc.id for s in self._all_states if s.enabled is True}
+        self._apply_enabled_set = enabled_set
         self.app.run_async(
             self._apply_bg,
             enabled_set,
@@ -1236,10 +1239,18 @@ class DLCFrame(ctk.CTkFrame):
     def _on_apply_done(self, _):
         self._apply_btn.configure(state="normal")
         self.app.show_toast("Changes applied successfully", "success")
+        # Compute toggled DLCs for telemetry
+        prev = getattr(self, "_pre_apply_enabled", set())
+        curr = getattr(self, "_apply_enabled_set", set())
+        newly_enabled = sorted(curr - prev)
+        newly_disabled = sorted(prev - curr)
         self.app.telemetry.track_event(
             "dlc_changes_applied",
             {
-                "dlcs_changed": sum(1 for v in self._checkbox_vars.values() if v.get()),
+                "enabled_count": len(newly_enabled),
+                "disabled_count": len(newly_disabled),
+                "enabled_ids": newly_enabled[:20],
+                "disabled_ids": newly_disabled[:20],
                 "crack_format": getattr(self.app.updater, "_detected_format", None),
             },
         )

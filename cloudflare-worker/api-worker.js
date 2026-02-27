@@ -1324,6 +1324,59 @@ function render(stats, events) {
   h += '<div class="metric"><div class="metric-value orange">' + fmtDuration(dv.avg_duration || 0) + '</div><div class="metric-label">Avg DL Duration</div></div>';
   h += '</div>';
 
+  // Download reliability
+  var dr = row(stats.download_reliability || []);
+  if (dr.total_downloads > 0) {
+    h += '<div class="section-title">Download Reliability (' + getRangeLabel() + ')</div>';
+    h += '<div class="metrics" style="grid-template-columns:repeat(4,1fr)">';
+    h += '<div class="metric"><div class="metric-value green">' + fmtPct(dr.total_downloads - (dr.with_retries || 0), dr.total_downloads) + '</div><div class="metric-label">First-Try Success</div></div>';
+    h += '<div class="metric"><div class="metric-value orange">' + (dr.with_retries || 0) + '</div><div class="metric-label">Needed Retries</div></div>';
+    h += '<div class="metric"><div class="metric-value blue">' + (dr.with_resume || 0) + '</div><div class="metric-label">Resumed Downloads</div></div>';
+    h += '<div class="metric"><div class="metric-value red">' + (dr.registration_failures || 0) + '</div><div class="metric-label">Registration Failures</div></div>';
+    h += '</div>';
+  }
+
+  // Patch performance
+  var pds = row(stats.patch_download_stats || []);
+  var pas = row(stats.patch_apply_stats || []);
+  if ((pds.total_downloads || 0) > 0 || (pas.total_applies || 0) > 0) {
+    h += '<div class="section-title">Patch Performance (' + getRangeLabel() + ')</div>';
+    h += '<div class="metrics" style="grid-template-columns:repeat(5,1fr)">';
+    h += '<div class="metric"><div class="metric-value blue">' + (pds.total_downloads || 0) + '</div><div class="metric-label">Patch Downloads</div></div>';
+    h += '<div class="metric"><div class="metric-value blue">' + fmtSize(pds.total_bytes || 0) + '</div><div class="metric-label">Patch Volume</div></div>';
+    h += '<div class="metric"><div class="metric-value orange">' + fmtSpeed(pds.avg_speed_bps || 0) + '</div><div class="metric-label">Avg Patch DL Speed</div></div>';
+    h += '<div class="metric"><div class="metric-value orange">' + fmtDuration(pds.avg_download_seconds || 0) + '</div><div class="metric-label">Avg DL Time</div></div>';
+    h += '<div class="metric"><div class="metric-value green">' + fmtDuration(pas.avg_apply_seconds || 0) + '</div><div class="metric-label">Avg Apply Time</div></div>';
+    h += '</div>';
+  }
+
+  // DLC by pack type
+  var dpt = (stats.dlc_by_pack_type || []).map(function(r) {
+    return {label: r.pack_type || "?", count: r.downloads, extra: fmtSize(r.total_bytes || 0)};
+  });
+  if (dpt.length > 0) {
+    h += '<div class="section-title">DLC Downloads by Pack Type (' + getRangeLabel() + ')</div>';
+    h += '<div class="charts">';
+    var maxPt = Math.max.apply(null, dpt.map(function(i) { return i.count; }));
+    h += '<div class="chart-card"><div class="chart-title">Pack Type</div>';
+    dpt.forEach(function(item) {
+      var pct = maxPt > 0 ? Math.max(2, (item.count / maxPt) * 100) : 2;
+      h += '<div class="bar-row"><span class="bar-label">' + esc(item.label) + '</span>';
+      h += '<div class="bar-track"><div class="bar-fill green" style="width:' + pct + '%"></div></div>';
+      h += '<span class="bar-count">' + item.count + ' (' + item.extra + ')</span></div>';
+    });
+    h += '</div>';
+    // DLC toggle stats
+    var dts = row(stats.dlc_toggle_stats || []);
+    h += '<div class="chart-card"><div class="chart-title">DLC Toggles</div>';
+    h += '<div style="padding:16px;font-size:14px;color:#8b949e">';
+    h += '<div style="margin-bottom:8px">\u{1F504} <strong>' + (dts.total_applies || 0) + '</strong> config applies</div>';
+    h += '<div style="margin-bottom:8px">\u2705 <strong>' + (dts.total_enabled || 0) + '</strong> DLCs enabled</div>';
+    h += '<div>\u274C <strong>' + (dts.total_disabled || 0) + '</strong> DLCs disabled</div>';
+    h += '</div></div>';
+    h += '</div>';
+  }
+
   // Event type breakdown
   var es = (stats.event_stats || []).map(function(r) { return {label: r.event_type, count: r.count}; });
   h += '<div class="section-title">Event Types (' + getRangeLabel() + ')</div>';

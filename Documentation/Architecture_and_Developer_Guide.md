@@ -1,6 +1,6 @@
 # Sims 4 Updater — Architecture and Developer Guide
 
-**Version:** 2.3.0
+**Version:** 2.10.0
 **Author:** ToastyToast25
 **Last Updated:** February 2026
 
@@ -1347,6 +1347,69 @@ Manages JWT session token lifecycle for CDN access.
 - `CDNTokenAuth(AuthBase)` — requests auth adapter. Set as `session.auth`; runs on every HTTP request, calling `get_token()` each time. Handles multi-hour batch downloads seamlessly.
 
 **Integration:** After manifest fetch, `App` creates `CDNAuth`, sets `session.auth = cdn_auth.get_auth_adapter()`.
+
+### 5.26 Core: Telemetry
+
+**File:** `src/sims4_updater/core/telemetry.py`
+
+Anonymous telemetry via Cloudflare Worker → Supabase. All methods are fire-and-forget: they catch all exceptions internally and never raise. Respects the `telemetry_enabled` user setting.
+
+**TelemetryClient class:**
+
+```python
+class TelemetryClient:
+    def __init__(self, settings: Settings, base_url: str = "") -> None
+    def heartbeat(*, game_version, crack_format, dlc_count, game_detected, locale) -> None
+    def track_event(event_type: str, metadata: dict | None = None) -> None
+    def set_game_info(*, game_version, crack_format, dlc_count, game_detected, locale) -> None
+    def set_base_url(url: str) -> None
+    def start_periodic_heartbeat(interval: int = 300) -> None
+    def stop_periodic_heartbeat() -> None
+    def session_end() -> None
+```
+
+**Key design decisions:**
+
+- Uses a `ThreadPoolExecutor(max_workers=2)` for non-blocking POSTs — never blocks the GUI
+- UID generated once per user (`uuid4().hex`), saved to `settings.json`
+- Session ID generated per app launch (`uuid4().hex`)
+- Auto-disables on 403 response (banned) to avoid spamming a rejecting endpoint
+- Periodic heartbeat runs on a daemon thread, defaults to every 5 minutes
+- Identity headers (`X-Machine-Id`, `X-UID`) injected via `core/identity.py`
+- `session_end()` fires a `session_end` event with `duration_seconds` and stops the periodic heartbeat
+
+**Tracked event types:**
+
+| Event | Source | Metadata |
+| --- | --- | --- |
+| `frame_navigation` | `app.py` | `from_frame`, `to_frame` |
+| `update_started` | `progress_frame.py` | `from_version`, `to_version`, `steps`, `total_size_bytes` |
+| `update_completed` | `progress_frame.py` | `from_version`, `to_version`, `steps`, `total_size_bytes`, `duration_seconds` |
+| `update_failed` | `progress_frame.py` | `error` (truncated to 200 chars) |
+| `update_cancelled` | `progress_frame.py` | — |
+| `patch_download_complete` | `progress_frame.py` | `from_version`, `to_version`, `steps`, `total_size_bytes`, `duration_seconds`, `avg_speed_bps` |
+| `patch_apply_complete` | `progress_frame.py` | `to_version`, `duration_seconds`, `dlc_count` |
+| `dlc_download_started` | `downloader_frame.py` | `dlc_count`, `dlc_ids`, `total_size_bytes`, `concurrency`, `speed_limit_mb` |
+| `dlc_item_started` | `downloader_frame.py` | `dlc_id`, `pack_type`, `size_bytes` |
+| `dlc_download_complete` | `downloader_frame.py` | `dlc_id`, `pack_type`, `size_bytes`, `duration_seconds`, `speed_bps`, `resumed`, `retries`, `registered` |
+| `dlc_download_failed` | `downloader_frame.py` | `dlc_id`, `pack_type`, `retries`, `error` |
+| `dlc_batch_complete` | `downloader_frame.py` | `total`, `completed`, `failed`, `cancelled`, `duration_seconds`, `total_bytes`, `total_retries`, `dlc_ids` |
+| `dlc_download_paused` | `downloader_frame.py` | `elapsed_seconds` |
+| `dlc_download_resumed` | `downloader_frame.py` | `pause_duration_seconds` |
+| `dlc_download_cancelled` | `downloader_frame.py` | `completed_before_cancel`, `total_requested` |
+| `dlc_changes_applied` | `dlc_frame.py` | `enabled_count`, `disabled_count`, `enabled_ids`, `disabled_ids`, `crack_format` |
+| `session_end` | `telemetry.py` | `session_id`, `duration_seconds` |
+| `self_update_started` | `home_frame.py` | `from_version`, `to_version` |
+| `self_update_completed` | `home_frame.py` | `to_version` |
+| `self_update_failed` | `home_frame.py` | `error` |
+
+**Usage from GUI frames:**
+
+```python
+self.app.telemetry.track_event("event_type", {"key": "value"})
+```
+
+All telemetry calls go through the `App.telemetry` attribute, which is initialized in `App.__init__()`. The `TelemetryClient` is configured with the telemetry URL from the manifest (`cdn.telemetry_url`) after the first manifest fetch.
 
 ---
 

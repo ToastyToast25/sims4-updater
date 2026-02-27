@@ -52,6 +52,8 @@ class DLCDownloadTask:
     progress_bytes: int = 0
     total_bytes: int = 0
     error: str = ""
+    retry_count: int = 0
+    resumed: bool = False
 
 
 # Callback: (dlc_id, state, progress_bytes, total_bytes, message)
@@ -163,6 +165,8 @@ class DLCDownloader:
                         file_entry,
                         progress=dl_progress,
                     )
+                    task.resumed = result.resumed
+                    task.retry_count = attempt
                     break
                 except DownloadError as e:
                     last_exc = e

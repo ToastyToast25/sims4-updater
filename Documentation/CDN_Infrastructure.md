@@ -2,8 +2,8 @@
 
 **Project**: The Sims 4 Updater
 **CDN Domain**: cdn.example.com
-**Last Updated**: 2026-02-22
-**Applies to:** Sims 4 Updater v2.3.0
+**Last Updated**: 2026-02-27
+**Applies to:** Sims 4 Updater v2.10.0
 
 ---
 
@@ -901,7 +901,7 @@ Four password-protected dashboards (`?pw=ADMIN_PASSWORD`):
 
 | Dashboard | Route | Features |
 | --- | --- | --- |
-| Analytics | `/admin/stats` | Online users, version stats, crack formats, DLC popularity, download volume |
+| Analytics | `/admin/stats` | Online users, DAU/WAU/MAU, version/crack/locale distribution, events, popular DLCs, download volume, download reliability, patch performance, DLC by pack type, DLC toggles, daily trends |
 | Contributions | `/admin` | DLC + GreenLuma contribution review and approval |
 | Bans | `/admin/bans` | Create/remove bans, connected clients table, CDN access mode toggle, ban from client list |
 | Access | `/admin/access` | Access request review with status filters, search, bulk approve/deny with checkboxes |
@@ -915,6 +915,36 @@ Every token request is logged to the `token_log` table with an upsert trigger:
 - Tracks: machine_id, uid, ip, app_version, request_count, first_seen, last_seen
 - Visible in the Bans dashboard "Connected Clients" section
 - Admins can ban directly from the client list
+
+### Analytics Dashboard Details
+
+The analytics dashboard (`/admin/stats`) fetches all data via the `get_stats(p_days)` Supabase RPC function, which returns 20+ analytics sections in a single call. The dashboard includes a time range selector (7d / 30d / 90d / All time) that re-fetches stats for the chosen window.
+
+**Dashboard sections:**
+
+| Section | Visualization | Data Source |
+| --- | --- | --- |
+| Online Users | Metric card | Users with `last_seen` in last 6 minutes |
+| Active Users | DAU/WAU/MAU/Total metrics | `users` table with time filters |
+| App Version Distribution | Bar chart | `users.app_version` grouped |
+| Game Version Distribution | Bar chart | `users.game_version` grouped |
+| Crack Format Distribution | Bar chart | `users.crack_format` grouped |
+| Locale Distribution | Bar chart | `users.locale` grouped |
+| Event Types | Bar chart | `events.event_type` grouped |
+| Popular DLCs | Bar chart (top 20) | `dlc_download_complete` events |
+| Download Volume | Metrics (count, bytes, speed) | `dlc_download_complete` events |
+| Download Reliability | Metrics (first-try %, retries, resumes, reg failures) | `dlc_download_complete` events |
+| Patch Performance | Metrics (download/apply count, speed, duration) | `patch_download_complete` + `patch_apply_complete` events |
+| DLC by Pack Type | Bar chart | `dlc_download_complete` grouped by `pack_type` |
+| DLC Toggles | Metrics (applies, enabled, disabled) | `dlc_changes_applied` events |
+| Update Stats | Started/completed/failed metrics | `update_*` events |
+| Session Stats | Count, avg/max duration | `session_end` events |
+| Feature Usage | Table (frame visits) | `frame_navigation` events |
+| Error Summary | Table (type, count, affected users) | Error events |
+| DLC Count Distribution | Table (buckets) | `users.dlc_count` bucketed |
+| Daily Active Trend | Sparkline chart | Daily distinct UIDs (up to 90 days) |
+| New Users Daily | Sparkline chart | `users.created_at` by day |
+| Daily Events Trend | Sparkline chart | Event count by day |
 
 ### Supabase Schema
 
@@ -957,10 +987,19 @@ Every token request is logged to the `token_log` table with an upsert trigger:
 | POST | `/auth/token` | Request JWT session token |
 | POST | `/access/request` | Submit access request (private CDNs) |
 
+**Telemetry (from client app):**
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/stats/heartbeat` | Upsert user record with system info |
+| POST | `/stats/event` | Append telemetry event to events log |
+
 **Admin (password-protected):**
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/admin/stats` | Analytics dashboard (calls `get_stats()` RPC) |
+| GET | `/admin` | Contribution review dashboard |
 | GET | `/admin/bans` | Ban management dashboard |
 | GET | `/admin/bans/api` | List all bans + summary |
 | POST | `/admin/bans/create` | Create a ban |

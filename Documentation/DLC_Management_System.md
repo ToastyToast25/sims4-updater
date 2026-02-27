@@ -1,8 +1,8 @@
 # DLC Management System — Technical Reference
 
 **Project:** Sims 4 Updater
-**Document Version:** 2.3.0
-**Date:** 2026-02-20
+**Document Version:** 2.10.0
+**Date:** 2026-02-27
 **Scope:** The complete DLC management subsystem, covering catalog data, state detection, crack config formats, download pipeline, unlocker integration, and GUI.
 
 ---
@@ -855,9 +855,11 @@ class DLCDownloadTask:
     progress_bytes: int = 0   # Bytes downloaded so far
     total_bytes: int = 0      # Total expected bytes (from manifest)
     error: str = ""           # Error message if state == FAILED
+    retry_count: int = 0      # Number of retries before success (0 = first try)
+    resumed: bool = False     # Whether HTTP resume was used
 ```
 
-One `DLCDownloadTask` is created per DLC download. It is updated in-place as the pipeline advances through phases.
+One `DLCDownloadTask` is created per DLC download. It is updated in-place as the pipeline advances through phases. The `retry_count` and `resumed` fields are set after a successful download and are used by the GUI for telemetry reporting (see Section 7.12).
 
 ### 7.3 DLCStatusCallback Type
 
@@ -1049,6 +1051,33 @@ If `_register_dlc()` raises an exception (e.g., no crack config found), the task
 ```
 
 This design decision treats file extraction as the primary success criterion. The DLC files are on disk and can be manually registered later via the "Apply Changes" button in the GUI. A missing crack config at this point is a configuration issue, not a download failure.
+
+### 7.12 Telemetry Events
+
+The DLC download pipeline and DLC toggle operations emit telemetry events for server-side analytics. All events are fired from the GUI layer (`downloader_frame.py` and `dlc_frame.py`) via `app.telemetry.track_event()`.
+
+**Download events:**
+
+| Event | When | Key Metadata |
+| --- | --- | --- |
+| `dlc_download_started` | Batch download begins | `dlc_count`, `dlc_ids`, `total_size_bytes`, `concurrency`, `speed_limit_mb` |
+| `dlc_item_started` | Individual DLC begins downloading | `dlc_id`, `pack_type`, `size_bytes` |
+| `dlc_download_complete` | Individual DLC finishes successfully | `dlc_id`, `pack_type`, `size_bytes`, `duration_seconds`, `speed_bps`, `resumed`, `retries`, `registered` |
+| `dlc_download_failed` | Individual DLC fails | `dlc_id`, `pack_type`, `retries`, `error` |
+| `dlc_batch_complete` | All DLCs in batch finished | `total`, `completed`, `failed`, `cancelled`, `duration_seconds`, `total_bytes`, `total_retries`, `dlc_ids` |
+| `dlc_download_paused` | User pauses downloads | `elapsed_seconds` |
+| `dlc_download_resumed` | User resumes downloads | `pause_duration_seconds` |
+| `dlc_download_cancelled` | User cancels downloads | `completed_before_cancel`, `total_requested` |
+
+The `resumed` and `retries` fields in per-DLC events come from the `DLCDownloadTask` dataclass, which is populated by the download retry loop. The `registered` field indicates whether Phase 3 (crack config registration) succeeded.
+
+**DLC toggle events:**
+
+| Event | When | Key Metadata |
+| --- | --- | --- |
+| `dlc_changes_applied` | User applies DLC config changes | `enabled_count`, `disabled_count`, `enabled_ids`, `disabled_ids`, `crack_format` |
+
+The toggle event captures the diff between the pre-apply and post-apply enabled sets, reporting which specific DLCs were enabled or disabled (capped at 20 IDs each to avoid oversized payloads).
 
 ---
 

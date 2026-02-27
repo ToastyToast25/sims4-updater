@@ -2,6 +2,23 @@
 
 All notable changes to The Sims 4 Updater will be documented in this file.
 
+## [2.10.0] - 2026-02-27
+
+### Added
+
+- **Per-DLC download telemetry** — `dlc_item_started` event emitted when each individual DLC begins downloading (includes `dlc_id`, `pack_type`, `size_bytes`)
+- **Download retry/resume tracking** — `DLCDownloadTask` now exposes `retry_count` and `resumed` fields; `dlc_download_complete` event includes `resumed`, `retries`, `registered`, and `pack_type` metadata
+- **DLC batch enrichment** — `dlc_download_started` includes full `dlc_ids` list and `speed_limit_mb`; `dlc_batch_complete` includes `total_retries` and `dlc_ids`
+- **DLC download failure details** — `dlc_download_failed` event now includes `pack_type` and `retries` metadata
+- **Pause duration tracking** — `dlc_download_paused` includes `elapsed_seconds`; `dlc_download_resumed` includes `pause_duration_seconds`
+- **Cancel context** — `dlc_download_cancelled` event includes `completed_before_cancel` and `total_requested`
+- **Patch download phase tracking** — new `patch_download_complete` event with `from_version`, `to_version`, `total_size_bytes`, `duration_seconds`, `avg_speed_bps`; separates download time from apply time
+- **Patch apply phase tracking** — new `patch_apply_complete` event with `to_version`, `duration_seconds`, `dlc_count`
+- **Update completed enrichment** — `update_completed` event now includes `from_version`, `steps`, `total_size_bytes`
+- **DLC toggle detail tracking** — `dlc_changes_applied` event now includes `enabled_ids`, `disabled_ids`, `enabled_count`, `disabled_count` (replacing generic `dlcs_changed` count)
+- **Supabase analytics views** — new `dlc_downloads_by_pack_type`, `patch_download_stats`, `patch_apply_stats`, `dlc_toggle_stats` views; `get_stats()` RPC updated with `dlc_by_pack_type`, `patch_download_stats`, `patch_apply_stats`, `dlc_toggle_stats`, `download_reliability` sections
+- **Performance indexes** — new partial indexes on `events` table for `pack_type` and `patch_download_complete` queries
+
 ## [2.9.0] - 2026-02-27
 
 ### Fixed

@@ -132,13 +132,17 @@ Real-time play time display on the homepage when the game is running. Shows elap
 
 Every major operation is available headlessly for scripting and automation.
 
+### Telemetry & Analytics
+
+Anonymous, opt-in telemetry tracks usage patterns and download performance for CDN operators. Events include per-DLC download metrics (speed, retries, resume, registration success), patch download and apply phase timing, DLC toggle diffs, frame navigation, and session duration. All data flows through the Cloudflare API Worker to Supabase. Users can disable telemetry in the Settings tab.
+
 ### Admin Dashboards
 
 Four password-protected admin dashboards for CDN management:
 
 | Dashboard | URL | Purpose |
 | --- | --- | --- |
-| **Analytics** | `/admin/stats` | Real-time telemetry: online users, version distribution, crack formats, DLC popularity, download volume |
+| **Analytics** | `/admin/stats` | Real-time telemetry: online users, DAU/WAU/MAU, version/crack/locale distribution, DLC popularity, download volume, download reliability (retry/resume rates), patch performance (download + apply timing), DLC downloads by pack type, DLC toggles, daily active trends, error summary |
 | **Contributions** | `/admin` | Review and approve DLC and GreenLuma key contributions |
 | **Bans** | `/admin/bans` | Create/remove bans, view connected clients, toggle CDN public/private mode |
 | **Access** | `/admin/access` | Review access requests for private CDNs with bulk approve/deny |
@@ -549,7 +553,7 @@ pytest tests/ -v --tb=short
 sims4-updater/
 ├── src/
 │   ├── sims4_updater/
-│   │   ├── __init__.py              # VERSION string ("2.5.0")
+│   │   ├── __init__.py              # VERSION string ("2.10.0")
 │   │   ├── __main__.py              # CLI argparse entry point + GUI launcher
 │   │   ├── constants.py             # SENTINEL_FILES, registry paths, get_data_dir(), get_tools_dir()
 │   │   ├── config.py                # Settings dataclass, get_app_dir() -> %LOCALAPPDATA%\ToastyToast25\
@@ -573,6 +577,7 @@ sims4-updater/
 │   │   │   ├── machine_id.py        # Machine fingerprint (SHA256 of Windows MachineGuid)
 │   │   │   ├── identity.py          # Shared identity headers for CDN requests
 │   │   │   ├── cdn_auth.py          # JWT session token lifecycle
+│   │   │   ├── telemetry.py         # Anonymous telemetry (heartbeat, events) via Cloudflare Worker → Supabase
 │   │   │   └── utils.py             # Size parsing utilities
 │   │   ├── patch/
 │   │   │   ├── manifest.py          # Manifest, PatchEntry, FileEntry, DLCDownloadEntry, GreenLumaEntry, parse_manifest()
@@ -691,6 +696,7 @@ Full technical reference for all subsystems:
 | [DLC Packer and Distribution](Documentation/DLC_Packer_and_Distribution.md) | Packer class internals, ZIP format specification, manifest generation, import flow, distribution workflow |
 | [GreenLuma Integration](Documentation/GreenLuma_Integration.md) | Steam detection, AppList management, config.vdf depot keys, LUA manifest parsing, depotcache, orchestrator |
 | [CDN Infrastructure](Documentation/CDN_Infrastructure.md) | Cloudflare Worker proxy, KV routing, seedbox integration, JWT auth, ban system, admin dashboards |
+| [Supabase Setup Guide](Documentation/Supabase_Setup_Guide.md) | Database schema, views, RPC functions, admin dashboard setup, worker secrets, maintenance |
 
 ---
 

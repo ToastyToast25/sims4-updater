@@ -1,8 +1,8 @@
 # Update and Patching System — Technical Reference
 
 **Project:** Sims 4 Updater
-**Version Documented:** 2.3.0
-**Date:** 2026-02-20
+**Version Documented:** 2.10.0
+**Date:** 2026-02-27
 **Scope:** Core update pipeline, version detection, manifest parsing, update planning, download management, patch application, DLC state preservation, and hash learning
 
 ---
@@ -2129,6 +2129,23 @@ def get_tools_dir():
 ```
 
 When frozen by PyInstaller, `sys._MEIPASS` points to the temporary directory where the bundled data files are extracted. The `data/` directory contains `version_hashes.json` and the `tools/` directory contains `xdelta3.exe` and `unrar.exe`.
+
+---
+
+## 13. Telemetry Events
+
+The update pipeline emits telemetry events for server-side analytics. All events are fired from `progress_frame.py` via `app.telemetry.track_event()`.
+
+| Event | When | Key Metadata |
+| --- | --- | --- |
+| `update_started` | User clicks "Update Now" | `from_version`, `to_version`, `steps`, `total_size_bytes` |
+| `patch_download_complete` | All patch archives downloaded | `from_version`, `to_version`, `steps`, `total_size_bytes`, `duration_seconds`, `avg_speed_bps` |
+| `patch_apply_complete` | All patches applied to game files | `to_version`, `duration_seconds`, `dlc_count` |
+| `update_completed` | Full pipeline finished successfully | `from_version`, `to_version`, `steps`, `total_size_bytes`, `duration_seconds` |
+| `update_failed` | Pipeline failed at any point | `error` (truncated to 200 chars) |
+| `update_cancelled` | User cancelled the update | — |
+
+The `patch_download_complete` and `patch_apply_complete` events provide phase-level timing, enabling server-side analysis of where time is spent during updates (network download vs. disk I/O). The `avg_speed_bps` field reports the average download throughput in bytes per second.
 
 ---
 

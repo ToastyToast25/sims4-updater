@@ -1,7 +1,7 @@
 # Supabase Setup Guide
 
 **Project**: The Sims 4 Updater
-**Last Updated**: 2026-02-23
+**Last Updated**: 2026-02-27
 
 ---
 
@@ -83,7 +83,7 @@ You should see `Success. No rows returned` — this means all tables, views, ind
 | `cdn_settings` | Dynamic key-value configuration |
 | `token_log` | Connected client tracking (one row per machine) |
 
-**Views (10)**: `online_users`, `active_users`, `version_stats`, `crack_format_stats`, `locale_stats`, `event_stats`, `popular_dlcs`, `update_stats`, `download_volume`, `session_stats`, `active_bans`, `bans_summary`
+**Views (16)**: `online_users`, `active_users`, `version_stats`, `crack_format_stats`, `locale_stats`, `event_stats`, `popular_dlcs`, `update_stats`, `download_volume`, `session_stats`, `active_bans`, `bans_summary`, `dlc_downloads_by_pack_type`, `patch_download_stats`, `patch_apply_stats`, `dlc_toggle_stats`
 
 **Triggers (1)**: `token_log_upsert_trigger` — auto-updates `last_seen` and increments `request_count` when a client reconnects
 
@@ -378,6 +378,10 @@ Default settings:
 | `update_stats` | Update started/completed/failed (30 days) | Analytics dashboard |
 | `download_volume` | Total downloads, bytes, speed (30 days) | Analytics dashboard |
 | `session_stats` | Session count and duration (30 days) | Analytics dashboard |
+| `dlc_downloads_by_pack_type` | DLC downloads grouped by pack type with speed/retry stats (30 days) | Analytics dashboard |
+| `patch_download_stats` | Patch download performance — count, bytes, duration, speed (30 days) | Analytics dashboard |
+| `patch_apply_stats` | Patch apply performance — count and average duration (30 days) | Analytics dashboard |
+| `dlc_toggle_stats` | DLC config changes — enable/disable counts (30 days) | Analytics dashboard |
 | `active_bans` | Currently enforced bans (excludes expired) | CDN/API Workers |
 | `bans_summary` | Ban count breakdown by status | Bans dashboard |
 
@@ -395,12 +399,60 @@ Four admin dashboards are served by the API Worker, all password-protected:
 
 | Dashboard | URL | Features |
 |-----------|-----|----------|
-| **Analytics** | `/admin/analytics?pw=...` | Online users, DAU/WAU/MAU, version/crack/locale charts, events, popular DLCs, download volume |
+| **Analytics** | `/admin/analytics?pw=...` | Online users, DAU/WAU/MAU, version/crack/locale charts, events, popular DLCs, download volume, download reliability, patch performance, DLC downloads by pack type, DLC toggles |
 | **Contributions** | `/admin/contributions?pw=...` | User-submitted DLC metadata and depot keys |
 | **Bans** | `/admin/bans?pw=...` | Create/remove bans, connected clients list, CDN access mode toggle |
 | **Access** | `/admin/access?pw=...` | Review/approve/deny access requests, bulk actions (private CDN only) |
 
 All dashboards auto-refresh every 30 seconds.
+
+### `get_stats()` RPC Function
+
+The analytics dashboard uses a single PostgreSQL function `get_stats(p_days)` to fetch all stats in one call. It accepts a time window in days (default 30, pass 0 for all-time) and returns a JSONB object with the following sections:
+
+| Section | Description |
+|---------|-------------|
+| `online_users` | Count of users seen in last 6 minutes (always real-time, ignores time range) |
+| `active_users` | DAU, WAU, MAU, and total user counts |
+| `version_stats` | App version distribution |
+| `game_version_stats` | Game version distribution |
+| `crack_format_stats` | Crack format distribution |
+| `locale_stats` | Locale/language distribution |
+| `event_stats` | Event type totals |
+| `popular_dlcs` | Top 20 downloaded DLCs by count |
+| `update_stats` | Update started/completed/failed counts |
+| `download_volume` | Total DLC downloads, bytes, avg speed |
+| `session_stats` | Session count and duration |
+| `feature_usage` | Frame navigation counts (UI feature usage) |
+| `error_summary` | Error events with affected user counts |
+| `dlc_count_distribution` | Users bucketed by installed DLC count |
+| `daily_active_trend` | Daily active users time series (up to 90 days) |
+| `new_users_daily` | New user registrations per day |
+| `daily_events_trend` | Total events per day time series |
+| `dlc_by_pack_type` | DLC downloads grouped by pack type (expansion/game_pack/stuff_pack/kit) with resume, retry, and speed stats |
+| `patch_download_stats` | Patch download performance — count, total bytes, avg duration, avg speed |
+| `patch_apply_stats` | Patch apply performance — count, avg apply duration |
+| `dlc_toggle_stats` | DLC config changes — total applies, enabled count, disabled count |
+| `download_reliability` | Download retry rate, resume rate, and registration failure rate |
+
+### Indexes
+
+Performance indexes for analytics queries:
+
+| Index | Table | Purpose |
+|-------|-------|---------|
+| `idx_events_type_created` | `events` | Event type + created_at for time-range queries |
+| `idx_events_dlc_pack_type` | `events` | Partial index on `metadata->>'pack_type'` for `dlc_download_complete` events |
+| `idx_events_patch_download` | `events` | Partial index on `created_at` for `patch_download_complete` events |
+
+### Running Migrations
+
+After the initial schema (`supabase_setup.sql`), apply migrations in order from `supabase/migrations/`:
+
+1. `20260227_stats_rpc.sql` — Base `get_stats()` RPC function
+2. `20260303_download_telemetry_views.sql` — Enhanced download/DLC tracking views and updated `get_stats()`
+
+Run each migration in the Supabase SQL Editor in chronological order.
 
 ---
 
