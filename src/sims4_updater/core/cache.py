@@ -10,7 +10,7 @@ __all__ = ["load", "save"]
 
 def load(path):
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (
         FileNotFoundError,
@@ -33,7 +33,7 @@ def save(path, obj):
     path = str(path)
     path_tmp = f"{path}_tmp"
     try:
-        with open(path_tmp, "w") as f:
+        with open(path_tmp, "w", encoding="utf-8") as f:
             f.write(serialized)
         os.replace(path_tmp, path)
     except (OSError, PermissionError) as e:

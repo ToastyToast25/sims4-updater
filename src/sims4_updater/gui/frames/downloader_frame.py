@@ -821,8 +821,10 @@ class DownloaderFrame(ctk.CTkFrame):
             "dlc_download_started",
             {
                 "dlc_count": len(entries),
+                "dlc_ids": [e.dlc_id for e in entries],
                 "total_size_bytes": total_download_size,
                 "concurrency": self.app.settings.download_concurrency,
+                "speed_limit_mb": self.app.settings.download_speed_limit or 0,
             },
         )
 
@@ -1026,6 +1028,14 @@ class DownloaderFrame(ctk.CTkFrame):
             size_str = _format_size(entry.size) if entry and entry.size > 0 else ""
             size_part = f" ({size_str})" if size_str else ""
             self._log(f"[{_timestamp()}] Downloading {dlc_id} \u2014 {name}{size_part}...")
+            self.app.telemetry.track_event(
+                "dlc_item_started",
+                {
+                    "dlc_id": dlc_id,
+                    "pack_type": info.pack_type if info else None,
+                    "size_bytes": entry.size if entry else 0,
+                },
+            )
 
         # Update overall progress bar using byte-level progress
         total_size = sum(e.size for e in self._download_entries) if self._download_entries else 0
@@ -1108,8 +1118,12 @@ class DownloaderFrame(ctk.CTkFrame):
             self._log(f"[{_timestamp()}] Average speed: {avg_speed}")
 
         # Per-DLC telemetry events
+        catalog = self.app.updater._dlc_manager.catalog
+        total_retries = 0
         for r in results:
             dlc_id = r.entry.dlc_id
+            cinfo = catalog.get_by_id(dlc_id)
+            pack_type = cinfo.pack_type if cinfo else None
             if r.state in (DLCDownloadState.COMPLETED, DLCDownloadState.EXTRACTED):
                 dlc_dur = duration
                 start = self._dlc_start_times.get(dlc_id)
@@ -1117,26 +1131,35 @@ class DownloaderFrame(ctk.CTkFrame):
                     dlc_dur = time.monotonic() - start
                 dlc_size = self._dlc_bytes.get(dlc_id, r.entry.size)
                 speed = dlc_size / dlc_dur if dlc_dur > 0 else 0
+                total_retries += r.retry_count
                 self.app.telemetry.track_event(
                     "dlc_download_complete",
                     {
                         "dlc_id": dlc_id,
+                        "pack_type": pack_type,
                         "size_bytes": dlc_size,
                         "duration_seconds": round(dlc_dur, 1),
                         "speed_bps": round(speed),
+                        "resumed": r.resumed,
+                        "retries": r.retry_count,
+                        "registered": r.state == DLCDownloadState.COMPLETED,
                     },
                 )
             elif r.state == DLCDownloadState.FAILED:
+                total_retries += r.retry_count
                 self.app.telemetry.track_event(
                     "dlc_download_failed",
                     {
                         "dlc_id": dlc_id,
-                        "error": str(r.error) if r.error else None,
+                        "pack_type": pack_type,
+                        "error": str(r.error)[:200] if r.error else None,
+                        "retries": r.retry_count,
                     },
                 )
 
         # Batch summary event
         avg_speed = total_bytes / duration if duration > 0 else 0
+        dlc_ids = [r.entry.dlc_id for r in results if r.state != DLCDownloadState.CANCELLED]
         self.app.telemetry.track_event(
             "dlc_batch_complete",
             {
@@ -1146,6 +1169,8 @@ class DownloaderFrame(ctk.CTkFrame):
                 "total_bytes": total_bytes,
                 "duration_seconds": round(duration, 1),
                 "avg_speed_bps": round(avg_speed),
+                "total_retries": total_retries,
+                "dlc_ids": dlc_ids,
             },
         )
 
@@ -1182,8 +1207,13 @@ class DownloaderFrame(ctk.CTkFrame):
             dl.pause()
         self._pause_btn.grid_remove()
         self._resume_btn.grid()
+        self._pause_start_time = time.monotonic()
         self._log(f"[{_timestamp()}] Downloads paused")
-        self.app.telemetry.track_event("dlc_download_paused")
+        elapsed = time.monotonic() - self._download_start_time
+        self.app.telemetry.track_event(
+            "dlc_download_paused",
+            {"elapsed_seconds": round(elapsed, 1)},
+        )
 
     def _on_resume(self):
         with self._dl_lock:
@@ -1192,8 +1222,15 @@ class DownloaderFrame(ctk.CTkFrame):
             dl.resume()
         self._resume_btn.grid_remove()
         self._pause_btn.grid()
+        pause_dur = 0.0
+        if hasattr(self, "_pause_start_time") and self._pause_start_time:
+            pause_dur = time.monotonic() - self._pause_start_time
+            self._pause_start_time = 0.0
         self._log(f"[{_timestamp()}] Downloads resumed")
-        self.app.telemetry.track_event("dlc_download_resumed")
+        self.app.telemetry.track_event(
+            "dlc_download_resumed",
+            {"pause_duration_seconds": round(pause_dur, 1)},
+        )
 
     def _on_cancel(self):
         with self._dl_lock:
@@ -1207,10 +1244,13 @@ class DownloaderFrame(ctk.CTkFrame):
         self._resume_btn.grid_remove()
         self._log(f"[{_timestamp()}] Cancellation requested...")
         elapsed = time.monotonic() - self._download_start_time
+        completed_so_far = self._completed_count + self._extracted_count
         self.app.telemetry.track_event(
             "dlc_download_cancelled",
             {
                 "elapsed_seconds": round(elapsed, 1),
+                "completed_before_cancel": completed_so_far,
+                "total_requested": self._total_to_download,
             },
         )
 

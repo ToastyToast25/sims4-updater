@@ -278,10 +278,25 @@ class ProgressFrame(ctk.CTkFrame):
         updater = self.app.updater
         updater.reset_cancel()
 
-        # Download
+        # Phase 1: Download patches
+        dl_start = time.monotonic()
         updater.download_update(plan)
+        dl_duration = time.monotonic() - dl_start
+        self.app.telemetry.track_event(
+            "patch_download_complete",
+            {
+                "from_version": plan.current_version,
+                "to_version": plan.target_version,
+                "steps": plan.step_count,
+                "total_size_bytes": plan.total_download_size,
+                "duration_seconds": round(dl_duration, 1),
+                "avg_speed_bps": round(plan.total_download_size / dl_duration)
+                if dl_duration > 0
+                else 0,
+            },
+        )
 
-        # Load metadata and patch
+        # Phase 2: Load metadata and apply patches
         game_dir = updater.find_game_dir()
         if game_dir:
             game_names = updater.load_all_metadata()
@@ -347,7 +362,17 @@ class ProgressFrame(ctk.CTkFrame):
                         "warning",
                     )
 
+            apply_start = time.monotonic()
             updater.patch(selected)
+            apply_duration = time.monotonic() - apply_start
+            self.app.telemetry.track_event(
+                "patch_apply_complete",
+                {
+                    "to_version": plan.target_version,
+                    "duration_seconds": round(apply_duration, 1),
+                    "dlc_count": len(selected),
+                },
+            )
 
             # Learn new version hashes
             target_version = plan.target_version
@@ -392,7 +417,10 @@ class ProgressFrame(ctk.CTkFrame):
         self.app.telemetry.track_event(
             "update_completed",
             {
+                "from_version": plan.current_version if plan else None,
                 "to_version": plan.target_version if plan else None,
+                "steps": plan.step_count if plan else None,
+                "total_size_bytes": plan.total_download_size if plan else None,
                 "duration_seconds": duration,
             },
         )

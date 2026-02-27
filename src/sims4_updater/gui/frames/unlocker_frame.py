@@ -178,7 +178,8 @@ class UnlockerFrame(ctk.CTkFrame):
 
     def on_show(self):
         """Called when frame becomes visible."""
-        self._refresh_status()
+        if not self._busy:
+            self._refresh_status()
 
     def _refresh_status(self):
         """Detect client and update status badges."""

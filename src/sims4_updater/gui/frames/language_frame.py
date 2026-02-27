@@ -332,7 +332,8 @@ class LanguageFrame(ctk.CTkFrame):
     # ── Status ───────────────────────────────────────────────────
 
     def on_show(self):
-        self._refresh_status()
+        if not self._busy:
+            self._refresh_status()
 
     def _on_version_changed(self, choice: str):
         """Handle version dropdown change — reload language packs from archived manifest."""
@@ -872,8 +873,7 @@ class LanguageFrame(ctk.CTkFrame):
                         "size_bytes": entry.size if hasattr(entry, "size") else None,
                     },
                 )
-                # Now apply the language config
-                self._refresh_status()
+                # Apply the language config (refresh status after apply completes)
                 self._apply_language(code)
             else:
                 self._set_busy(False)

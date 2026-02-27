@@ -107,27 +107,29 @@ class TestCDNAuth:
 
         assert exc_info.value.cdn_name == "Private CDN"
 
-    def test_network_error_returns_empty_token(self, auth):
-        """Network errors should log a warning, not raise."""
+    def test_network_error_raises(self, auth):
+        """Network errors should raise RuntimeError after failed refresh."""
         import requests
 
-        with patch(
-            "sims4_updater.core.cdn_auth.requests.post",
-            side_effect=requests.ConnectionError("offline"),
+        with (
+            patch(
+                "sims4_updater.core.cdn_auth.requests.post",
+                side_effect=requests.ConnectionError("offline"),
+            ),
+            pytest.raises(RuntimeError, match="Token refresh failed"),
         ):
-            token = auth.get_token()
+            auth.get_token()
 
-        assert token == ""
-
-    def test_non_200_returns_empty_token(self, auth):
-        """Non-200/403 response should log and return empty."""
+    def test_non_200_raises(self, auth):
+        """Non-200/403 response should raise RuntimeError."""
         mock_resp = MagicMock()
         mock_resp.status_code = 500
 
-        with patch("sims4_updater.core.cdn_auth.requests.post", return_value=mock_resp):
-            token = auth.get_token()
-
-        assert token == ""
+        with (
+            patch("sims4_updater.core.cdn_auth.requests.post", return_value=mock_resp),
+            pytest.raises(RuntimeError, match="Token refresh failed"),
+        ):
+            auth.get_token()
 
 
 class TestCDNTokenAuth:
@@ -166,9 +168,9 @@ class TestCDNTokenAuth:
         with patch("sims4_updater.core.cdn_auth.requests.post", return_value=mock_resp):
             adapter = auth.get_auth_adapter()
 
-        mock_request = MagicMock()
-        mock_request.headers = {}
-        result = adapter(mock_request)
+            mock_request = MagicMock()
+            mock_request.headers = {}
+            result = adapter(mock_request)
 
         assert "Authorization" not in result.headers
 

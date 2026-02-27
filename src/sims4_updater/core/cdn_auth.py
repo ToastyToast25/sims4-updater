@@ -37,7 +37,10 @@ class CDNTokenAuth(AuthBase):
         self._cdn_auth = cdn_auth
 
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        token = self._cdn_auth.get_token()
+        try:
+            token = self._cdn_auth.get_token()
+        except RuntimeError:
+            token = ""
         if token:
             r.headers["Authorization"] = f"Bearer {token}"
         return r
@@ -117,6 +120,8 @@ class CDNAuth:
             if self._token and time.monotonic() < self._expires_at - 60:
                 return self._token
             self._refresh()
+        if not self._token:
+            raise RuntimeError("Token refresh failed — no valid token available.")
         return self._token
 
     def get_auth_adapter(self) -> CDNTokenAuth:
@@ -230,8 +235,12 @@ class CDNAuth:
 
         try:
             data = resp.json()
+            token = data.get("token", "")
+            if not token or not isinstance(token, str):
+                log.warning("CDN token response missing valid 'token' field")
+                return
             with self._lock:
-                self._token = data["token"]
+                self._token = token
                 self._expires_at = time.monotonic() + data.get("expires_in", 3600)
         except Exception as exc:
             log.warning("CDN token parse error: %s", exc)

@@ -5,7 +5,6 @@ DLC Manager — unified interface for toggling DLCs across all crack config form
 import contextlib
 import logging
 import os
-import shutil
 from pathlib import Path
 
 from ..core.exceptions import NoCrackConfigError
@@ -142,7 +141,7 @@ class DLCManager:
         # Copy to Bin_LE variant if it exists (matches AutoIt behavior)
         bin_le_path = config_path.parent.parent / "Bin_LE" / config_path.name
         if bin_le_path.parent.is_dir() and bin_le_path != config_path:
-            shutil.copy2(config_path, bin_le_path)
+            _atomic_write(bin_le_path, content, adapter.get_encoding())
 
     def auto_toggle(self, game_dir: str | Path) -> dict[str, bool]:
         """
@@ -267,9 +266,9 @@ class DLCManager:
                             # Mirror to Bin_LE if present
                             bin_le = config_path.parent.parent / "Bin_LE" / config_path.name
                             if bin_le.parent.is_dir() and bin_le != config_path:
-                                shutil.copy2(config_path, bin_le)
-            except Exception:
-                pass  # Best-effort disable
+                                _atomic_write(bin_le, content, adapter.get_encoding())
+            except Exception as e:
+                logger.warning("Could not disable DLC %s in crack config: %s", dlc_id, e)
 
         return files_removed, files_failed
 

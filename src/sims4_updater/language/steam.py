@@ -130,6 +130,10 @@ class SteamLanguageDownloader:
                 log(f"ERROR: Could not find {DEPOT_DOWNLOADER_ASSET} in release.")
                 return False
 
+            if not download_url.startswith("https://"):
+                log("ERROR: Download URL is not HTTPS — aborting for security.")
+                return False
+
             version = release.get("tag_name", "unknown")
             size_mb = asset_size / (1024 * 1024)
             log(f"Downloading DepotDownloader {version} ({size_mb:.1f} MB)...")

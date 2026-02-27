@@ -304,7 +304,8 @@ class GreenLumaFrame(ctk.CTkFrame):
     # ── Lifecycle ────────────────────────────────────────────────
 
     def on_show(self):
-        self._refresh_status()
+        if not self._busy:
+            self._refresh_status()
 
     def _refresh_status(self):
         self._steam_path_badge.set_status("Scanning...", "muted")
@@ -585,22 +586,30 @@ class GreenLumaFrame(ctk.CTkFrame):
             self.app.show_toast("GreenLuma not installed or injector not found.", "warning")
             return
 
-        # Check if Steam is running before launching
-        from ...greenluma.steam import is_steam_running
+        # Check if Steam is running (off GUI thread to avoid blocking)
+        injector_path = gl.dll_injector_path
 
-        if is_steam_running():
-            restart = ask_yes_no(
-                self.app,
-                title="Steam is Running",
-                message="Steam must be closed to relaunch with GreenLuma.\n\n"
-                "Would you like to close Steam and relaunch it\n"
-                "with GreenLuma DLC unlocking enabled?",
-            )
-            if not restart:
-                return
-            self._launch_gl_with_kill(gl.dll_injector_path)
-        else:
-            self._launch_gl_direct(gl.dll_injector_path)
+        def _check_bg():
+            from ...greenluma.steam import is_steam_running
+
+            return is_steam_running()
+
+        def _check_done(running):
+            if running:
+                restart = ask_yes_no(
+                    self.app,
+                    title="Steam is Running",
+                    message="Steam must be closed to relaunch with GreenLuma.\n\n"
+                    "Would you like to close Steam and relaunch it\n"
+                    "with GreenLuma DLC unlocking enabled?",
+                )
+                if not restart:
+                    return
+                self._launch_gl_with_kill(injector_path)
+            else:
+                self._launch_gl_direct(injector_path)
+
+        self.app.run_async(_check_bg, on_done=_check_done)
 
     def _launch_gl_with_kill(self, injector_path: Path):
         """Kill Steam then launch via GreenLuma."""
@@ -770,17 +779,26 @@ class GreenLumaFrame(ctk.CTkFrame):
             self.app.show_toast("No CDN keys available yet.", "info")
             return
 
-        # Check Steam is not running
-        from ...greenluma.steam import is_steam_running
-
-        if is_steam_running():
-            self.app.show_toast("Close Steam before applying CDN keys.", "warning")
-            return
-
-        self._set_busy(True)
-        self._log("--- Applying CDN Keys ---")
+        # Check Steam is not running (off GUI thread)
         steam_info = self._steam_info
         gl_entries = manifest.greenluma
+
+        def _check_steam_bg():
+            from ...greenluma.steam import is_steam_running
+
+            return is_steam_running()
+
+        def _check_steam_done(running):
+            if running:
+                self.app.show_toast("Close Steam before applying CDN keys.", "warning")
+                return
+            self._apply_cdn_keys_inner(steam_info, gl_entries)
+
+        self.app.run_async(_check_steam_bg, on_done=_check_steam_done)
+
+    def _apply_cdn_keys_inner(self, steam_info, gl_entries):
+        self._set_busy(True)
+        self._log("--- Applying CDN Keys ---")
 
         def _bg():
             from ...greenluma.orchestrator import GreenLumaOrchestrator

@@ -69,6 +69,7 @@ class TestHeartbeat:
         client = TelemetryClient(s)
 
         client.heartbeat(game_version="1.121.372", game_detected=True, dlc_count=5)
+        time.sleep(0.05)  # let pool worker execute
 
         mock_post.assert_called_once()
         url = mock_post.call_args.args[0]
@@ -300,6 +301,7 @@ class TestSessionEnd:
         client.start_periodic_heartbeat(interval=0.05)
         time.sleep(0.1)
         client.session_end()
+        time.sleep(0.1)  # let pool workers drain
         count_after = mock_post.call_count
         time.sleep(0.15)
         assert mock_post.call_count == count_after

@@ -240,13 +240,12 @@ class DiagnosticsFrame(ctk.CTkFrame):
             self.app._enqueue_gui(self._on_validate_error, "No game directory found.")
             return
 
-        self._validator = GameValidator()
-
         def progress(msg, current, total):
             pct = current / total if total > 0 else 0
             self.app._enqueue_gui(self._update_validate_progress, msg, pct)
 
         try:
+            self._validator = GameValidator()
             report = self._validator.validate(
                 game_dir,
                 progress=progress,

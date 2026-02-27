@@ -164,6 +164,8 @@ def submit_gl_contribution(
     base_url = url or CONTRIBUTE_URL
     if not base_url:
         return {"status": "error", "message": "Contribution URL not configured."}
+    if not base_url.startswith("https://"):
+        return {"status": "error", "message": "Contribution URL must use HTTPS."}
 
     # Replace /contribute with /contribute/greenluma
     if base_url.endswith("/contribute"):

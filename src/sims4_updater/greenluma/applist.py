@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -133,7 +135,14 @@ def write_applist(applist_dir: Path, app_ids: list[str]) -> int:
     new_files = set()
     for idx, app_id in enumerate(unique):
         target = applist_dir / f"{idx}.txt"
-        target.write_text(app_id, encoding="utf-8")
+        tmp = target.with_suffix(".txt_tmp")
+        try:
+            tmp.write_text(app_id, encoding="utf-8")
+            os.replace(tmp, target)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
+            raise
         new_files.add(target.name)
 
     # Remove old numbered .txt files that are no longer needed

@@ -113,7 +113,7 @@ class VersionDatabase:
 
         matched_versions = [v for v, _ in matches]
 
-        if len(matches) == 1:
+        if len(matches) == 1 and best_count >= 2:
             confidence = Confidence.DEFINITIVE
         elif best_count >= 2:
             confidence = Confidence.PROBABLE
