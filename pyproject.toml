@@ -7,7 +7,7 @@ name = "sims4-updater"
 dynamic = ["version"]
 requires-python = ">=3.12"
 dependencies = [
-    "customtkinter @ git+https://github.com/ToastyToast25/CustomTkinter.git@v5.3.0",
+    "customtkinter @ git+https://github.com/ToastyToast25/CustomTkinter.git@v5.4.0",
     "requests>=2.31.0",
     "pywin32>=306; sys_platform == 'win32'",
 ]

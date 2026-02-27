@@ -72,6 +72,7 @@ class DLCFrame(ctk.CTkFrame):
         self._animator = get_animator()
 
         # Widget-reuse state
+        self._search_after_id: str | None = None
         self._built = False
         self._all_states: list[DLCStatus] = []
         self._row_widgets: dict[str, dict] = {}  # dlc_id -> widget refs
@@ -547,7 +548,9 @@ class DLCFrame(ctk.CTkFrame):
 
     def _on_search_changed(self, *_args):
         if self._all_states and self._built:
-            self._apply_filter()
+            if hasattr(self, "_search_after_id") and self._search_after_id:
+                self.after_cancel(self._search_after_id)
+            self._search_after_id = self.after(250, self._apply_filter)
 
     def _clear_search(self):
         self._search_var.set("")
