@@ -282,7 +282,7 @@ def _fetch_cdn_entitlements(dst: Path, log: Callable[[str], None]) -> bool:
         resp.raise_for_status()
         data = resp.json()
         url = data.get("entitlements_url", "")
-        if not url:
+        if not url or not url.startswith("https://"):
             return False
 
         log("Fetching latest entitlements from CDN...")

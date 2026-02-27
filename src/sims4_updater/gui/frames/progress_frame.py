@@ -276,6 +276,7 @@ class ProgressFrame(ctk.CTkFrame):
     def _run_update(self, plan):
         """Background: download and apply patches."""
         updater = self.app.updater
+        updater.reset_cancel()
 
         # Download
         updater.download_update(plan)
@@ -291,7 +292,7 @@ class ProgressFrame(ctk.CTkFrame):
                     game_name = name
                     break
             if game_name is None:
-                game_name = game_names[0]
+                game_name = game_names[0] if game_names else "The Sims 4"
 
             versions, dlc_count, languages, cached_path = updater.pick_game(game_name)
 

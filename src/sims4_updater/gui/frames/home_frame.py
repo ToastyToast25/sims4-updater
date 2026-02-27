@@ -777,7 +777,7 @@ class HomeFrame(ctk.CTkFrame):
         """Re-enable the update button if background detection fails."""
         self._set_status("Error", "error")
         self._update_btn.configure(state="normal")
-        self.app._show_error("Detection Error", str(exc))
+        self.app._show_error(exc)
 
     def _detect_info(self):
         """Background: detect game dir, version, and component statuses."""

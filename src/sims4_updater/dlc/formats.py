@@ -60,14 +60,14 @@ class RldOriginAdapter(DLCConfigAdapter):
     def read_enabled_dlcs(self, config_content: str, dlc_codes: list[str]) -> dict[str, bool]:
         result = {}
         for code in dlc_codes:
-            pattern = re.compile(rf"(?i)(\n)(;?)(IID\d+={re.escape(code)})")
+            pattern = re.compile(rf"(?im)(^|\n)(;?)(IID\d+={re.escape(code)})")
             match = pattern.search(config_content)
             if match:
                 result[code] = match.group(2) == ""  # no semicolon = enabled
         return result
 
     def set_dlc_state(self, config_content: str, dlc_code: str, enabled: bool) -> str:
-        pattern = re.compile(rf"(?i)(\n)(;?)(IID\d+={re.escape(dlc_code)})")
+        pattern = re.compile(rf"(?im)(^|\n)(;?)(IID\d+={re.escape(dlc_code)})")
         replacement = r"\1" + ("" if enabled else ";") + r"\3"
         return pattern.sub(replacement, config_content)
 
@@ -240,6 +240,9 @@ def detect_format(game_dir: str | Path) -> DLCConfigAdapter | None:
     """Auto-detect which crack config format is present."""
     game_dir = Path(game_dir)
     for adapter in ALL_ADAPTERS:
-        if adapter.detect(game_dir):
-            return adapter
+        try:
+            if adapter.detect(game_dir):
+                return adapter
+        except OSError:
+            continue
     return None

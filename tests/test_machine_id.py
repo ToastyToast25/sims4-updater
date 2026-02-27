@@ -11,6 +11,7 @@ import pytest
 def _clear_cache():
     """Reset cached value between tests."""
     import sims4_updater.core.machine_id as mid
+
     mid._cached = None
     yield
     mid._cached = None
@@ -41,6 +42,7 @@ class TestGetMachineId:
 
         # Reset cache and re-derive
         import sims4_updater.core.machine_id as mod
+
         mod._cached = None
 
         with patch(

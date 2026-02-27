@@ -779,14 +779,13 @@ class LanguageFrame(ctk.CTkFrame):
                     "Set game directory in Settings."
                 )
 
-            # Save to settings
-            self.app.settings.language = code
-            self.app.settings.save()
-            self._enqueue_log("Language preference saved to settings.")
-
             return result
 
         def _done(result):
+            # Save to settings on the GUI thread (not in _bg)
+            self.app.settings.language = code
+            self.app.settings.save()
+            self._log("Language preference saved to settings.")
             self._set_busy(False)
             if result.success:
                 parts = []
@@ -836,6 +835,7 @@ class LanguageFrame(ctk.CTkFrame):
         if not entry or not game_dir:
             return
 
+        self.app.updater.reset_cancel()
         self._set_busy(True)
 
         # Update row UI to show downloading state

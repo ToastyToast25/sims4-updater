@@ -793,6 +793,7 @@ class DownloaderFrame(ctk.CTkFrame):
     def _start_downloads(self, entries: list[DLCDownloadEntry]):
         self._busy = True
         self._cancel_event.clear()
+        self.app.updater.reset_cancel()
         self._set_buttons_state("disabled")
         self._pause_btn.grid()
         self._cancel_btn.grid()
@@ -866,11 +867,10 @@ class DownloaderFrame(ctk.CTkFrame):
 
     def _download_bg(self, entries: list[DLCDownloadEntry]):
         """Background thread: run parallel downloads."""
-        max_workers = int(self._concurrency_var.get() or "3")
-        try:
-            speed_mb = int(self._speed_var.get() or "0")
-        except ValueError:
-            speed_mb = 0
+        # Read settings saved on the GUI thread in _start_downloads (lines 839-858)
+        # instead of accessing tkinter StringVars from this background thread.
+        max_workers = self.app.settings.download_concurrency or 3
+        speed_mb = self.app.settings.download_speed_limit or 0
         speed_bytes = speed_mb * 1_048_576
 
         auth = self.app._cdn_auth.get_auth_adapter() if self.app._cdn_auth else None

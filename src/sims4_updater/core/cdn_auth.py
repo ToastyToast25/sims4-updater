@@ -46,6 +46,8 @@ class CDNTokenAuth(AuthBase):
 class CDNAuth:
     """Manages JWT session token for CDN access."""
 
+    _MIN_RETRY_INTERVAL = 5  # seconds between refresh attempts
+
     def __init__(
         self,
         api_url: str,
@@ -60,6 +62,8 @@ class CDNAuth:
         self._token: str = ""
         self._expires_at: float = 0
         self._lock = threading.Lock()
+        self._denied: BannedError | AccessRequiredError | None = None
+        self._last_refresh_attempt: float = 0
 
     @property
     def api_url(self) -> str:
@@ -70,6 +74,9 @@ class CDNAuth:
         if self._token and time.monotonic() < self._expires_at - 60:
             return self._token
         with self._lock:
+            # Fail fast if the server already denied us (ban / access-required)
+            if self._denied is not None:
+                raise self._denied
             # Double-check after acquiring lock (another thread may have refreshed)
             if self._token and time.monotonic() < self._expires_at - 60:
                 return self._token
@@ -114,40 +121,60 @@ class CDNAuth:
     # ── internal ───────────────────────────────────────────────
 
     def _refresh(self) -> None:
-        """Request a new JWT from the CDN API."""
-        try:
-            resp = requests.post(
-                f"{self._api_url}/auth/token",
-                json={
-                    "machine_id": self._machine_id,
-                    "uid": self._uid,
-                    "app_version": self._app_version,
-                },
-                headers=identity.get_headers(),
-                timeout=_TIMEOUT,
-            )
-        except requests.RequestException as exc:
-            log.warning("CDN token request network error: %s", exc)
-            # Keep existing token if still valid, otherwise clear atomically
-            if self._token and time.monotonic() < self._expires_at:
+        """Request a new JWT from the CDN API (with cooldown and single retry)."""
+        now = time.monotonic()
+        if now - self._last_refresh_attempt < self._MIN_RETRY_INTERVAL:
+            # Still in cooldown — keep existing token if valid, else silently skip
+            if self._token and now < self._expires_at:
                 return
-            self._token, self._expires_at = "", 0
+            return
+        self._last_refresh_attempt = now
+
+        resp = None
+        for attempt in range(2):
+            try:
+                resp = requests.post(
+                    f"{self._api_url}/auth/token",
+                    json={
+                        "machine_id": self._machine_id,
+                        "uid": self._uid,
+                        "app_version": self._app_version,
+                    },
+                    headers=identity.get_headers(),
+                    timeout=_TIMEOUT,
+                )
+                break
+            except requests.RequestException as exc:
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+                log.warning("CDN token request network error: %s", exc)
+                # Keep existing token if still valid, otherwise clear
+                if self._token and time.monotonic() < self._expires_at:
+                    return
+                self._token, self._expires_at = "", 0
+                return
+
+        if resp is None:
             return
 
         if resp.status_code == 403:
             body: dict[str, Any] = {}
             with contextlib.suppress(Exception):
                 body = resp.json()
+            self._token, self._expires_at = "", 0
             if body.get("error") == "access_required":
-                raise AccessRequiredError(
+                self._denied = AccessRequiredError(
                     cdn_name=body.get("cdn_name", ""),
                     request_url=body.get("request_url", ""),
                 )
-            raise BannedError(
+                raise self._denied
+            self._denied = BannedError(
                 reason=body.get("reason", ""),
                 ban_type=body.get("ban_type", ""),
                 expires_at=body.get("expires_at", ""),
             )
+            raise self._denied
 
         if resp.status_code != 200:
             log.warning("CDN token request returned %d", resp.status_code)

@@ -59,6 +59,7 @@ class TestCDNAuth:
 
         # Simulate near-expiry by setting expires_at to now
         auth._expires_at = time.monotonic() + 30  # < 60s
+        auth._last_refresh_attempt = 0  # Reset cooldown so refresh proceeds
 
         mock_resp2 = MagicMock()
         mock_resp2.status_code = 200
