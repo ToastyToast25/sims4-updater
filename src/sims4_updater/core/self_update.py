@@ -167,17 +167,20 @@ def download_app_update(
 
     try:
         resp = requests.get(info.download_url, stream=True, timeout=(30, 300))
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
 
-        total = int(resp.headers.get("Content-Length", 0)) or info.download_size
-        downloaded = 0
+            total = int(resp.headers.get("Content-Length", 0)) or info.download_size
+            downloaded = 0
 
-        with open(new_path, "wb") as f:
-            for chunk in resp.iter_content(65536):
-                f.write(chunk)
-                downloaded += len(chunk)
-                if progress:
-                    progress(downloaded, total)
+            with open(new_path, "wb") as f:
+                for chunk in resp.iter_content(65536):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if progress:
+                        progress(downloaded, total)
+        finally:
+            resp.close()
 
     except Exception as e:
         new_path.unlink(missing_ok=True)
@@ -224,13 +227,18 @@ def apply_app_update(new_exe: Path):
     expected_size = new_exe.stat().st_size
 
     # Use full absolute paths — batch script runs from the updates directory
-    cur = str(current_exe)
-    cur_dir = str(current_exe.parent)
-    old = str(old_exe)
-    new = str(new_exe)
+    # Escape batch-special characters in paths (EnableDelayedExpansion active)
+    def _bat_escape(s: str) -> str:
+        return s.replace("%", "%%").replace("^", "^^").replace("!", "^!")
+
+    cur = _bat_escape(str(current_exe))
+    cur_name = _bat_escape(current_exe.name)
+    cur_dir = _bat_escape(str(current_exe.parent))
+    old = _bat_escape(str(old_exe))
+    new = _bat_escape(str(new_exe))
     updates_dir = get_app_dir() / "updates"
     updates_dir.mkdir(parents=True, exist_ok=True)
-    log_path = str(updates_dir / "_self_update.log")
+    log_path = _bat_escape(str(updates_dir / "_self_update.log"))
 
     bat_path = updates_dir / "_self_update.bat"
     vbs_path = updates_dir / "_self_update.vbs"
@@ -259,7 +267,7 @@ rem ── Step 1: Wait for the updater process to exit (60s timeout) ──
 call :log "Waiting for process {pid} to exit..."
 set WAIT=0
 :wait
-tasklist /FI "PID eq {pid}" 2>NUL | find /I "{pid}" >NUL
+tasklist /FI "PID eq {pid}" /FI "IMAGENAME eq {cur_name}" 2>NUL | find /I "{pid}" >NUL
 if not errorlevel 1 (
     set /a WAIT+=1
     if !WAIT! GEQ 60 (

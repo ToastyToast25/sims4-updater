@@ -5,6 +5,7 @@ Modifies the anadius crack config (primary), registry, and RldOrigin.ini
 to change the game language. Supports all 18 official Sims 4 languages.
 """
 
+import contextlib
 import logging
 import os
 import re
@@ -369,7 +370,7 @@ def _update_anadius_configs(
             continue
 
         try:
-            content = config_path.read_text(encoding="utf-8", errors="replace")
+            content = config_path.read_text(encoding="cp1252", errors="replace")
             original = content
 
             # Update "Language" value (but not "Languages" which is the list)
@@ -390,9 +391,17 @@ def _update_anadius_configs(
             )
 
             if content != original:
-                config_path.write_text(content, encoding="utf-8")
+                # Atomic write: temp file + os.replace (cp1252 for anadius crack)
+                tmp = config_path.with_suffix(config_path.suffix + ".tmp")
+                try:
+                    tmp.write_text(content, encoding="cp1252")
+                    os.replace(tmp, config_path)
+                except BaseException:
+                    with contextlib.suppress(OSError):
+                        tmp.unlink(missing_ok=True)
+                    raise
                 # Verify write by reading back
-                verify = config_path.read_text(encoding="utf-8", errors="replace")
+                verify = config_path.read_text(encoding="cp1252", errors="replace")
                 m = re.search(r'"Language"\s+"([^"]+)"', verify)
                 written_lang = m.group(1) if m else "???"
                 m2 = re.search(r'"LanguageRegistrySpoof"\s+"([^"]+)"', verify)

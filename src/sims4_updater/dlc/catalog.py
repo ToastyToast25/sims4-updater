@@ -136,6 +136,7 @@ class DLCCatalog:
             Number of new DLCs added.
         """
         added = 0
+        updated = False
         for rdlc in remote_dlcs:
             if rdlc.id in self._by_id:
                 # Update fields on existing entry if remote has them and local is empty
@@ -143,17 +144,22 @@ class DLCCatalog:
                 if rdlc.code and not existing.code:
                     existing.code = rdlc.code
                     self._by_code[rdlc.code] = existing
+                    updated = True
                 if rdlc.code2 and not existing.code2:
                     existing.code2 = rdlc.code2
                     self._by_code[rdlc.code2] = existing
+                    updated = True
                 if getattr(rdlc, "steam_app_id", None) and not existing.steam_app_id:
                     existing.steam_app_id = rdlc.steam_app_id
+                    updated = True
                 if rdlc.description and not existing.description:
                     existing.description = rdlc.description
+                    updated = True
                 if rdlc.names:
                     for k, v in rdlc.names.items():
                         if k not in existing.names:
                             existing.names[k] = v
+                            updated = True
                 continue
 
             dlc = DLCInfo(
@@ -173,7 +179,7 @@ class DLCCatalog:
                 self._by_code[dlc.code2] = dlc
             added += 1
 
-        if added:
+        if added or updated:
             self._save_custom()
 
         return added

@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import shutil
@@ -38,8 +39,9 @@ def _migrate_from_old_dir():
             shutil.copy2(src, new_dir / name)
 
 
-# Run migration before anything else uses the directory
-_migrate_from_old_dir()
+# Run migration before anything else uses the directory (non-fatal)
+with contextlib.suppress(Exception):
+    _migrate_from_old_dir()
 
 SETTINGS_PATH = get_app_dir() / "settings.json"
 

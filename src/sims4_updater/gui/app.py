@@ -72,7 +72,7 @@ class App(ctk.CTk):
         self._notification_history: list[tuple[str, str, float]] = []  # (msg, style, time)
 
         # Threading
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
         self._callback_queue: deque = deque()
         self._lock = Lock()
         self._current_future = None
@@ -247,9 +247,10 @@ class App(ctk.CTk):
         self._progress_indicator.grid_propagate(False)
         self._nav_indicators["progress"] = self._progress_indicator
 
+        progress_icon = theme.NAV_ICONS.get("progress", "")
         self._progress_nav_btn = ctk.CTkButton(
             self._sidebar,
-            text="  Updating...",
+            text=f" {progress_icon}  Updating...",
             font=ctk.CTkFont(size=13),
             height=theme.SIDEBAR_BTN_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
@@ -368,10 +369,13 @@ class App(ctk.CTk):
         base = self._nav_labels.get(key, "")
         if not btn or not base:
             return
+        icon = theme.NAV_ICONS.get(key, "")
+        prefix = f" {icon}  " if icon else "  "
         if badge:
-            btn.configure(text=f"  {base}  {badge}")
+            btn.configure(text=f"{prefix}{base}  {badge}")
         else:
-            btn.configure(text=f"  {base}")
+            btn.configure(text=f"{prefix}{base}")
+        return
 
     # ── Content Area ────────────────────────────────────────────
 
@@ -384,24 +388,43 @@ class App(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
+    # Frame class registry for lazy creation
+    _FRAME_CLASSES: dict[str, type] = {}
+
     def _create_frames(self):
         self._frames: dict[str, ctk.CTkFrame] = {}
 
-        self._frames["home"] = HomeFrame(self._content, self)
-        self._frames["dlc"] = DLCFrame(self._content, self)
-        self._frames["downloader"] = DownloaderFrame(self._content, self)
-        self._frames["packer"] = PackerFrame(self._content, self)
-        self._frames["unlocker"] = UnlockerFrame(self._content, self)
-        self._frames["greenluma"] = GreenLumaFrame(self._content, self)
-        self._frames["language"] = LanguageFrame(self._content, self)
-        self._frames["events"] = EventsFrame(self._content, self)
-        self._frames["mods"] = ModsFrame(self._content, self)
-        self._frames["diagnostics"] = DiagnosticsFrame(self._content, self)
-        self._frames["settings"] = SettingsFrame(self._content, self)
-        self._frames["progress"] = ProgressFrame(self._content, self)
+        # Register frame classes — frames are created lazily on first _show_frame()
+        App._FRAME_CLASSES = {
+            "home": HomeFrame,
+            "dlc": DLCFrame,
+            "downloader": DownloaderFrame,
+            "packer": PackerFrame,
+            "unlocker": UnlockerFrame,
+            "greenluma": GreenLumaFrame,
+            "language": LanguageFrame,
+            "events": EventsFrame,
+            "mods": ModsFrame,
+            "diagnostics": DiagnosticsFrame,
+            "settings": SettingsFrame,
+            "progress": ProgressFrame,
+        }
 
-        for frame in self._frames.values():
-            frame.grid(row=0, column=0, sticky="nsew")
+        # Only eagerly create Home (shown immediately on startup)
+        self._frames["home"] = HomeFrame(self._content, self)
+        self._frames["home"].grid(row=0, column=0, sticky="nsew")
+
+    def _ensure_frame(self, name: str) -> ctk.CTkFrame | None:
+        """Lazily create a frame on first access."""
+        if name in self._frames:
+            return self._frames[name]
+        cls = App._FRAME_CLASSES.get(name)
+        if cls is None:
+            return None
+        frame = cls(self._content, self)
+        frame.grid(row=0, column=0, sticky="nsew")
+        self._frames[name] = frame
+        return frame
 
     def _build_nav_item(
         self,
@@ -421,15 +444,18 @@ class App(ctk.CTk):
         indicator.grid_propagate(False)
         self._nav_indicators[key] = indicator
 
+        icon = theme.NAV_ICONS.get(key, "")
+        display_text = f" {icon}  {label}" if icon else f"  {label}"
+
         btn = ctk.CTkButton(
             self._sidebar,
-            text=f"  {label}",
+            text=display_text,
             font=ctk.CTkFont(size=13),
             height=theme.SIDEBAR_BTN_HEIGHT,
             corner_radius=theme.CORNER_RADIUS_SMALL,
             fg_color="transparent",
             text_color=theme.COLORS["text_muted"],
-            hover_color=theme.COLORS["sidebar_hover"],
+            hover=False,
             anchor="w",
             command=lambda k=key: self._show_frame(k),
         )
@@ -459,18 +485,42 @@ class App(ctk.CTk):
         self.settings.save()
 
     def _on_nav_enter(self, key: str):
-        """Sidebar button hover-in — skip for active tab."""
+        """Sidebar button hover-in — animate background color."""
         if key == self._current_frame_name:
             return
+        btn = self._nav_buttons.get(key)
+        if btn is None:
+            return
+        self._animator.cancel_all(btn, tag="nav_hover")
+        self._animator.animate_color(
+            btn,
+            "fg_color",
+            theme.COLORS["bg_sidebar"],
+            theme.COLORS["sidebar_hover"],
+            theme.ANIM_FAST,
+            tag="nav_hover",
+        )
 
     def _on_nav_leave(self, key: str):
-        """Sidebar button hover-out — skip for active tab."""
+        """Sidebar button hover-out — animate background color back."""
         if key == self._current_frame_name:
             return
+        btn = self._nav_buttons.get(key)
+        if btn is None:
+            return
+        self._animator.cancel_all(btn, tag="nav_hover")
+        self._animator.animate_color(
+            btn,
+            "fg_color",
+            theme.COLORS["sidebar_hover"],
+            theme.COLORS["bg_sidebar"],
+            theme.ANIM_FAST,
+            tag="nav_hover",
+        )
 
     def _show_frame(self, name: str):
         """Switch to a named frame with slide animation."""
-        frame = self._frames.get(name)
+        frame = self._ensure_frame(name)
         if frame is None or self._transitioning:
             return
 
@@ -482,24 +532,43 @@ class App(ctk.CTk):
         if name in self._tools_keys and self._tools_collapsed:
             self._toggle_tools_section()
 
-        # Update nav button colors and indicator bars
+        # Update nav button colors and indicator bars with animation
+        sidebar_bg = theme.COLORS["bg_sidebar"]
         for key, btn in self._nav_buttons.items():
+            self._animator.cancel_all(btn, tag="nav_hover")
+            indicator = self._nav_indicators[key]
             if key == name:
-                btn.configure(
-                    fg_color=theme.COLORS["accent"],
-                    text_color=theme.COLORS["text"],
+                # Resolve start color — "transparent" isn't valid hex for lerp
+                btn_fg = btn.cget("fg_color")
+                if not btn_fg or btn_fg == "transparent":
+                    btn_fg = sidebar_bg
+                ind_fg = indicator.cget("fg_color")
+                if not ind_fg or ind_fg == "transparent":
+                    ind_fg = sidebar_bg
+                self._animator.animate_color(
+                    btn,
+                    "fg_color",
+                    btn_fg,
+                    theme.COLORS["accent"],
+                    theme.ANIM_FAST,
+                    tag="nav_select",
                 )
-                self._nav_indicators[key].configure(
-                    fg_color=theme.COLORS["accent"],
+                btn.configure(text_color=theme.COLORS["text"])
+                self._animator.animate_color(
+                    indicator,
+                    "fg_color",
+                    ind_fg,
+                    theme.COLORS["accent"],
+                    theme.ANIM_FAST,
+                    tag="nav_select",
                 )
             else:
+                self._animator.cancel_all(btn, tag="nav_select")
                 btn.configure(
                     fg_color="transparent",
                     text_color=theme.COLORS["text_muted"],
                 )
-                self._nav_indicators[key].configure(
-                    fg_color="transparent",
-                )
+                indicator.configure(fg_color="transparent")
 
         old_name = self._current_frame_name
         self._current_frame_name = name
@@ -578,7 +647,9 @@ class App(ctk.CTk):
                 if on_done:
                     self._enqueue_gui(on_done, result)
             except (BannedError, AccessRequiredError) as e:
-                # Always route CDN auth errors to the prominent dialog
+                # Let caller clean up first (e.g. reset _loading flag), then show dialog
+                if on_error:
+                    self._enqueue_gui(on_error, e)
                 self._enqueue_gui(self._show_error, e)
             except Exception as e:
                 if on_error:
@@ -625,7 +696,22 @@ class App(ctk.CTk):
     # ── Questions and Errors ────────────────────────────────────
 
     def _ask_question(self, question: str) -> bool:
-        return CTkDialog.ask_yes_no(self, title="Question", message=question)
+        """Show a yes/no dialog, safe to call from any thread."""
+        import threading as _th
+
+        if _th.current_thread() is _th.main_thread():
+            return CTkDialog.ask_yes_no(self, title="Question", message=question)
+        # Marshal to GUI thread and wait for the result
+        result: list[bool] = []
+        event = _th.Event()
+
+        def _show():
+            result.append(CTkDialog.ask_yes_no(self, title="Question", message=question))
+            event.set()
+
+        self._enqueue_gui(_show)
+        event.wait()
+        return result[0] if result else False
 
     def _show_error(self, error: Exception):
         """Display an error to the user."""

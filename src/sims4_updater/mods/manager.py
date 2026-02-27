@@ -143,7 +143,7 @@ class ModManager:
                     # Path traversal protection — reject entries escaping Mods dir
                     dest = self._game_mods_dir / member.filename.replace("/", os.sep)
                     mods_resolved = self._game_mods_dir.resolve()
-                    if not str(dest.resolve()).startswith(str(mods_resolved) + os.sep):
+                    if not dest.resolve().is_relative_to(mods_resolved):
                         log(f"  Skipping unsafe path: {member.filename}")
                         continue
 
@@ -271,7 +271,7 @@ class ModManager:
             disabled_fp = fp.with_name(fp.name + DISABLED_SUFFIX)
             if disabled_fp.is_file():
                 try:
-                    disabled_fp.rename(fp)
+                    os.replace(disabled_fp, fp)
                     count += 1
                 except OSError as e:
                     log(f"  Error enabling {fp.name}: {e}")
@@ -303,7 +303,7 @@ class ModManager:
             if fp.is_file():
                 disabled_fp = fp.with_name(fp.name + DISABLED_SUFFIX)
                 try:
-                    fp.rename(disabled_fp)
+                    os.replace(fp, disabled_fp)
                     count += 1
                 except OSError as e:
                     log(f"  Error disabling {fp.name}: {e}")

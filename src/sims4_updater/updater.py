@@ -151,8 +151,8 @@ class Sims4Updater(BasePatcher):
 
         found = self._detector.find_game_dir()
         if found:
-            self.settings.game_path = found
-        return found
+            self.settings.game_path = str(found)
+        return str(found) if found else None
 
     def get_patchable_files(self, game_dir: str) -> list[str]:
         """Get list of relative file paths the patcher typically modifies.

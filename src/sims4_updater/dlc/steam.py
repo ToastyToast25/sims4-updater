@@ -80,13 +80,12 @@ class SteamPriceCache:
 
 
 def _fetch_single_price(
-    session: requests.Session,
     app_id: int,
     cc: str = "US",
 ) -> SteamPrice | None:
     """Fetch price for a single Steam app ID. Returns None on error."""
     try:
-        resp = session.get(
+        resp = requests.get(
             STEAM_API_URL,
             params={"appids": str(app_id), "cc": cc, "filters": "price_overview"},
             timeout=REQUEST_TIMEOUT,
@@ -138,27 +137,18 @@ def fetch_prices_batch(
     total = len(app_ids)
     completed = 0
 
-    session = requests.Session()
-    session.headers["User-Agent"] = "Sims4Updater/1.0"
-
-    try:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {
-                executor.submit(_fetch_single_price, session, app_id, cc): app_id
-                for app_id in app_ids
-            }
-            for future in as_completed(futures):
-                app_id = futures[future]
-                try:
-                    price = future.result()
-                    if price is not None:
-                        results[app_id] = price
-                except Exception:
-                    pass
-                completed += 1
-                if on_progress:
-                    on_progress(completed, total)
-    finally:
-        session.close()
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(_fetch_single_price, app_id, cc): app_id for app_id in app_ids}
+        for future in as_completed(futures):
+            app_id = futures[future]
+            try:
+                price = future.result()
+                if price is not None:
+                    results[app_id] = price
+            except Exception:
+                pass
+            completed += 1
+            if on_progress:
+                on_progress(completed, total)
 
     return results

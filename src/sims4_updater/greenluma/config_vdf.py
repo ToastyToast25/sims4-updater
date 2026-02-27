@@ -8,7 +8,9 @@ mutations are guarded by a Steam-process check and automatic backups.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import re
 import shutil
 from dataclasses import dataclass
@@ -293,7 +295,15 @@ def add_depot_keys(
             "Aborting write -- backup is safe."
         )
 
-    path.write_text(content, encoding="utf-8")
+    # Atomic write: temp file + os.replace
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
     logger.info(
         "config.vdf updated: %d keys added, %d keys updated",
         added_count,

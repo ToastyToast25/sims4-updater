@@ -342,16 +342,27 @@ class ToastNotification(ctk.CTkFrame):
 def _reflow_toasts():
     """Reposition all visible toasts after one is removed."""
     for toast in ToastNotification._active_toasts:
-        y = toast._compute_y_offset()
+        try:
+            if not toast.winfo_exists():
+                continue
+        except Exception:
+            continue
+        target_y = toast._compute_y_offset()
+        try:
+            current_y = toast.winfo_y()
+        except Exception:
+            current_y = target_y
+        if current_y == target_y:
+            continue
         with contextlib.suppress(Exception):
             _animator.animate(
                 toast,
                 150,
-                on_tick=lambda t, _toast=toast, _y=y: _toast.place(
+                on_tick=lambda t, _toast=toast, _from=current_y, _to=target_y: _toast.place(
                     relx=1.0,
                     rely=0.0,
                     x=-10,
-                    y=_y,
+                    y=int(_from + (_to - _from) * t),
                     anchor="ne",
                 ),
                 easing=ease_out_cubic,
@@ -657,3 +668,164 @@ class RichTextbox(ctk.CTkTextbox):
         self.configure(state="normal")
         self.delete("1.0", "end")
         self.configure(state="disabled")
+
+
+# ── Builder Helpers ───────────────────────────────────────────
+
+
+def make_section_header(
+    parent,
+    title: str,
+    subtitle: str = "",
+) -> tuple[ctk.CTkLabel, ctk.CTkLabel | None]:
+    """Create a standard frame header with title and optional subtitle.
+
+    Returns (title_label, subtitle_label_or_None).
+    """
+    title_lbl = ctk.CTkLabel(
+        parent,
+        text=title,
+        font=ctk.CTkFont(*theme.FONT_TITLE),
+        text_color=theme.COLORS["text"],
+        anchor="w",
+    )
+    sub_lbl = None
+    if subtitle:
+        sub_lbl = ctk.CTkLabel(
+            parent,
+            text=subtitle,
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+            anchor="w",
+        )
+    return title_lbl, sub_lbl
+
+
+def make_separator(parent) -> ctk.CTkFrame:
+    """Create a horizontal 1px separator line."""
+    return ctk.CTkFrame(
+        parent,
+        height=1,
+        fg_color=theme.COLORS["separator"],
+    )
+
+
+def make_action_button(
+    parent,
+    text: str,
+    style: str = "primary",
+    **kwargs,
+) -> ctk.CTkButton:
+    """Create a themed button using BUTTON_STYLES presets.
+
+    Extra kwargs are forwarded to CTkButton and override style defaults.
+    """
+    style_props = theme.BUTTON_STYLES.get(style, theme.BUTTON_STYLES["primary"])
+    merged = {**style_props, **kwargs}
+    merged.setdefault("font", ctk.CTkFont(size=13, weight="bold"))
+    merged.setdefault("height", theme.BUTTON_HEIGHT)
+    merged.setdefault("corner_radius", theme.CORNER_RADIUS_SMALL)
+    return ctk.CTkButton(parent, text=text, **merged)
+
+
+def make_status_row(
+    parent,
+    label: str,
+    badge_text: str = "...",
+    badge_style: str = "muted",
+    row: int = 0,
+) -> tuple[ctk.CTkLabel, StatusBadge]:
+    """Create a label + StatusBadge row for status info cards.
+
+    Grids them at the given row. Returns (label_widget, badge_widget).
+    """
+    lbl = ctk.CTkLabel(
+        parent,
+        text=label,
+        font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+        text_color=theme.COLORS["text"],
+    )
+    lbl.grid(
+        row=row,
+        column=0,
+        padx=(theme.CARD_PAD_X, 8),
+        pady=(theme.CARD_PAD_Y if row == 0 else theme.CARD_ROW_PAD, 4),
+        sticky="w",
+    )
+    badge = StatusBadge(parent, text=badge_text, style=badge_style)
+    badge.grid(
+        row=row,
+        column=1,
+        padx=0,
+        pady=(theme.CARD_PAD_Y if row == 0 else theme.CARD_ROW_PAD, 4),
+        sticky="w",
+    )
+    return lbl, badge
+
+
+def make_log_section(
+    parent,
+    height: int = 180,
+) -> tuple[ctk.CTkFrame, RichTextbox, ctk.CTkButton]:
+    """Create a standard Activity Log section with header, Clear button, and log widget.
+
+    Returns (header_frame, log_textbox, clear_button).
+    """
+    header = ctk.CTkFrame(parent, fg_color="transparent")
+    ctk.CTkLabel(
+        header,
+        text="Activity Log",
+        font=ctk.CTkFont(*theme.FONT_BODY_BOLD),
+        text_color=theme.COLORS["text"],
+    ).pack(side="left")
+
+    clear_btn = ctk.CTkButton(
+        header,
+        text="Clear",
+        width=60,
+        height=theme.BUTTON_HEIGHT_SMALL,
+        corner_radius=theme.CORNER_RADIUS_SMALL,
+        font=ctk.CTkFont(*theme.FONT_SMALL),
+        **theme.BUTTON_STYLES["ghost"],
+    )
+    clear_btn.pack(side="right")
+
+    log = RichTextbox(parent, height=height)
+    return header, log, clear_btn
+
+
+def make_browse_entry(
+    parent,
+    placeholder: str = "",
+    browse_command=None,
+) -> tuple[ctk.CTkEntry, ctk.CTkButton]:
+    """Create an entry + Browse button pair in a horizontal frame.
+
+    Returns (entry_widget, browse_button). The pair is packed into `parent`.
+    """
+    frame = ctk.CTkFrame(parent, fg_color="transparent")
+    frame.pack(fill="x")
+    frame.grid_columnconfigure(0, weight=1)
+
+    entry = ctk.CTkEntry(
+        frame,
+        font=ctk.CTkFont(*theme.FONT_BODY),
+        height=36,
+        placeholder_text=placeholder,
+        corner_radius=theme.CORNER_RADIUS_SMALL,
+    )
+    entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+    browse_btn = ctk.CTkButton(
+        frame,
+        text="Browse",
+        width=80,
+        height=36,
+        corner_radius=theme.CORNER_RADIUS_SMALL,
+        font=ctk.CTkFont(*theme.FONT_BODY),
+        **theme.BUTTON_STYLES["ghost"],
+        command=browse_command,
+    )
+    browse_btn.grid(row=0, column=1)
+
+    return entry, browse_btn

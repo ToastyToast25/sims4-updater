@@ -111,7 +111,7 @@ class CodexAdapter(DLCConfigAdapter):
         for code in dlc_codes:
             match = self._codex_pattern(code).search(config_content)
             if match:
-                result[code] = match.group(2) == self.VALID_GROUP
+                result[code] = match.group(2).upper() == self.VALID_GROUP.upper()
         return result
 
     def set_dlc_state(self, config_content: str, dlc_code: str, enabled: bool) -> str:
@@ -176,7 +176,7 @@ class AnadiusSimpleAdapter(DLCConfigAdapter):
         path = self.get_config_path(game_dir)
         if path is None:
             return False
-        content = path.read_text(encoding="utf-8", errors="replace")
+        content = path.read_text(encoding="cp1252", errors="replace")
         return '"Config2"' not in content
 
     def get_config_path(self, game_dir: Path) -> Path | None:
@@ -189,14 +189,14 @@ class AnadiusSimpleAdapter(DLCConfigAdapter):
     def read_enabled_dlcs(self, config_content: str, dlc_codes: list[str]) -> dict[str, bool]:
         result = {}
         for code in dlc_codes:
-            pattern = re.compile(rf'(?i)(\s)(/*)("{re.escape(code)}")')
+            pattern = re.compile(rf'(?im)(^|\s)(/*)("{re.escape(code)}")')
             match = pattern.search(config_content)
             if match:
                 result[code] = match.group(2) == ""  # no // = enabled
         return result
 
     def set_dlc_state(self, config_content: str, dlc_code: str, enabled: bool) -> str:
-        pattern = re.compile(rf'(?i)(\s)(/*)("{re.escape(dlc_code)}")')
+        pattern = re.compile(rf'(?im)(^|\s)(/*)("{re.escape(dlc_code)}")')
         replacement = r"\1" + ("" if enabled else "//") + r"\3"
         return pattern.sub(replacement, config_content)
 
@@ -204,7 +204,7 @@ class AnadiusSimpleAdapter(DLCConfigAdapter):
         return "anadius (simple)"
 
     def get_encoding(self) -> str:
-        return "utf-8"
+        return "cp1252"
 
 
 class AnadiusCodexAdapter(CodexAdapter):
@@ -219,11 +219,14 @@ class AnadiusCodexAdapter(CodexAdapter):
         path = self.get_config_path(game_dir)
         if path is None:
             return False
-        content = path.read_text(encoding="utf-8", errors="replace")
+        content = path.read_text(encoding="cp1252", errors="replace")
         return '"Config2"' in content
 
     def get_format_name(self) -> str:
         return "anadius (codex-like)"
+
+    def get_encoding(self) -> str:
+        return "cp1252"
 
 
 # Detection order: reverse (highest index first), matching the AutoIt script

@@ -128,18 +128,21 @@ def write_applist(applist_dir: Path, app_ids: list[str]) -> int:
 
     applist_dir.mkdir(parents=True, exist_ok=True)
 
-    # Remove existing numbered .txt files
+    # Write new sequential files first (overwriting existing), then remove extras.
+    # This avoids a window where all files are deleted but none are written yet.
+    new_files = set()
+    for idx, app_id in enumerate(unique):
+        target = applist_dir / f"{idx}.txt"
+        target.write_text(app_id, encoding="utf-8")
+        new_files.add(target.name)
+
+    # Remove old numbered .txt files that are no longer needed
     for filepath in applist_dir.iterdir():
-        if filepath.is_file() and _is_applist_file(filepath):
+        if filepath.is_file() and _is_applist_file(filepath) and filepath.name not in new_files:
             try:
                 filepath.unlink()
             except OSError:
                 log.warning("Failed to delete old AppList file: %s", filepath)
-
-    # Write new sequential files
-    for idx, app_id in enumerate(unique):
-        target = applist_dir / f"{idx}.txt"
-        target.write_text(app_id, encoding="utf-8")
 
     log.info("Wrote %d AppList entries to %s", len(unique), applist_dir)
     return len(unique)

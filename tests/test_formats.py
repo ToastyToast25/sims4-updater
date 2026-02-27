@@ -65,6 +65,12 @@ class TestCodexAdapter:
         check = self.adapter.read_enabled_dlcs(result, ["EP01"])
         assert check["EP01"] is False
 
+    def test_case_insensitive_group(self):
+        """CODEX group matching should be case-insensitive."""
+        sample = '"EP01"\n{\n  "Group"  "TheSims4PC"\n}\n'
+        result = self.adapter.read_enabled_dlcs(sample, ["EP01"])
+        assert result["EP01"] is True
+
     def test_format_name(self):
         assert self.adapter.get_format_name() == "CODEX"
 
@@ -122,6 +128,15 @@ class TestAnadiusSimpleAdapter:
         check = self.adapter.read_enabled_dlcs(result, ["EP01"])
         assert check["EP01"] is False
 
+    def test_first_entry_matching(self):
+        """First entry at start of content (no leading whitespace) should match."""
+        sample = '"EP01"\n  //"EP02"\n  "GP01"\n'
+        result = self.adapter.read_enabled_dlcs(sample, ["EP01", "EP02", "GP01"])
+        assert "EP01" in result
+
+    def test_encoding(self):
+        assert self.adapter.get_encoding() == "cp1252"
+
     def test_format_name(self):
         assert self.adapter.get_format_name() == "anadius (simple)"
 
@@ -151,4 +166,4 @@ class TestAnadiusCodexAdapter:
         assert self.adapter.get_format_name() == "anadius (codex-like)"
 
     def test_encoding(self):
-        assert self.adapter.get_encoding() == "utf-8"
+        assert self.adapter.get_encoding() == "cp1252"

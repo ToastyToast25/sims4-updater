@@ -203,7 +203,10 @@ def submit_gl_contribution(
     if resp.status_code != 200:
         return {"status": "error", "message": f"Server error ({resp.status_code})"}
 
-    return resp.json()
+    try:
+        return resp.json()
+    except (ValueError, requests.JSONDecodeError):
+        return {"status": "error", "message": "Invalid response from server"}
 
 
 def _extract_manifest_id(filename: str, depot_id: str) -> str:
