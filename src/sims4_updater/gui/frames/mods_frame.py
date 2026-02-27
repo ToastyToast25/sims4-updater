@@ -618,8 +618,9 @@ class ModsFrame(ctk.CTkFrame):
         mgr = self._get_manager()
 
         def _bg():
-            # Register the detected mod temporarily so enable works
-            mgr._registry[mod.name] = mod
+            # Register the detected mod so enable works (thread-safe via lock)
+            with mgr._registry_lock:
+                mgr._registry[mod.name] = mod
             mgr.save_registry()
             return mgr.enable_mod(mod.name, log=self._enqueue_log)
 
@@ -641,7 +642,8 @@ class ModsFrame(ctk.CTkFrame):
         mgr = self._get_manager()
 
         def _bg():
-            mgr._registry[mod.name] = mod
+            with mgr._registry_lock:
+                mgr._registry[mod.name] = mod
             mgr.save_registry()
             return mgr.disable_mod(mod.name, log=self._enqueue_log)
 
@@ -673,7 +675,8 @@ class ModsFrame(ctk.CTkFrame):
         mgr = self._get_manager()
 
         def _bg():
-            mgr._registry[mod.name] = mod
+            with mgr._registry_lock:
+                mgr._registry[mod.name] = mod
             mgr.save_registry()
             return mgr.uninstall_mod(mod.name, log=self._enqueue_log)
 

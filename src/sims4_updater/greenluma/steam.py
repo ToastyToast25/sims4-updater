@@ -77,22 +77,23 @@ def _read_steam_path_from_registry() -> Path | None:
     except ImportError:
         return None
 
-    for view in (
-        winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
-        winreg.KEY_READ | winreg.KEY_WOW64_32KEY,
-    ):
-        try:
-            with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE,
-                _STEAM_REGISTRY_KEY,
-                0,
-                view,
-            ) as key:
-                value, _ = winreg.QueryValueEx(key, _STEAM_REGISTRY_VALUE)
-                if value:
-                    return Path(value)
-        except (OSError, FileNotFoundError):
-            continue
+    for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+        for view in (
+            winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+            winreg.KEY_READ | winreg.KEY_WOW64_32KEY,
+        ):
+            try:
+                with winreg.OpenKey(
+                    hive,
+                    _STEAM_REGISTRY_KEY,
+                    0,
+                    view,
+                ) as key:
+                    value, _ = winreg.QueryValueEx(key, _STEAM_REGISTRY_VALUE)
+                    if value:
+                        return Path(value)
+            except (OSError, FileNotFoundError):
+                continue
 
     return None
 

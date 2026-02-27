@@ -2,6 +2,26 @@
 
 All notable changes to The Sims 4 Updater will be documented in this file.
 
+## [2.8.0] - 2026-02-27
+
+### Fixed
+
+- **Security: Path traversal in GreenLuma uninstall** — validate file paths stay within install directory using `resolve()` + `is_relative_to()`
+- **Thread safety: ModManager registry mutations** — added `_registry_lock` to prevent concurrent dict modifications from background threads
+- **CDN auth: silent token failure** — `get_token()` now raises `RuntimeError` on refresh failure instead of silently returning empty string; `CDNTokenAuth` adapter catches and skips gracefully
+- **Downloader: double-checked locking race** — session now fully configured before publishing to shared `_session` attribute
+- **LearnedHashDB thread safety** — all mutations (`save`, `add_version`, `merge`) now protected by `threading.Lock`
+- **GUI blocking: GreenLuma subprocess on main thread** — `is_steam_running()` calls in `greenluma_frame.py` moved to background thread via `run_async()`
+- **Diagnostics: validator constructor outside try block** — `GameValidator()` now inside the exception handler so failures don't silently leave `_validator_running` stuck
+- **Version detection: false DEFINITIVE confidence** — single-sentinel matches no longer report `DEFINITIVE`; requires at least 2 matching sentinels
+- **DLC config: non-atomic Bin_LE write** — replaced `shutil.copy2` with `_atomic_write()` for crash safety
+- **Language frame: async race condition** — removed duplicate `_refresh_status()` call that raced with `_apply_language()`
+- **Steam detection: missing HKCU registry lookup** — `_read_steam_path_from_registry()` now checks both `HKEY_LOCAL_MACHINE` and `HKEY_CURRENT_USER`
+- **Language changer: registry key creation** — use `CreateKeyEx` instead of `OpenKey` so the key is created if it doesn't exist
+- **Language changer: non-atomic appmanifest write** — Steam manifest updates now use temp file + `os.replace()`
+- **DepotDownloader: HTTPS validation** — reject download URLs that don't use HTTPS
+- **Contribution URLs: HTTPS enforcement** — both DLC and GreenLuma contribution endpoints now reject non-HTTPS URLs
+
 ## [2.7.1] - 2026-02-27
 
 ### Fixed

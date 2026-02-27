@@ -142,7 +142,7 @@ class DLCManager:
         # Copy to Bin_LE variant if it exists (matches AutoIt behavior)
         bin_le_path = config_path.parent.parent / "Bin_LE" / config_path.name
         if bin_le_path.parent.is_dir() and bin_le_path != config_path:
-            shutil.copy2(config_path, bin_le_path)
+            _atomic_write(bin_le_path, content, adapter.get_encoding())
 
     def auto_toggle(self, game_dir: str | Path) -> dict[str, bool]:
         """

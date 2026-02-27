@@ -292,9 +292,12 @@ def uninstall_greenluma(steam_path: Path) -> tuple[int, int]:
     manifest = _load_install_manifest()
 
     if manifest:
-        install_dir = Path(manifest["install_dir"])
+        install_dir = Path(manifest["install_dir"]).resolve()
         for rel_path in manifest.get("files", []):
-            fp = install_dir / rel_path
+            fp = (install_dir / rel_path).resolve()
+            if not fp.is_relative_to(install_dir):
+                log.warning("Skipping unsafe uninstall path: %s", rel_path)
+                continue
             if fp.is_file():
                 try:
                     fp.unlink()

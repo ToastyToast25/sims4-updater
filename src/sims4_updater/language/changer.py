@@ -314,7 +314,7 @@ def _set_registry_language(language_code: str) -> bool:
         winreg.KEY_WRITE | winreg.KEY_WOW64_32KEY,
     ):
         try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY, 0, view) as key:
+            with winreg.CreateKeyEx(winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY, 0, view) as key:
                 winreg.SetValueEx(key, REGISTRY_VALUE, 0, winreg.REG_SZ, language_code)
                 success = True
         except (OSError, PermissionError):
@@ -545,7 +545,9 @@ def _update_steam_manifest(
         )
 
         if content != original:
-            manifest.write_text(content, encoding="utf-8")
+            tmp = manifest.with_suffix(".acf_tmp")
+            tmp.write_text(content, encoding="utf-8")
+            os.replace(tmp, manifest)
             log(f"Steam manifest updated: {manifest}")
             log(f'  language = "{steam_lang}"')
             return True

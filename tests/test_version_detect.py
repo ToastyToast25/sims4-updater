@@ -38,10 +38,10 @@ class TestVersionDatabase:
 
     def test_lookup_partial_match(self, version_db_file, tmp_path):
         db = VersionDatabase(db_path=version_db_file, learned_db=_empty_learned(tmp_path))
-        # Only one sentinel matches
+        # Only one sentinel matches — not enough for DEFINITIVE
         result = db.lookup({"Game/Bin/TS4_x64.exe": "ccc333"})
         assert result.version == "1.101.0.1000"
-        assert result.confidence == Confidence.DEFINITIVE
+        assert result.confidence == Confidence.UNKNOWN
 
     def test_lookup_no_match(self, version_db_file, tmp_path):
         db = VersionDatabase(db_path=version_db_file, learned_db=_empty_learned(tmp_path))

@@ -37,7 +37,10 @@ class CDNTokenAuth(AuthBase):
         self._cdn_auth = cdn_auth
 
     def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        token = self._cdn_auth.get_token()
+        try:
+            token = self._cdn_auth.get_token()
+        except RuntimeError:
+            token = ""
         if token:
             r.headers["Authorization"] = f"Bearer {token}"
         return r
@@ -117,6 +120,8 @@ class CDNAuth:
             if self._token and time.monotonic() < self._expires_at - 60:
                 return self._token
             self._refresh()
+        if not self._token:
+            raise RuntimeError("Token refresh failed — no valid token available.")
         return self._token
 
     def get_auth_adapter(self) -> CDNTokenAuth:

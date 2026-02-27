@@ -69,9 +69,10 @@ class Downloader:
         if self._session is None:
             with self._session_lock:
                 if self._session is None:
-                    self._session = _create_session()
+                    s = _create_session()
                     if self._auth:
-                        self._session.auth = self._auth
+                        s.auth = self._auth
+                    self._session = s  # publish fully configured
         return self._session
 
     def cancel(self):

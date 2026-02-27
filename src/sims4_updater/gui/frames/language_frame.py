@@ -872,8 +872,7 @@ class LanguageFrame(ctk.CTkFrame):
                         "size_bytes": entry.size if hasattr(entry, "size") else None,
                     },
                 )
-                # Now apply the language config
-                self._refresh_status()
+                # Apply the language config (refresh status after apply completes)
                 self._apply_language(code)
             else:
                 self._set_busy(False)

@@ -154,6 +154,8 @@ def submit_contribution(
     endpoint = url or CONTRIBUTE_URL
     if not endpoint:
         return {"status": "error", "message": "Contribution URL not configured."}
+    if not endpoint.startswith("https://"):
+        return {"status": "error", "message": "Contribution URL must use HTTPS."}
 
     from . import identity
 

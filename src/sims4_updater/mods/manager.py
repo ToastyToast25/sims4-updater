@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -54,6 +55,7 @@ class ModManager:
         self._game_mods_dir = Path(game_mods_dir)
         self._registry_path = get_app_dir() / "mod_registry.json"
         self._registry: dict[str, ModInfo] = {}
+        self._registry_lock = threading.Lock()
         self.load_registry()
 
     # ── Registry persistence ───────────────────────────────────
