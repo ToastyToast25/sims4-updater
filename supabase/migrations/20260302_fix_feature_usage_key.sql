@@ -1,6 +1,5 @@
--- RPC function: get_stats(p_days INTEGER)
--- Returns all analytics data for the given time window.
--- Pass 0 for all-time stats.
+-- Fix: feature_usage query used metadata->>'to' but the client sends 'to_frame'.
+-- This caused the feature_usage dashboard section to always show feature=null.
 
 CREATE OR REPLACE FUNCTION public.get_stats(p_days INTEGER DEFAULT 30)
 RETURNS JSONB AS $$
@@ -129,7 +128,7 @@ BEGIN
   WHERE event_type = 'session_end' AND created_at > cutoff;
   result := result || jsonb_build_object('session_stats', jsonb_build_array(tmp));
 
-  -- feature_usage
+  -- feature_usage (fixed: was metadata->>'to', now metadata->>'to_frame')
   SELECT coalesce(jsonb_agg(row_to_json(t)::JSONB), '[]'::JSONB)
   INTO tmp
   FROM (
@@ -182,7 +181,7 @@ BEGIN
   ) t;
   result := result || jsonb_build_object('dlc_count_distribution', tmp);
 
-  -- daily_active_trend (last N days as time series)
+  -- daily_active_trend (last N days as time series, max 90 days)
   SELECT coalesce(jsonb_agg(row_to_json(t)::JSONB), '[]'::JSONB)
   INTO tmp
   FROM (
@@ -208,7 +207,7 @@ BEGIN
   ) t;
   result := result || jsonb_build_object('new_users_daily', tmp);
 
-  -- daily_events_trend
+  -- daily_events_trend (max 90 days)
   SELECT coalesce(jsonb_agg(row_to_json(t)::JSONB), '[]'::JSONB)
   INTO tmp
   FROM (

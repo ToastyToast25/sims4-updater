@@ -133,10 +133,10 @@ BEGIN
   SELECT coalesce(jsonb_agg(row_to_json(t)::JSONB), '[]'::JSONB)
   INTO tmp
   FROM (
-    SELECT metadata->>'to' AS feature, count(*) AS visits
+    SELECT metadata->>'to_frame' AS feature, count(*) AS visits
     FROM public.events
     WHERE event_type = 'frame_navigation' AND created_at > cutoff
-    GROUP BY metadata->>'to' ORDER BY visits DESC
+    GROUP BY metadata->>'to_frame' ORDER BY visits DESC
   ) t;
   result := result || jsonb_build_object('feature_usage', tmp);
 
