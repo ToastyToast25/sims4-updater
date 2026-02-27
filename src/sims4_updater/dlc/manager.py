@@ -3,6 +3,7 @@ DLC Manager — unified interface for toggling DLCs across all crack config form
 """
 
 import contextlib
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -10,6 +11,8 @@ from pathlib import Path
 from ..core.exceptions import NoCrackConfigError
 from .catalog import DLCCatalog, DLCStatus
 from .formats import DLCConfigAdapter, detect_format
+
+logger = logging.getLogger(__name__)
 
 
 class DLCManager:
@@ -114,7 +117,7 @@ class DLCManager:
         config_path.write_text(content, encoding=adapter.get_encoding())
 
         # Copy to Bin_LE variant if it exists (matches AutoIt behavior)
-        bin_le_path = Path(str(config_path).replace("Bin", "Bin_LE"))
+        bin_le_path = config_path.parent.parent / "Bin_LE" / config_path.name
         if bin_le_path.parent.is_dir() and bin_le_path != config_path:
             shutil.copy2(config_path, bin_le_path)
 
@@ -125,7 +128,11 @@ class DLCManager:
         Returns dict of {dlc_id: new_enabled_state}.
         """
         game_dir = Path(game_dir)
-        states = self.get_dlc_states(game_dir)
+        try:
+            states = self.get_dlc_states(game_dir)
+        except OSError as exc:
+            logger.warning("Could not read DLC states for auto-toggle: %s", exc)
+            return {}
 
         enabled_set = set()
         changes = {}
@@ -221,7 +228,7 @@ class DLCManager:
                                 encoding=adapter.get_encoding(),
                             )
                             # Mirror to Bin_LE if present
-                            bin_le = Path(str(config_path).replace("Bin", "Bin_LE"))
+                            bin_le = config_path.parent.parent / "Bin_LE" / config_path.name
                             if bin_le.parent.is_dir() and bin_le != config_path:
                                 shutil.copy2(config_path, bin_le)
             except Exception:

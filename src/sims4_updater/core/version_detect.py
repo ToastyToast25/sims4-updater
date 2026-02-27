@@ -7,6 +7,7 @@ Detection takes <2 seconds on SSD.
 """
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
@@ -16,6 +17,8 @@ from .. import constants
 from .exceptions import VersionDetectionError
 from .files import hash_file
 from .learned_hashes import LearnedHashDB
+
+logger = logging.getLogger(__name__)
 
 
 class Confidence(Enum):
@@ -43,11 +46,15 @@ class VersionDatabase:
         if db_path is None:
             db_path = constants.get_data_dir() / "version_hashes.json"
 
-        with open(db_path, encoding="utf-8") as f:
-            data = json.load(f)
-
-        self.sentinel_files: list[str] = data["sentinel_files"]
-        self.versions: dict[str, dict[str, str]] = dict(data["versions"])
+        try:
+            with open(db_path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.sentinel_files: list[str] = data["sentinel_files"]
+            self.versions: dict[str, dict[str, str]] = dict(data["versions"])
+        except (OSError, json.JSONDecodeError, KeyError) as exc:
+            logger.warning("Failed to load version database from %s: %s", db_path, exc)
+            self.sentinel_files = list(constants.SENTINEL_FILES)
+            self.versions = {}
 
         # Merge learned hashes (local DB takes priority for overlapping keys)
         self._learned_db = learned_db or LearnedHashDB()
@@ -111,7 +118,7 @@ class VersionDatabase:
         elif best_count >= 2:
             confidence = Confidence.PROBABLE
         else:
-            confidence = Confidence.PROBABLE
+            confidence = Confidence.UNKNOWN
 
         return DetectionResult(
             version=best_version,

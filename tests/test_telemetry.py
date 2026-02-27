@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from unittest.mock import MagicMock, call, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from sims4_updater.config import Settings
 from sims4_updater.core.telemetry import TelemetryClient
@@ -242,10 +240,7 @@ class TestPeriodicHeartbeat:
         client.stop_periodic_heartbeat()
 
         # Should have fired at least 2 heartbeats (at 0.1s, 0.2s, maybe 0.3s)
-        heartbeat_calls = [
-            c for c in mock_post.call_args_list
-            if "/heartbeat" in c.args[0]
-        ]
+        heartbeat_calls = [c for c in mock_post.call_args_list if "/heartbeat" in c.args[0]]
         assert len(heartbeat_calls) >= 2
 
     @patch("sims4_updater.core.telemetry.requests.post")
@@ -288,10 +283,7 @@ class TestSessionEnd:
         client.session_end()
 
         # Should have sent a session_end event
-        event_calls = [
-            c for c in mock_post.call_args_list
-            if "/event" in c.args[0]
-        ]
+        event_calls = [c for c in mock_post.call_args_list if "/event" in c.args[0]]
         assert len(event_calls) == 1
         payload = event_calls[0].kwargs["json"]
         assert payload["event_type"] == "session_end"

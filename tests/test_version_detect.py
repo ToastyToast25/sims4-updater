@@ -55,8 +55,8 @@ class TestVersionDatabase:
         assert result.version is None
         assert result.confidence == Confidence.UNKNOWN
 
-    def test_lookup_multiple_matches_probable(self, tmp_path):
-        """When multiple versions match with same sentinel count, result is PROBABLE."""
+    def test_lookup_multiple_matches_single_sentinel_unknown(self, tmp_path):
+        """When multiple versions match on only 1 sentinel each, result is UNKNOWN."""
         db_data = {
             "sentinel_files": ["Game/Bin/TS4_x64.exe"],
             "versions": {
@@ -68,7 +68,7 @@ class TestVersionDatabase:
         path.write_text(json.dumps(db_data), encoding="utf-8")
         db = VersionDatabase(db_path=path, learned_db=_empty_learned(tmp_path))
         result = db.lookup({"Game/Bin/TS4_x64.exe": "same_hash"})
-        assert result.confidence == Confidence.PROBABLE
+        assert result.confidence == Confidence.UNKNOWN
         assert len(result.matched_versions) == 2
 
     def test_lookup_mismatched_sentinel_skips_version(self, version_db_file, tmp_path):

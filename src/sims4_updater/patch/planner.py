@@ -150,4 +150,8 @@ def _bfs_all_shortest(
                 best_dist[next_version] = new_dist
                 queue.append((next_version, new_path))
 
+    # Filter to only truly shortest paths (longer paths may have been added
+    # before the shortest was discovered).
+    if results and shortest_found < float("inf"):
+        results = [p for p in results if len(p) == shortest_found]
     return results

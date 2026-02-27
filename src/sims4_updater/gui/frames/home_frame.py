@@ -767,7 +767,17 @@ class HomeFrame(ctk.CTkFrame):
         """Refresh game info in background."""
         self._set_status("Scanning...", "info")
         self._update_btn.configure(state="disabled")
-        self.app.run_async(self._detect_info, on_done=self._on_info_detected)
+        self.app.run_async(
+            self._detect_info,
+            on_done=self._on_info_detected,
+            on_error=self._on_refresh_error,
+        )
+
+    def _on_refresh_error(self, exc: Exception):
+        """Re-enable the update button if background detection fails."""
+        self._set_status("Error", "error")
+        self._update_btn.configure(state="normal")
+        self.app._show_error(exc)
 
     def _detect_info(self):
         """Background: detect game dir, version, and component statuses."""

@@ -182,3 +182,7 @@ class Animator:
     def _remove(self, anim: _Animation):
         with contextlib.suppress(ValueError):
             self._animations.remove(anim)
+        # Break closure references to allow GC of destroyed widgets
+        anim.on_tick = None
+        anim.on_done = None
+        anim.widget = None

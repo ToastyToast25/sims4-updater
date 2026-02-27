@@ -101,6 +101,7 @@ class TelemetryClient:
 
         data: dict[str, Any] = {
             "uid": self.uid,
+            "session_id": self._session_id,
             "app_version": VERSION,
             "os_version": self._os_version,
             "game_detected": game_detected,
@@ -184,7 +185,11 @@ class TelemetryClient:
         return bool(self._settings.telemetry_enabled and self._base_url)
 
     def _post(self, endpoint: str, data: dict) -> None:
-        """POST to the stats API. Never raises."""
+        """POST to the stats API in a background thread. Never blocks the caller."""
+        threading.Thread(target=self._do_post, args=(endpoint, data), daemon=True).start()
+
+    def _do_post(self, endpoint: str, data: dict) -> None:
+        """Actual HTTP POST. Runs on a daemon thread — never raises."""
         from . import identity
 
         try:

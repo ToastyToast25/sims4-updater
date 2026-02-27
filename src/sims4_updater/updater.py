@@ -122,6 +122,10 @@ class Sims4Updater(BasePatcher):
             auth=auth,
         )
 
+    def reset_cancel(self):
+        """Clear the cancel flag so new operations can proceed."""
+        self._cancel.clear()
+
     def exiting_extra(self):
         """Cancel downloads and save settings on exit."""
         try:

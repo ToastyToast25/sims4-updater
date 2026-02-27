@@ -3,6 +3,7 @@ DLC catalog — maps DLC IDs to names, codes, and pack types.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -210,8 +211,10 @@ class DLCCatalog:
 
         try:
             self._custom_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._custom_path, "w", encoding="utf-8") as f:
+            tmp = self._custom_path.with_suffix(".json_tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump({"dlcs": custom_entries}, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, self._custom_path)
         except OSError:
             pass
 

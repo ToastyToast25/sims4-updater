@@ -77,14 +77,14 @@ class BackupManager:
         for rel_path in files_to_patch:
             src = game_dir / rel_path
             # Validate source stays within game dir (prevent path traversal in file list)
-            if not str(src.resolve()).startswith(str(game_resolved) + os.sep):
+            if not src.resolve().is_relative_to(game_resolved):
                 logger.warning("Skipping backup of path-escaping file: %s", rel_path)
                 continue
             if not src.is_file() or src.is_symlink():
                 continue
             dest = backup_path / rel_path
             # Validate dest stays within backup dir
-            if not str(dest.resolve()).startswith(str(backup_resolved) + os.sep):
+            if not dest.resolve().is_relative_to(backup_resolved):
                 logger.warning("Skipping backup of path-escaping dest: %s", rel_path)
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -148,7 +148,7 @@ class BackupManager:
         """
         # Validate backup_path is actually within our backup directory
         backup_resolved = backup_path.resolve()
-        if not str(backup_resolved).startswith(str(self.backup_dir.resolve())):
+        if not backup_resolved.is_relative_to(self.backup_dir.resolve()):
             logger.error("Backup path outside backup dir: %s", backup_path)
             return 0
 
@@ -169,7 +169,7 @@ class BackupManager:
             rel = src.relative_to(backup_path)
             dest = game_dir / rel
             # Path traversal protection — ensure dest stays within game dir
-            if not str(dest.resolve()).startswith(str(game_resolved) + os.sep):
+            if not dest.resolve().is_relative_to(game_resolved):
                 logger.warning("Skipping restore of path-escaping file: %s", rel)
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -189,7 +189,7 @@ class BackupManager:
         """Delete a single backup folder."""
         # Use resolve() for robust containment check
         resolved = backup_path.resolve()
-        if resolved.is_dir() and str(resolved).startswith(str(self.backup_dir.resolve()) + os.sep):
+        if resolved.is_dir() and resolved.is_relative_to(self.backup_dir.resolve()):
             shutil.rmtree(resolved, ignore_errors=True)
             logger.info("Deleted backup: %s", backup_path.name)
 

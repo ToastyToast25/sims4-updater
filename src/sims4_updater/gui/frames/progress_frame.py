@@ -276,6 +276,7 @@ class ProgressFrame(ctk.CTkFrame):
     def _run_update(self, plan):
         """Background: download and apply patches."""
         updater = self.app.updater
+        updater.reset_cancel()
 
         # Download
         updater.download_update(plan)
@@ -291,7 +292,7 @@ class ProgressFrame(ctk.CTkFrame):
                     game_name = name
                     break
             if game_name is None:
-                game_name = game_names[0]
+                game_name = game_names[0] if game_names else "The Sims 4"
 
             versions, dlc_count, languages, cached_path = updater.pick_game(game_name)
 
@@ -319,7 +320,7 @@ class ProgressFrame(ctk.CTkFrame):
                     files = updater.get_patchable_files(game_dir)
                     size = bm.estimate_backup_size(_Path(game_dir), files)
                     size_mb = size / 1024 / 1024
-                    self._enqueue_gui(
+                    self.app._enqueue_gui(
                         self._log_text,
                         f"Creating backup ({size_mb:.1f} MB)...\n",
                         "info",
@@ -327,7 +328,7 @@ class ProgressFrame(ctk.CTkFrame):
                     version_label = plan.target_version or "unknown"
                     bm.create_backup(_Path(game_dir), files, version_label)
                     bm.prune_old_backups()
-                    self._enqueue_gui(
+                    self.app._enqueue_gui(
                         self._log_text,
                         "Backup created.\n",
                         "success",
@@ -340,7 +341,7 @@ class ProgressFrame(ctk.CTkFrame):
                         },
                     )
                 except Exception as e:
-                    self._enqueue_gui(
+                    self.app._enqueue_gui(
                         self._log_text,
                         f"Backup failed: {e} — continuing without backup.\n",
                         "warning",

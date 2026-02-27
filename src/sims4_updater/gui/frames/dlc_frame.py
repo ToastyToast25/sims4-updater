@@ -72,6 +72,7 @@ class DLCFrame(ctk.CTkFrame):
         self._animator = get_animator()
 
         # Widget-reuse state
+        self._search_after_id: str | None = None
         self._built = False
         self._all_states: list[DLCStatus] = []
         self._row_widgets: dict[str, dict] = {}  # dlc_id -> widget refs
@@ -80,6 +81,7 @@ class DLCFrame(ctk.CTkFrame):
         self._section_collapsed: dict[str, bool] = {}
         self._desc_expanded: dict[str, bool] = {}
         self._pending_dlcs = []
+        self._pending_widgets: list[ctk.CTkBaseClass] = []
         self._skeleton_widgets: list[ctk.CTkFrame] = []
 
         # Filter state
@@ -546,7 +548,9 @@ class DLCFrame(ctk.CTkFrame):
 
     def _on_search_changed(self, *_args):
         if self._all_states and self._built:
-            self._apply_filter()
+            if hasattr(self, "_search_after_id") and self._search_after_id:
+                self.after_cancel(self._search_after_id)
+            self._search_after_id = self.after(250, self._apply_filter)
 
     def _clear_search(self):
         self._search_var.set("")
@@ -1158,30 +1162,40 @@ class DLCFrame(ctk.CTkFrame):
 
     def _show_pending_section(self, start_row: int):
         """Show pending DLCs from manifest below the main list."""
-        # These are lightweight — recreated each filter pass since they're few
+        # Destroy widgets from previous filter pass to prevent leak
+        for w in self._pending_widgets:
+            w.destroy()
+        self._pending_widgets.clear()
+
         row = start_row
-        ctk.CTkFrame(
+        sep = ctk.CTkFrame(
             self._scroll_frame,
             height=1,
             fg_color=theme.COLORS["separator"],
-        ).grid(row=row, column=0, padx=5, pady=(8, 0), sticky="ew")
+        )
+        sep.grid(row=row, column=0, padx=5, pady=(8, 0), sticky="ew")
+        self._pending_widgets.append(sep)
         row += 1
 
-        ctk.CTkLabel(
+        header = ctk.CTkLabel(
             self._scroll_frame,
             text="\u25cf  Pending (Patch Not Yet Available)",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=theme.COLORS["warning"],
-        ).grid(row=row, column=0, padx=5, pady=(10, 4), sticky="w")
+        )
+        header.grid(row=row, column=0, padx=5, pady=(10, 4), sticky="w")
+        self._pending_widgets.append(header)
         row += 1
 
         for pending in self._pending_dlcs:
-            ctk.CTkLabel(
+            lbl = ctk.CTkLabel(
                 self._scroll_frame,
                 text=f"    {pending.name}  [PENDING]",
                 font=ctk.CTkFont(size=12),
                 text_color=theme.COLORS["text_muted"],
-            ).grid(row=row, column=0, padx=15, pady=1, sticky="w")
+            )
+            lbl.grid(row=row, column=0, padx=15, pady=1, sticky="w")
+            self._pending_widgets.append(lbl)
             row += 1
 
     # ── Toggle Helpers ─────────────────────────────────────────
@@ -1283,7 +1297,10 @@ class DLCFrame(ctk.CTkFrame):
         import logging
         import traceback
 
-        logging.error("DLC error: %s\n%s", error, traceback.format_exc())
+        # Use the exception's own __traceback__ — format_exc() would return nothing
+        # because this callback runs on the GUI thread with no active exception.
+        tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        logging.error("DLC error: %s\n%s", error, tb)
         self._auto_btn.configure(state="normal")
         self._apply_btn.configure(state="normal")
         self._status_label.configure(
