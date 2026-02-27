@@ -43,7 +43,7 @@ class LanguageFrame(ctk.CTkFrame):
         # State
         from ...language.changer import LANGUAGES
 
-        self._languages = LANGUAGES  # {code: name}
+        self._languages = dict(LANGUAGES)  # {code: name} — copy to avoid mutating global
         self._installed_langs: dict[str, bool] = {}
         self._lang_downloads: dict = {}  # {locale_code: LanguageDownloadEntry}
         self._row_widgets: dict[str, dict] = {}  # code -> widget refs

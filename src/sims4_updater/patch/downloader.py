@@ -143,42 +143,49 @@ class Downloader:
                 stream=True,
                 timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
             )
-            _check_ban_response(resp)
-            resp.raise_for_status()
+            try:
+                _check_ban_response(resp)
+                resp.raise_for_status()
 
-            # Determine total size and write mode
-            if resp.status_code == 206:
-                # Partial content — resume
-                content_range = resp.headers.get("Content-Range", "")
-                if "/" in content_range:
-                    total_size = int(content_range.rsplit("/", 1)[1])
+                # Determine total size and write mode
+                if resp.status_code == 206:
+                    # Partial content — resume
+                    content_range = resp.headers.get("Content-Range", "")
+                    if "/" in content_range:
+                        total_part = content_range.rsplit("/", 1)[1]
+                        if total_part == "*":
+                            total_size = resume_from + int(resp.headers.get("Content-Length", 0))
+                        else:
+                            total_size = int(total_part)
+                    else:
+                        total_size = resume_from + int(resp.headers.get("Content-Length", 0))
+                    mode = "ab"
+                    resumed = True
                 else:
-                    total_size = resume_from + int(resp.headers.get("Content-Length", 0))
-                mode = "ab"
-                resumed = True
-            else:
-                # Full download (200 or server doesn't support Range)
-                total_size = int(resp.headers.get("Content-Length", 0)) or entry.size
-                mode = "wb"
-                resume_from = 0
-                resumed = False
+                    # Full download (200 or server doesn't support Range)
+                    total_size = int(resp.headers.get("Content-Length", 0)) or entry.size
+                    mode = "wb"
+                    resume_from = 0
+                    resumed = False
 
-            downloaded = resume_from
-            if progress:
-                progress(downloaded, total_size, entry.filename)
+                downloaded = resume_from
+                if progress:
+                    progress(downloaded, total_size, entry.filename)
 
-            with open(partial_path, mode) as f:
-                for chunk in resp.iter_content(CHUNK_SIZE):
-                    if self._proceed is not None:
-                        self._proceed.wait()  # block if paused
-                    if self.cancelled:
-                        raise DownloadError("Download cancelled.")
-                    f.write(chunk)
-                    if self._rate_limiter:
-                        self._rate_limiter.acquire(len(chunk))
-                    downloaded += len(chunk)
-                    if progress:
-                        progress(downloaded, total_size, entry.filename)
+                with open(partial_path, mode) as f:
+                    for chunk in resp.iter_content(CHUNK_SIZE):
+                        if self._proceed is not None:
+                            self._proceed.wait()  # block if paused
+                        if self.cancelled:
+                            raise DownloadError("Download cancelled.")
+                        f.write(chunk)
+                        if self._rate_limiter:
+                            self._rate_limiter.acquire(len(chunk))
+                        downloaded += len(chunk)
+                        if progress:
+                            progress(downloaded, total_size, entry.filename)
+            finally:
+                resp.close()
 
         except (DownloadError, BannedError):
             raise

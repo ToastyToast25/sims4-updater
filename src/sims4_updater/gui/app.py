@@ -1005,7 +1005,7 @@ class App(ctk.CTk):
                         pass
                     try:
                         dlc_states = self.updater._dlc_manager.get_dlc_states(game_dir)
-                        dlc_count = sum(1 for s in dlc_states.values() if s)
+                        dlc_count = sum(1 for s in dlc_states if s.installed)
                     except Exception:
                         pass
 
