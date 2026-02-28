@@ -362,12 +362,28 @@ class PatchFrame(ctk.CTkFrame):
         versions = [e["version"] for e in self._registry]
         if not versions:
             versions = ["(none)"]
-        self._from_menu.configure(values=versions)
-        self._to_menu.configure(values=versions)
-        if len(self._registry) >= 1:
-            self._from_var.set(versions[0])
-        if len(self._registry) >= 2:
-            self._to_var.set(versions[-1])
+            self._from_menu.configure(values=versions)
+            self._to_menu.configure(values=versions)
+            return
+
+        # Sort by game version number (e.g. 1.120.140.1020 < 1.121.372.1020)
+        def _version_key(v: str) -> tuple:
+            try:
+                return tuple(int(x) for x in v.split("."))
+            except (ValueError, AttributeError):
+                return (0,)
+
+        sorted_versions = sorted(versions, key=_version_key)
+        self._from_menu.configure(values=sorted_versions)
+        self._to_menu.configure(values=sorted_versions)
+
+        # Auto-select: From = second-newest, To = newest (most common update patch)
+        if len(sorted_versions) >= 2:
+            self._from_var.set(sorted_versions[-2])
+            self._to_var.set(sorted_versions[-1])
+        elif len(sorted_versions) == 1:
+            self._from_var.set(sorted_versions[0])
+            self._to_var.set(sorted_versions[0])
 
     def _register_version(self):
         dialog = _RegisterVersionDialog(self)
@@ -435,6 +451,17 @@ class PatchFrame(ctk.CTkFrame):
     def _bg_reverify(self, selected: list[str]):
         from ..backend.patch_ops import detect_version_fingerprint
 
+        # Build manifest ID -> version lookup from bundled SteamDB data
+        manifest_lookup: dict[str, str] = {}
+        try:
+            from ..backend.steamdb import load_bundled_manifests
+
+            for m in load_bundled_manifests():
+                if m.version:
+                    manifest_lookup[m.manifest_id] = m.version
+        except Exception:
+            pass
+
         results = []
         for entry in self._registry:
             if entry["version"] not in selected:
@@ -449,9 +476,26 @@ class PatchFrame(ctk.CTkFrame):
                 if detected and detected == entry["version"] and confidence >= 0.5:
                     entry["verified"] = True
                     results.append(("success", entry["version"], file_count, detected, confidence))
+                elif detected and confidence >= 0.5 and entry["version"].isdigit():
+                    # Version field contains a manifest ID — replace with detected version
+                    old_version = entry["version"]
+                    entry["version"] = detected
+                    entry["verified"] = True
+                    results.append(("corrected", detected, file_count, old_version, confidence))
                 elif detected:
                     entry["verified"] = False
                     results.append(("mismatch", entry["version"], file_count, detected, confidence))
+                elif entry["version"].isdigit():
+                    # No fingerprint data — try bundled SteamDB manifest lookup
+                    matched = self._lookup_version_by_manifest(entry["version"], manifest_lookup)
+                    if matched:
+                        old_version = entry["version"]
+                        entry["version"] = matched
+                        entry["verified"] = True
+                        results.append(("corrected", matched, file_count, old_version, 0.0))
+                    else:
+                        entry["verified"] = True
+                        results.append(("no_data", entry["version"], file_count, None, 0.0))
                 else:
                     entry["verified"] = True
                     results.append(("no_data", entry["version"], file_count, None, 0.0))
@@ -467,6 +511,12 @@ class PatchFrame(ctk.CTkFrame):
                 pct = int(confidence * 100)
                 self._log.log(
                     f"Verified {version}: {file_count} files, fingerprint match ({pct}%)",
+                    "success",
+                )
+            elif status == "corrected":
+                self._log.log(
+                    f"Version corrected: {detected} -> {version} "
+                    f"({file_count} files, {int(confidence * 100)}% match)",
                     "success",
                 )
             elif status == "mismatch":
@@ -488,6 +538,22 @@ class PatchFrame(ctk.CTkFrame):
                 )
         self._save_registry()
         self._refresh_registry_ui()
+
+    @staticmethod
+    def _lookup_version_by_manifest(
+        truncated_id: str, manifest_lookup: dict[str, str]
+    ) -> str | None:
+        """Look up a real version from a truncated manifest ID via bundled SteamDB data."""
+        # Exact match first
+        if truncated_id in manifest_lookup:
+            return manifest_lookup[truncated_id]
+        # Prefix match — the stored "version" may be manifest_id[:8] or [:12]
+        matches = [
+            ver
+            for mid, ver in manifest_lookup.items()
+            if mid.startswith(truncated_id) or truncated_id.startswith(mid)
+        ]
+        return matches[0] if len(matches) == 1 else None
 
     # -- Patch Creation --------------------------------------------------------
 
@@ -586,21 +652,29 @@ class PatchFrame(ctk.CTkFrame):
                 self.app._enqueue_gui(self._patch_progress_bar.set, pct)
                 elapsed = time.time() - start_time
                 self.app._enqueue_gui(
-                    self._patch_progress_label.configure,
-                    text=f"{current}/{total} files  |  {elapsed:.0f}s",
+                    lambda c=current, t=total, e=elapsed: self._patch_progress_label.configure(
+                        text=f"{c}/{t} files  |  {e:.0f}s"
+                    )
                 )
 
-        result = create_patch(
-            from_dir,
-            to_dir,
-            from_version,
-            to_version,
-            patcher_dir,
-            output_dir,
-            cancel_event=self._cancel_event,
-            log_cb=log,
-            progress_cb=progress,
-        )
+        try:
+            result = create_patch(
+                from_dir,
+                to_dir,
+                from_version,
+                to_version,
+                patcher_dir,
+                output_dir,
+                cancel_event=self._cancel_event,
+                log_cb=log,
+                progress_cb=progress,
+            )
+        except Exception as exc:
+            import traceback
+
+            log(f"Patch creation crashed: {exc}", "error")
+            log(traceback.format_exc(), "error")
+            result = None
 
         total_time = time.time() - start_time
 
@@ -675,51 +749,56 @@ class PatchFrame(ctk.CTkFrame):
         def log(msg, level="info"):
             self.app._enqueue_gui(self._log.log, msg, level)
 
-        entry = upload_patch(
-            conn,
-            patch_path,
-            from_version,
-            to_version,
-            log_cb=log,
-        )
+        try:
+            entry = upload_patch(
+                conn,
+                patch_path,
+                from_version,
+                to_version,
+                log_cb=log,
+            )
 
-        if entry:
-            # Update manifest patches array
-            log("Updating manifest with patch entry...")
-            try:
-                manifest = conn.fetch_manifest()
-                patches = manifest.get("patches", [])
-
-                # Remove existing entry for same from->to
-                patches = [
-                    p
-                    for p in patches
-                    if not (
-                        p.get("from_version") == from_version and p.get("to_version") == to_version
-                    )
-                ]
-                patches.append(entry)
-                manifest["patches"] = patches
-
-                import json
-                import tempfile
-
-                with tempfile.NamedTemporaryFile(
-                    mode="w",
-                    suffix=".json",
-                    delete=False,
-                    encoding="utf-8",
-                ) as tmp:
-                    json.dump(manifest, tmp, indent=2)
-                    tmp_path = Path(tmp.name)
+            if entry:
+                # Update manifest patches array
+                log("Updating manifest with patch entry...")
                 try:
-                    conn.publish_manifest(tmp_path)
-                finally:
-                    tmp_path.unlink(missing_ok=True)
+                    manifest = conn.fetch_manifest()
+                    patches = manifest.get("patches", [])
 
-                log("Manifest updated with patch entry", "success")
-            except Exception as e:
-                log(f"Manifest update failed: {e}", "error")
+                    # Remove existing entry for same from->to
+                    patches = [
+                        p
+                        for p in patches
+                        if not (p.get("from") == from_version and p.get("to") == to_version)
+                    ]
+                    patches.append(entry)
+                    manifest["patches"] = patches
+
+                    import json
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        suffix=".json",
+                        delete=False,
+                        encoding="utf-8",
+                    ) as tmp:
+                        json.dump(manifest, tmp, indent=2)
+                        tmp_path = Path(tmp.name)
+                    try:
+                        conn.publish_manifest(tmp_path)
+                    finally:
+                        tmp_path.unlink(missing_ok=True)
+
+                    log("Manifest updated with patch entry", "success")
+                except Exception as e:
+                    log(f"Manifest update failed: {e}", "error")
+        except Exception as exc:
+            import traceback
+
+            log(f"Upload crashed: {exc}", "error")
+            log(traceback.format_exc(), "error")
+            entry = None
 
         def finish():
             self._busy = False

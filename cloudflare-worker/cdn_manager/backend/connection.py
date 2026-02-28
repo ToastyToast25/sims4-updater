@@ -104,16 +104,20 @@ class SFTPPool:
                 except Exception:
                     pass
 
-        # Create new connection
-        transport = paramiko.Transport(
-            (self._config["whatbox_host"], self._config.get("whatbox_port", 22)),
-        )
-        transport.default_window_size = paramiko.common.MAX_WINDOW_SIZE
-        transport.connect(
+        # Create new connection via SSHClient (host key verification)
+        client = paramiko.SSHClient()
+        if _KNOWN_HOSTS_FILE.is_file():
+            client.load_host_keys(str(_KNOWN_HOSTS_FILE))
+        client.set_missing_host_key_policy(_get_host_keys_policy())
+        client.connect(
+            hostname=self._config["whatbox_host"],
+            port=self._config.get("whatbox_port", 22),
             username=self._config["whatbox_user"],
             password=self._config["whatbox_pass"],
         )
-        sftp = paramiko.SFTPClient.from_transport(transport)
+        transport = client.get_transport()
+        transport.default_window_size = paramiko.common.MAX_WINDOW_SIZE
+        sftp = client.open_sftp()
         return transport, sftp
 
     def release(self, transport, sftp):
@@ -281,6 +285,54 @@ class ConnectionManager:
         except Exception:
             return False
 
+    def file_size_sftp(self, remote_path: str) -> int:
+        """Return remote file size in bytes, or -1 if not found."""
+        try:
+            transport, sftp = self.connect_sftp()
+            try:
+                attr = sftp.stat(remote_path)
+                self.release_sftp(transport, sftp)
+                return attr.st_size or 0
+            except FileNotFoundError:
+                self.release_sftp(transport, sftp)
+                return -1
+            except Exception:
+                try:
+                    sftp.close()
+                    transport.close()
+                except Exception:
+                    pass
+                return -1
+        except Exception:
+            return -1
+
+    def md5_remote_sftp(self, remote_path: str) -> str | None:
+        """Stream a remote file and return its MD5 hex digest, or None on error."""
+        import hashlib
+
+        try:
+            transport, sftp = self.connect_sftp()
+            try:
+                h = hashlib.md5()
+                with sftp.open(remote_path, "rb") as fh:
+                    fh.prefetch()
+                    while True:
+                        chunk = fh.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        h.update(chunk)
+                self.release_sftp(transport, sftp)
+                return h.hexdigest()
+            except Exception:
+                try:
+                    sftp.close()
+                    transport.close()
+                except Exception:
+                    pass
+                return None
+        except Exception:
+            return None
+
     # -- Cloudflare KV -------------------------------------------------------
 
     def _kv_base_url(self) -> str:
@@ -338,6 +390,28 @@ class ConnectionManager:
         if resp.status_code == 200 and resp.json().get("success"):
             return
         raise RuntimeError(f"KV write failed: {resp.status_code} {resp.text}")
+
+    @_retry(max_retries=2, base_delay=3)
+    def kv_put_bulk(self, entries: list[dict]) -> None:
+        """Write multiple KV entries in one API call (up to 10,000 pairs).
+
+        Each entry: {"key": "cdn/path", "value": "seedbox/path"}.
+        Uses the bulk write endpoint which has separate (higher) rate limits.
+        """
+        import requests
+
+        if not entries:
+            return
+        url = f"{self._kv_base_url()}/bulk"
+        resp = requests.put(
+            url,
+            headers={**self._kv_headers(), "Content-Type": "application/json"},
+            json=entries,
+            timeout=60,
+        )
+        if resp.status_code == 200 and resp.json().get("success"):
+            return
+        raise RuntimeError(f"KV bulk write failed: {resp.status_code} {resp.text}")
 
     @_retry(max_retries=3, base_delay=2)
     def kv_delete(self, key: str) -> bool:
@@ -437,11 +511,51 @@ class ConnectionManager:
 
         self.upload_to_cdn(local_path, "manifest.json", force=True)
 
-    # -- HEAD check ----------------------------------------------------------
+    # -- File checks ---------------------------------------------------------
+
+    def sftp_stat(self, remote_path: str) -> tuple[bool, int]:
+        """Check if a file exists on the seedbox via SFTP.
+
+        Returns (exists, size_bytes).  Falls back to (False, 0) on error.
+        """
+        try:
+            transport, sftp = self.connect_sftp()
+            try:
+                attr = sftp.stat(remote_path)
+                self.release_sftp(transport, sftp)
+                return True, attr.st_size or 0
+            except FileNotFoundError:
+                self.release_sftp(transport, sftp)
+                return False, 0
+            except Exception:
+                try:
+                    sftp.close()
+                    transport.close()
+                except Exception:
+                    pass
+                return False, 0
+        except Exception:
+            return False, 0
+
+    @staticmethod
+    def cdn_url_to_seedbox_path(url: str) -> str | None:
+        """Convert a CDN URL to the corresponding seedbox path.
+
+        E.g. https://cdn.hyperabyss.com/dlc/EP01.zip → files/sims4/dlc/EP01.zip
+        """
+        prefix = f"{CDN_DOMAIN}/"
+        if url.startswith(prefix):
+            cdn_path = url[len(prefix) :]
+            return f"{SEEDBOX_BASE_DIR}/{cdn_path}"
+        return None
 
     @staticmethod
     def head_check(url: str, timeout: int = 20) -> tuple[int, int]:
-        """HEAD request a URL. Returns (status_code, content_length)."""
+        """HEAD request a URL. Returns (status_code, content_length).
+
+        NOTE: This will fail with HTTP 400 on protected CDN paths that
+        require JWT auth.  Prefer sftp_stat() for audit operations.
+        """
         import requests
 
         try:

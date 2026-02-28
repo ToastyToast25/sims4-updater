@@ -18,14 +18,19 @@ def fetch_manifest(conn: ConnectionManager) -> dict[str, Any]:
 
 def audit_dlc_entries(
     dlc_downloads: dict[str, Any],
+    conn: ConnectionManager | None = None,
     *,
     workers: int = 10,
     progress_cb=None,
 ) -> list[tuple[str, str, int, int, int]]:
-    """HEAD-request every DLC URL in parallel.
+    """Verify every DLC entry exists on the seedbox via SFTP.
+
+    If *conn* is provided, checks files via SFTP (fast, no auth issues).
+    Falls back to HTTP HEAD if conn is None (will fail on protected paths).
 
     Returns list of (dlc_id, issue, manifest_size, real_size, status_code).
     issue is "ok", "size_zero", "size_mismatch", or "unreachable".
+    status_code is 200 for SFTP-verified files, 0 for missing.
     """
     results = []
     if not dlc_downloads:
@@ -38,9 +43,19 @@ def audit_dlc_entries(
         manifest_size = entry.get("size", 0)
         if not url:
             return (dlc_id, "unreachable", manifest_size, 0, 0)
-        status, real_size = ConnectionManager.head_check(url)
-        if status != 200:
-            return (dlc_id, "unreachable", manifest_size, 0, status)
+
+        if conn:
+            seedbox_path = ConnectionManager.cdn_url_to_seedbox_path(url)
+            if not seedbox_path:
+                return (dlc_id, "unreachable", manifest_size, 0, 0)
+            exists, real_size = conn.sftp_stat(seedbox_path)
+            if not exists:
+                return (dlc_id, "unreachable", manifest_size, 0, 0)
+        else:
+            status, real_size = ConnectionManager.head_check(url)
+            if status != 200:
+                return (dlc_id, "unreachable", manifest_size, 0, status)
+
         if manifest_size == 0 and real_size > 0:
             return (dlc_id, "size_zero", manifest_size, real_size, 200)
         if manifest_size != real_size and real_size > 0:
@@ -62,11 +77,15 @@ def audit_dlc_entries(
 
 def audit_language_entries(
     lang_downloads: dict[str, Any],
+    conn: ConnectionManager | None = None,
     *,
     workers: int = 10,
     progress_cb=None,
 ) -> list[tuple[str, str, int, int, int]]:
-    """HEAD-request every language URL in parallel. Same format as DLC audit."""
+    """Verify every language entry exists on the seedbox via SFTP.
+
+    Same as audit_dlc_entries — uses SFTP when conn is provided.
+    """
     results = []
     if not lang_downloads:
         return results
@@ -78,9 +97,19 @@ def audit_language_entries(
         manifest_size = entry.get("size", 0)
         if not url:
             return (locale, "unreachable", manifest_size, 0, 0)
-        status, real_size = ConnectionManager.head_check(url)
-        if status != 200:
-            return (locale, "unreachable", manifest_size, 0, status)
+
+        if conn:
+            seedbox_path = ConnectionManager.cdn_url_to_seedbox_path(url)
+            if not seedbox_path:
+                return (locale, "unreachable", manifest_size, 0, 0)
+            exists, real_size = conn.sftp_stat(seedbox_path)
+            if not exists:
+                return (locale, "unreachable", manifest_size, 0, 0)
+        else:
+            status, real_size = ConnectionManager.head_check(url)
+            if status != 200:
+                return (locale, "unreachable", manifest_size, 0, status)
+
         if manifest_size == 0 and real_size > 0:
             return (locale, "size_zero", manifest_size, real_size, 200)
         if manifest_size != real_size and real_size > 0:
@@ -97,6 +126,53 @@ def audit_language_entries(
                 progress_cb(done_count, total)
 
     results.sort(key=lambda r: r[0])
+    return results
+
+
+_META_URL_KEYS = [
+    ("fingerprints_url", "Fingerprints URL"),
+    ("entitlements_url", "Entitlements URL"),
+    ("self_update_url", "Self-Update URL"),
+    ("contribute_url", "Contribute URL"),
+    ("report_url", "Report URL"),
+]
+
+
+def audit_meta_urls(
+    manifest: dict[str, Any],
+    conn: ConnectionManager | None = None,
+) -> list[tuple[str, str]]:
+    """Check that meta URLs in the manifest are reachable.
+
+    For CDN-hosted URLs, uses SFTP stat (via *conn*) to bypass JWT auth.
+    For external URLs (GitHub, API), uses a plain HEAD request.
+
+    Returns list of (label, issue) where issue is "ok", "empty", or "unreachable".
+    """
+    import requests as _requests
+
+    results: list[tuple[str, str]] = []
+    for key, label in _META_URL_KEYS:
+        url = manifest.get(key, "")
+        if not url:
+            results.append((label, "empty"))
+            continue
+
+        # CDN-hosted file → check via SFTP
+        if conn:
+            seedbox_path = ConnectionManager.cdn_url_to_seedbox_path(url)
+            if seedbox_path:
+                exists, _ = conn.sftp_stat(seedbox_path)
+                results.append((label, "ok" if exists else "unreachable"))
+                continue
+
+        # External URL → plain HEAD
+        try:
+            resp = _requests.head(url, timeout=15, allow_redirects=True)
+            results.append((label, "ok" if resp.status_code < 400 else "unreachable"))
+        except Exception:
+            results.append((label, "unreachable"))
+
     return results
 
 
@@ -322,8 +398,8 @@ def detect_orphans(
     for locale in manifest.get("language_downloads", {}):
         expected_keys.add(f"language/{locale}.zip")
     for patch in manifest.get("patches", []):
-        from_v = patch.get("from_version", "")
-        to_v = patch.get("to_version", "")
+        from_v = patch.get("from", "")
+        to_v = patch.get("to", "")
         if from_v and to_v:
             expected_keys.add(f"patches/{from_v}_to_{to_v}.zip")
     # manifest.json itself is always expected

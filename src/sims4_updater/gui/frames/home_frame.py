@@ -32,6 +32,7 @@ class HomeFrame(ctk.CTkFrame):
         self._app_update_info = None
         self._self_updating = False
         self._entrance_played = False
+        self._target_version: str | None = None  # None = latest
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)  # scrollable content expands
@@ -252,6 +253,33 @@ class HomeFrame(ctk.CTkFrame):
             sticky="w",
         )
 
+        # Target version selector
+        ctk.CTkLabel(
+            self._card,
+            text="Target Version:",
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            text_color=theme.COLORS["text_muted"],
+        ).grid(row=3, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+
+        self._target_combo = ctk.CTkComboBox(
+            self._card,
+            values=["Latest"],
+            font=ctk.CTkFont(*theme.FONT_BODY),
+            width=220,
+            height=28,
+            corner_radius=6,
+            state="readonly",
+            command=self._on_target_changed,
+        )
+        self._target_combo.set("Latest")
+        self._target_combo.grid(
+            row=3,
+            column=1,
+            padx=theme.CARD_PAD_X,
+            pady=theme.CARD_ROW_PAD,
+            sticky="w",
+        )
+
         # Game latest (actual EA release) — hidden until check
         self._game_latest_row_label = ctk.CTkLabel(
             self._card,
@@ -272,7 +300,7 @@ class HomeFrame(ctk.CTkFrame):
             text="Install Type:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=4, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+        ).grid(row=5, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._install_type_label = ctk.CTkLabel(
             self._card,
@@ -281,7 +309,7 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._install_type_label.grid(
-            row=4,
+            row=5,
             column=1,
             padx=theme.CARD_PAD_X,
             pady=theme.CARD_ROW_PAD,
@@ -294,7 +322,7 @@ class HomeFrame(ctk.CTkFrame):
             text="DLCs:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=5, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+        ).grid(row=6, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._dlc_label = ctk.CTkLabel(
             self._card,
@@ -303,7 +331,7 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._dlc_label.grid(
-            row=5,
+            row=6,
             column=1,
             padx=theme.CARD_PAD_X,
             pady=theme.CARD_ROW_PAD,
@@ -315,7 +343,7 @@ class HomeFrame(ctk.CTkFrame):
             self._card,
             height=1,
             fg_color=theme.COLORS["separator"],
-        ).grid(row=6, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=4, sticky="ew")
+        ).grid(row=7, column=0, columnspan=2, padx=theme.CARD_PAD_X, pady=4, sticky="ew")
 
         # Unlocker status
         ctk.CTkLabel(
@@ -323,7 +351,7 @@ class HomeFrame(ctk.CTkFrame):
             text="Unlocker:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=7, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+        ).grid(row=8, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._unlocker_label = ctk.CTkLabel(
             self._card,
@@ -332,7 +360,7 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._unlocker_label.grid(
-            row=7,
+            row=8,
             column=1,
             padx=theme.CARD_PAD_X,
             pady=theme.CARD_ROW_PAD,
@@ -345,7 +373,7 @@ class HomeFrame(ctk.CTkFrame):
             text="GreenLuma:",
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
-        ).grid(row=8, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
+        ).grid(row=9, column=0, padx=theme.CARD_PAD_X, pady=theme.CARD_ROW_PAD, sticky="w")
 
         self._greenluma_label = ctk.CTkLabel(
             self._card,
@@ -354,7 +382,7 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._greenluma_label.grid(
-            row=8,
+            row=9,
             column=1,
             padx=theme.CARD_PAD_X,
             pady=theme.CARD_ROW_PAD,
@@ -368,7 +396,7 @@ class HomeFrame(ctk.CTkFrame):
             font=ctk.CTkFont(*theme.FONT_BODY),
             text_color=theme.COLORS["text_muted"],
         ).grid(
-            row=9,
+            row=10,
             column=0,
             padx=theme.CARD_PAD_X,
             pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y),
@@ -382,7 +410,7 @@ class HomeFrame(ctk.CTkFrame):
             anchor="w",
         )
         self._cdn_label.grid(
-            row=9,
+            row=10,
             column=1,
             padx=theme.CARD_PAD_X,
             pady=(theme.CARD_ROW_PAD, theme.CARD_PAD_Y),
@@ -961,6 +989,8 @@ class HomeFrame(ctk.CTkFrame):
         # Reset button to default state
         self._update_btn.configure(
             text="Check for Updates",
+            fg_color=theme.COLORS["accent"],
+            hover_color=theme.COLORS["accent_hover"],
             command=self._on_check_updates,
         )
 
@@ -987,7 +1017,7 @@ class HomeFrame(ctk.CTkFrame):
 
     def _check_updates_bg(self):
         """Background: check for updates and initialize CDN auth."""
-        info = self.app.updater.check_for_updates()
+        info = self.app.updater.check_for_updates(target_version=self._target_version)
 
         # Initialize CDN auth after manifest is fetched — triggers ban/access
         # checks and populates the server-side token_log for admin visibility.
@@ -1021,6 +1051,9 @@ class HomeFrame(ctk.CTkFrame):
         # Show latest patchable version
         self._latest_label.configure(text=info.latest_version)
 
+        # Populate target version combobox with all versions from patch graph
+        self._populate_target_versions()
+
         # Show game latest row if different from latest patchable
         game_latest = info.game_latest_version
         if game_latest and game_latest != info.latest_version:
@@ -1028,7 +1061,7 @@ class HomeFrame(ctk.CTkFrame):
             if info.game_latest_date:
                 date_str = f"  ({info.game_latest_date})"
             self._game_latest_row_label.grid(
-                row=3,
+                row=4,
                 column=0,
                 padx=theme.CARD_PAD_X,
                 pady=theme.CARD_ROW_PAD,
@@ -1039,7 +1072,7 @@ class HomeFrame(ctk.CTkFrame):
                 text_color=theme.COLORS["warning"],
             )
             self._game_latest_label.grid(
-                row=3,
+                row=4,
                 column=1,
                 padx=theme.CARD_PAD_X,
                 pady=theme.CARD_ROW_PAD,
@@ -1061,6 +1094,8 @@ class HomeFrame(ctk.CTkFrame):
                 )
                 self._update_btn.configure(
                     text="Check for Updates",
+                    fg_color=theme.COLORS["accent"],
+                    hover_color=theme.COLORS["accent_hover"],
                     command=self._on_check_updates,
                 )
                 self._add_banner(
@@ -1069,18 +1104,36 @@ class HomeFrame(ctk.CTkFrame):
                     color=theme.COLORS["warning"],
                 )
             else:
-                # Patches available — can update now
+                # Patches available — can update/downgrade now
                 from ...patch.client import format_size
 
                 size = format_size(info.total_download_size)
-                self._set_status(
-                    f"Update available: {info.step_count} step(s), {size}",
-                    "warning",
-                )
-                self._update_btn.configure(
-                    text="Update Now",
-                    command=lambda: self._start_update(info),
-                )
+                if info.is_downgrade:
+                    self._set_status(
+                        f"Downgrade available: {info.step_count} step(s), {size}",
+                        "warning",
+                    )
+                    self._update_btn.configure(
+                        text="Downgrade Now",
+                        fg_color=theme.COLORS["warning"],
+                        hover_color=theme.COLORS["warning"],
+                        command=lambda: self._start_update(info),
+                    )
+                    self._add_banner(
+                        "Downgrade: This will revert your game to an older version.",
+                        color=theme.COLORS["warning"],
+                    )
+                else:
+                    self._set_status(
+                        f"Update available: {info.step_count} step(s), {size}",
+                        "warning",
+                    )
+                    self._update_btn.configure(
+                        text="Update Now",
+                        fg_color=theme.COLORS["accent"],
+                        hover_color=theme.COLORS["accent_hover"],
+                        command=lambda: self._start_update(info),
+                    )
 
             # If there's also a pending newer version beyond the patchable one
             if info.patch_pending:
@@ -1102,6 +1155,8 @@ class HomeFrame(ctk.CTkFrame):
             self._update_btn.configure(
                 text="Patch Pending",
                 state="disabled",
+                fg_color=theme.COLORS["accent"],
+                hover_color=theme.COLORS["accent_hover"],
             )
 
         else:
@@ -1109,6 +1164,8 @@ class HomeFrame(ctk.CTkFrame):
             self._set_status("You are up to date!", "success")
             self._update_btn.configure(
                 text="Check for Updates",
+                fg_color=theme.COLORS["accent"],
+                hover_color=theme.COLORS["accent_hover"],
                 command=self._on_check_updates,
             )
 
@@ -1135,6 +1192,39 @@ class HomeFrame(ctk.CTkFrame):
             return
 
         self._set_status(f"Error: {error}", "error")
+
+    def _populate_target_versions(self):
+        """Populate the target version combobox from the manifest patch graph."""
+        try:
+            manifest = self.app.updater.patch_client._manifest
+            if not manifest:
+                return
+            versions = list(manifest.all_versions)
+
+            def _version_key(v: str) -> list[int]:
+                parts = []
+                for x in v.split("."):
+                    try:
+                        parts.append(int(x))
+                    except ValueError:
+                        parts.append(0)
+                return parts
+
+            versions.sort(key=_version_key, reverse=True)
+            values = ["Latest"] + versions
+            self._target_combo.configure(values=values)
+        except Exception:
+            pass  # best-effort; keep "Latest" as default
+
+    def _on_target_changed(self, choice: str):
+        """Handle target version combobox selection."""
+        if choice == "Latest":
+            self._target_version = None
+        else:
+            self._target_version = choice
+
+        # Re-check updates with the new target
+        self._on_check_updates()
 
     def _start_update(self, info):
         """Start the actual update process."""

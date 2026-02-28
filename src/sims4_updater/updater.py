@@ -208,11 +208,16 @@ class Sims4Updater(BasePatcher):
 
     # ── Update Checking ────────────────────────────────────────────
 
-    def check_for_updates(self, current_version: str | None = None) -> UpdateInfo:
+    def check_for_updates(
+        self,
+        current_version: str | None = None,
+        target_version: str | None = None,
+    ) -> UpdateInfo:
         """Check if updates are available.
 
         Args:
             current_version: Override auto-detected version.
+            target_version: Desired version (defaults to manifest latest).
 
         Returns:
             UpdateInfo with plan details.
@@ -228,7 +233,7 @@ class Sims4Updater(BasePatcher):
                     "Could not detect installed version. Cannot check for updates."
                 )
 
-        return self.patch_client.check_update(version)
+        return self.patch_client.check_update(version, target_version=target_version)
 
     # ── Downloading ────────────────────────────────────────────────
 

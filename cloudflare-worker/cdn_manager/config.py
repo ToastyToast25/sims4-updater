@@ -75,6 +75,12 @@ class ManagerConfig:
     # Version registry for patch creation
     version_registry: list[dict] = field(default_factory=list)
 
+    # Depot Downloader
+    steam_username: str = ""  # convenience: remember Steam username
+    depot_download_dir: str = ""  # base directory for downloaded game versions
+    depot_manifest_registry: list[dict] = field(default_factory=list)  # version->manifest ID
+    depot_default_depot_id: str = "1222671"  # Sims 4 main game depot
+
     @classmethod
     def load(cls) -> ManagerConfig:
         """Load config: credentials from cdn_config.json, settings from cdn_manager_config.json."""
@@ -113,12 +119,15 @@ class ManagerConfig:
             except (json.JSONDecodeError, OSError):
                 pass
 
-        # Default patcher dir
+        # Default patcher dir — walk up from CONFIG_DIR looking for sibling "patcher/"
         if not config.patcher_dir:
-            repo_root = CONFIG_DIR.parent
-            patcher = repo_root.parent / "patcher"
-            if patcher.is_dir():
-                config.patcher_dir = str(patcher)
+            current = CONFIG_DIR
+            for _ in range(5):
+                candidate = current.parent / "patcher"
+                if candidate.is_dir():
+                    config.patcher_dir = str(candidate)
+                    break
+                current = current.parent
 
         return config
 

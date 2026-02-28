@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 StatusCallback = Callable[[str], None]
 
 
+def _version_less_than(a: str, b: str) -> bool:
+    """Return True if version *a* is numerically less than version *b*."""
+    try:
+        return [int(x) for x in a.split(".")] < [int(x) for x in b.split(".")]
+    except (ValueError, AttributeError):
+        return False
+
+
 @dataclass
 class UpdateInfo:
     """Summary of available update."""
@@ -43,6 +51,7 @@ class UpdateInfo:
     game_latest_date: str = ""
     patch_pending: bool = False
     new_dlcs: list[PendingDLC] = field(default_factory=list)
+    is_downgrade: bool = False
 
 
 class PatchClient:
@@ -242,6 +251,7 @@ class PatchClient:
             game_latest_date=manifest.game_latest_date,
             patch_pending=is_patch_pending,
             new_dlcs=list(manifest.new_dlcs),
+            is_downgrade=_version_less_than(target, current_version),
         )
 
     def download_update(

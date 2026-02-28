@@ -594,6 +594,11 @@
     "1.99.305.1020": {
       "Game/Bin/TS4_x64.exe": "B13DF9369E175CE20A26EE7893C963FD",
       "Game/Bin/Default.ini": "B4FBCFB7B4A972361672176F2BAA0E92"
+    },
+    "1.121.372.1020": {
+      "Game/Bin/TS4_x64.exe": "1E45D4A27DC56134689A306FA92EF115",
+      "Game/Bin/Default.ini": "3000759841368CC356E2996B98F33610",
+      "delta/EP01/version.ini": "43BF3EAABEBCC513615F5F581567DFC9"
     }
   }
 }

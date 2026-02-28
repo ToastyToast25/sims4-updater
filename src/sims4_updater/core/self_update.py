@@ -31,6 +31,8 @@ EXE_ASSET_NAME = "Sims4Updater.exe"
 _ALLOWED_HOSTS = {"api.github.com", "github.com", "objects.githubusercontent.com"}
 # Version strings must be digits and dots only (e.g. "2.1.0")
 _VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
+# Safe path characters — rejects chars that could escape batch/PS quoting
+_SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9_\-./\\\s:()]+$")
 
 
 class SelfUpdateError(UpdaterError):
@@ -47,6 +49,7 @@ class AppUpdateInfo:
     download_url: str = ""
     download_size: int = 0
     release_notes: str = ""
+    sha256_expected: str = ""
 
 
 def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
@@ -119,6 +122,29 @@ def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
                     download_size = asset.get("size", 0)
             break
 
+    # Find SHA256SUMS.txt asset for download verification
+    sha256_expected = ""
+    for asset in data.get("assets", []):
+        if asset.get("name", "").upper() == "SHA256SUMS.TXT":
+            candidate_url = asset.get("browser_download_url", "")
+            if candidate_url.startswith("https://"):
+                parsed_sha = urlparse(candidate_url)
+                if parsed_sha.hostname and parsed_sha.hostname.endswith("github.com"):
+                    try:
+                        sha_resp = requests.get(candidate_url, timeout=10)
+                        if sha_resp.status_code == 200:
+                            for line in sha_resp.text.strip().splitlines():
+                                parts = line.split()
+                                if (
+                                    len(parts) >= 2
+                                    and parts[1].strip("*").lower() == EXE_ASSET_NAME.lower()
+                                ):
+                                    sha256_expected = parts[0].lower()
+                                    break
+                    except Exception:
+                        pass  # Non-fatal — size check still works
+            break
+
     update_available = _version_newer(latest, VERSION)
 
     return AppUpdateInfo(
@@ -128,6 +154,7 @@ def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
         download_url=download_url,
         download_size=download_size,
         release_notes=data.get("body", ""),
+        sha256_expected=sha256_expected,
     )
 
 
@@ -202,6 +229,24 @@ def download_app_update(
             f"The download may have been corrupted."
         )
 
+    # SHA-256 verification (if hash available from release SHA256SUMS.txt)
+    if info.sha256_expected:
+        import hashlib
+
+        sha256 = hashlib.sha256()
+        with open(new_path, "rb") as f:
+            while chunk := f.read(65536):
+                sha256.update(chunk)
+        actual_hash = sha256.hexdigest().lower()
+        if actual_hash != info.sha256_expected:
+            new_path.unlink(missing_ok=True)
+            raise SelfUpdateError(
+                f"SHA-256 verification failed.\n"
+                f"Expected: {info.sha256_expected}\n"
+                f"Got:      {actual_hash}\n"
+                f"The download may have been tampered with or corrupted."
+            )
+
     return new_path
 
 
@@ -226,10 +271,17 @@ def apply_app_update(new_exe: Path):
     ppid = os.getppid()  # PyInstaller bootloader parent PID
     expected_size = new_exe.stat().st_size
 
+    # Validate paths contain only safe characters (prevents batch/PowerShell injection)
+    for p in (current_exe, new_exe, old_exe):
+        if not _SAFE_PATH_RE.match(str(p)):
+            raise SelfUpdateError(f"Path contains unsafe characters: {p}")
+
     # Use full absolute paths — batch script runs from the updates directory
-    # Escape batch-special characters in paths (EnableDelayedExpansion active)
+    # Escape batch-special characters for double-quoted strings with EnableDelayedExpansion.
+    # ^ must be escaped before ! (since !→^! introduces a new ^).
+    # " is stripped to prevent quote breakout (invalid in Windows paths anyway).
     def _bat_escape(s: str) -> str:
-        return s.replace("%", "%%").replace("^", "^^").replace("!", "^!")
+        return s.replace('"', "").replace("^", "^^").replace("%", "%%").replace("!", "^!")
 
     cur = _bat_escape(str(current_exe))
     cur_name = _bat_escape(current_exe.name)

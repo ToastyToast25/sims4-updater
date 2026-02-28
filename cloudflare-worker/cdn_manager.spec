@@ -41,6 +41,12 @@ version_hashes = os.path.join(DATA_DIR, 'version_hashes.json')
 if os.path.isfile(version_hashes):
     datas.append((version_hashes, 'data'))
 
+# Depot manifest registry for Steam version downloads
+cdn_mgr_data = os.path.join(SPEC_DIR, 'cdn_manager', 'data')
+depot_manifests = os.path.join(cdn_mgr_data, 'sims4_depot_manifests.json')
+if os.path.isfile(depot_manifests):
+    datas.append((depot_manifests, 'cdn_manager_data'))
+
 # Icon for window
 icon_png = os.path.join(REPO_DIR, 'sims4.png')
 if os.path.isfile(icon_png):
