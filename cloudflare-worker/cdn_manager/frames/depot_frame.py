@@ -399,6 +399,17 @@ class DepotFrame(ctk.CTkFrame):
             height=20,
             checkbox_width=16,
             checkbox_height=16,
+        ).pack(side="left", padx=(0, 12))
+
+        self._pipe_cleanup_versions = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            checks,
+            text="Delete versions after patching",
+            variable=self._pipe_cleanup_versions,
+            font=ctk.CTkFont(size=11),
+            height=20,
+            checkbox_width=16,
+            checkbox_height=16,
         ).pack(side="left")
 
         # Progress section
@@ -1257,6 +1268,7 @@ class DepotFrame(ctk.CTkFrame):
                 ask_auth_code=self._ask_auth_code_dialog,
                 patcher_dir=self.app.config_data.patcher_dir,
                 cleanup_patches=self._pipe_cleanup_patches.get(),
+                cleanup_versions=self._pipe_cleanup_versions.get(),
             )
         except Exception as exc:
             import traceback

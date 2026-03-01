@@ -878,6 +878,7 @@ class BatchPipeline:
         ask_auth_code: Callable[[], str | None] | None = None,
         patcher_dir: str = "",
         cleanup_patches: bool = False,
+        cleanup_versions: bool = False,
     ) -> PipelineResult:
         """Run the streaming batch pipeline.
 
@@ -1030,6 +1031,12 @@ class BatchPipeline:
                 "info",
             )
 
+        # Clean up versions that had all patches created during catch-up
+        if cleanup_versions and done_downloads:
+            self._try_cleanup_versions(
+                done_downloads, pairs_by_version, done_patches, download_base_dir
+            )
+
         # -- Main loop: Download + patch + enqueue uploads --
         state.current_phase = "downloading"
         with self._state_lock:
@@ -1093,6 +1100,7 @@ class BatchPipeline:
                         result,
                         upload_worker,
                         patch_count,
+                        cleanup_versions=cleanup_versions,
                     )
                     continue
                 self._log(
@@ -1163,6 +1171,7 @@ class BatchPipeline:
                     result,
                     upload_worker,
                     patch_count,
+                    cleanup_versions=cleanup_versions,
                 )
             else:
                 self._set_status(version, "failed")
@@ -1270,6 +1279,7 @@ class BatchPipeline:
         result: PipelineResult,
         upload_worker: UploadWorker | None,
         patch_count: int,
+        cleanup_versions: bool = False,
     ) -> int:
         """After downloading a version, create eligible patches and enqueue uploads.
 
@@ -1332,7 +1342,37 @@ class BatchPipeline:
                     save_pipeline_state(self._config_dir, state)
                 result.errors.append(f"Patch failed: {pair_key}")
 
+        # Clean up version directories that have all patches created
+        if cleanup_versions and eligible:
+            candidates = set()
+            for from_v, to_v in eligible:
+                candidates.add(from_v)
+                candidates.add(to_v)
+            self._try_cleanup_versions(
+                candidates, pairs_by_version, done_patches, download_base_dir
+            )
+
         return patch_count
+
+    def _try_cleanup_versions(
+        self,
+        candidates: set[str],
+        pairs_by_version: dict[str, list[tuple[str, str]]],
+        done_patches: set[str],
+        download_base_dir: Path,
+    ) -> None:
+        """Delete version directories once ALL their patches are created."""
+        for version in candidates:
+            all_pairs = pairs_by_version.get(version, [])
+            if not all_pairs:
+                continue
+            if all(f"{f}->{t}" in done_patches for f, t in all_pairs):
+                version_dir = download_base_dir / version
+                if version_dir.is_dir():
+                    import shutil
+
+                    shutil.rmtree(version_dir, ignore_errors=True)
+                    self._log(f"Cleaned up version directory: {version}", "success")
 
     # -- Pipeline Helpers ---------------------------------------------------
 
