@@ -1002,6 +1002,10 @@ class BatchPipeline:
                 if upload_worker:
                     upload_worker.enqueue(UploadJob(pair_key, existing_zip, from_v, to_v))
                 catchup_count += 1
+                if cleanup_versions:
+                    self._try_cleanup_versions(
+                        {from_v, to_v}, pairs_by_version, done_patches, download_base_dir
+                    )
                 continue
 
             catchup_count += 1
@@ -1018,6 +1022,10 @@ class BatchPipeline:
                 result.patches_created += 1
                 if upload_worker:
                     upload_worker.enqueue(UploadJob(pair_key, patch_path, from_v, to_v))
+                if cleanup_versions:
+                    self._try_cleanup_versions(
+                        {from_v, to_v}, pairs_by_version, done_patches, download_base_dir
+                    )
             else:
                 with self._state_lock:
                     state.failed_items.append(f"patch:{pair_key}")
@@ -1029,12 +1037,6 @@ class BatchPipeline:
                 f"Catch-up phase: {catchup_count} patches attempted, "
                 f"{result.patches_created} created",
                 "info",
-            )
-
-        # Clean up versions that had all patches created during catch-up
-        if cleanup_versions and done_downloads:
-            self._try_cleanup_versions(
-                done_downloads, pairs_by_version, done_patches, download_base_dir
             )
 
         # -- Main loop: Download + patch + enqueue uploads --
