@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import subprocess
 
@@ -46,14 +48,11 @@ def get_game_pid() -> int | None:
                 timeout=10,
                 creationflags=_NO_WINDOW,
             )
-            for line in result.stdout.strip().splitlines():
-                if exe.lower() in line.lower():
-                    # CSV format: "image_name","pid","session","session#","mem"
-                    parts = line.split(",")
-                    if len(parts) >= 2:
-                        pid_str = parts[1].strip().strip('"')
-                        if pid_str.isdigit():
-                            return int(pid_str)
+            for row in csv.reader(io.StringIO(result.stdout)):
+                if len(row) >= 2 and exe.lower() in row[0].lower():
+                    pid_str = row[1].strip()
+                    if pid_str.isdigit():
+                        return int(pid_str)
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             logger.debug("Could not get PID for %s: %s", exe, e)
     return None

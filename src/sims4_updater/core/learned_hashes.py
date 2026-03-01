@@ -102,21 +102,52 @@ class LearnedHashDB:
             self.versions[version] = hashes
             self._dirty = True
 
+    _MD5_RE = __import__("re").compile(r"^[0-9a-fA-F]{32}$")
+    _MAX_VERSIONS = 5000  # sanity cap on total version count
+    _MAX_SENTINELS_PER_VERSION = 50
+
     def merge(self, other_versions: dict[str, dict[str, str]]):
         """Merge another set of version fingerprints into this DB.
 
         Existing entries are updated (new hashes override old ones per sentinel).
+        Malformed entries (bad types, invalid MD5 hex, excessive counts) are skipped.
         """
+        if not isinstance(other_versions, dict):
+            logger.warning(
+                "Ignoring fingerprints: expected dict, got %s",
+                type(other_versions).__name__,
+            )
+            return
+
         with self._lock:
             for version, hashes in other_versions.items():
-                if not hashes:
+                if not isinstance(version, str) or not isinstance(hashes, dict):
                     continue
+                if not hashes or len(hashes) > self._MAX_SENTINELS_PER_VERSION:
+                    continue
+                if len(self.versions) >= self._MAX_VERSIONS and version not in self.versions:
+                    logger.debug("Skipping version %s — DB at capacity", version)
+                    continue
+
+                # Validate each hash is a 32-char hex MD5
+                clean: dict[str, str] = {}
+                for sentinel, md5 in hashes.items():
+                    if (
+                        isinstance(sentinel, str)
+                        and isinstance(md5, str)
+                        and self._MD5_RE.match(md5)
+                    ):
+                        clean[sentinel] = md5
+
+                if not clean:
+                    continue
+
                 existing = self.versions.get(version, {})
-                merged = {**existing, **hashes}
+                merged = {**existing, **clean}
                 if merged != existing:
                     self.versions[version] = merged
                     self._dirty = True
-                    for sentinel in hashes:
+                    for sentinel in clean:
                         if sentinel not in self.sentinel_files:
                             self.sentinel_files.append(sentinel)
 
