@@ -149,6 +149,18 @@ class Downloader:
             )
             try:
                 _check_ban_response(resp)
+
+                # HTTP 416: partial file is larger than server file (corrupt)
+                # Delete the partial and retry as a fresh download
+                if resp.status_code == 416 and resume_from > 0:
+                    resp.close()
+                    logger.warning(
+                        "Resume failed (416) for %s — deleting partial and retrying",
+                        entry.filename,
+                    )
+                    partial_path.unlink(missing_ok=True)
+                    return self.download_file(entry, progress=progress, subdir=subdir)
+
                 resp.raise_for_status()
 
                 # Determine total size and write mode

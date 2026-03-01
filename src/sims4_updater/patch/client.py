@@ -312,7 +312,14 @@ class PatchClient:
                     progress=file_progress,
                     subdir=f"{patch.version_from}_to_{patch.version_to}",
                 )
-                grand_downloaded += entry.size
+                # Use actual bytes for progress so cached files don't cause jumps
+                if result.bytes_downloaded == 0 and entry.size > 0:
+                    # File was cached — animate progress smoothly
+                    grand_downloaded += entry.size
+                    if progress:
+                        progress(grand_downloaded, grand_total, entry.filename)
+                else:
+                    grand_downloaded += entry.size
                 step_results.append(result)
 
             # Download crack if present
@@ -331,7 +338,12 @@ class PatchClient:
                     progress=crack_progress,
                     subdir=f"{patch.version_from}_to_{patch.version_to}",
                 )
-                grand_downloaded += patch.crack.size
+                if result.bytes_downloaded == 0 and patch.crack.size > 0:
+                    grand_downloaded += patch.crack.size
+                    if progress:
+                        progress(grand_downloaded, grand_total, patch.crack.filename)
+                else:
+                    grand_downloaded += patch.crack.size
                 step_results.append(result)
 
             all_results.append(step_results)

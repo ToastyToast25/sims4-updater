@@ -320,6 +320,9 @@ class ProgressFrame(ctk.CTkFrame):
             all_dlcs, missing_dlcs = updater.check_files_quick(game_dir)
             selected = [d for d in all_dlcs if d not in missing_dlcs]
 
+            # Save DLC states before patching so user toggles are preserved
+            saved_dlc_states = updater._dlc_manager.export_states(game_dir)
+
             # Backup game files before patching (if enabled)
             if self.app.settings.backup_enabled:
                 try:
@@ -341,20 +344,27 @@ class ProgressFrame(ctk.CTkFrame):
                         "info",
                     )
                     version_label = plan.target_version or "unknown"
-                    bm.create_backup(_Path(game_dir), files, version_label)
+                    backup_result = bm.create_backup(_Path(game_dir), files, version_label)
                     bm.prune_old_backups()
-                    self.app._enqueue_gui(
-                        self._log_text,
-                        "Backup created.\n",
-                        "success",
-                    )
-                    self.app.telemetry.track_event(
-                        "backup_created",
-                        {
-                            "size_bytes": size,
-                            "version": version_label,
-                        },
-                    )
+                    if backup_result is not None:
+                        self.app._enqueue_gui(
+                            self._log_text,
+                            "Backup created.\n",
+                            "success",
+                        )
+                        self.app.telemetry.track_event(
+                            "backup_created",
+                            {
+                                "size_bytes": size,
+                                "version": version_label,
+                            },
+                        )
+                    else:
+                        self.app._enqueue_gui(
+                            self._log_text,
+                            "Backups disabled, skipping.\n",
+                            "muted",
+                        )
                 except Exception as e:
                     self.app._enqueue_gui(
                         self._log_text,
@@ -379,8 +389,18 @@ class ProgressFrame(ctk.CTkFrame):
             if target_version:
                 updater.learn_version(game_dir, target_version)
 
-            # Auto-toggle DLCs
-            updater._dlc_manager.auto_toggle(game_dir)
+            # Restore DLC states, then enable any genuinely new DLCs
+            if saved_dlc_states:
+                updater._dlc_manager.import_states(game_dir, saved_dlc_states)
+            current_states = updater._dlc_manager.get_dlc_states(game_dir)
+            new_enabled = set()
+            for st in current_states:
+                if st.dlc.id in saved_dlc_states:
+                    if saved_dlc_states[st.dlc.id]:
+                        new_enabled.add(st.dlc.id)
+                elif st.installed:
+                    new_enabled.add(st.dlc.id)
+            updater._dlc_manager.apply_changes(game_dir, new_enabled)
 
     def _on_update_done(self, _):
         self._is_running = False
