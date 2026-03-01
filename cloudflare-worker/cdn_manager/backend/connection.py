@@ -273,10 +273,104 @@ class ConnectionManager:
                 with contextlib.suppress(OSError):
                     sftp.mkdir(current)
 
+    def _find_rsync(self) -> str | None:
+        """Find rsync binary — bundled (PyInstaller or source) or on system PATH."""
+        import sys
+
+        # PyInstaller bundle: cdn_tools/ next to the exe
+        if getattr(sys, "frozen", False):
+            frozen = Path(sys._MEIPASS) / "cdn_tools" / "rsync.exe"
+            if frozen.is_file():
+                return str(frozen)
+        # Source tree: cloudflare-worker/tools/
+        bundled = Path(__file__).resolve().parent.parent.parent / "tools" / "rsync.exe"
+        if bundled.is_file():
+            return str(bundled)
+        return shutil.which("rsync")
+
+    def _upload_native_rsync(
+        self,
+        local_path: Path,
+        remote_path: str,
+        *,
+        progress_cb=None,
+        max_retries: int = 5,
+    ) -> bool:
+        """Upload via rsync (fastest, resumable, delta sync). Returns True on success."""
+        rsync_bin = self._find_rsync()
+        if not rsync_bin:
+            return False
+        key_path = self._ensure_ssh_key()
+        if not key_path:
+            return False
+
+        host = self._config["whatbox_host"]
+        user = self._config["whatbox_user"]
+        port = str(self._config.get("whatbox_port", 22))
+        file_size = local_path.stat().st_size
+
+        # Ensure remote directories exist (rsync can't create intermediate dirs)
+        transport, sftp = self.connect_sftp()
+        try:
+            self._ensure_remote_dirs(sftp, remote_path)
+        finally:
+            self.release_sftp(transport, sftp)
+
+        ssh_cmd = f"ssh -i {key_path} -o StrictHostKeyChecking=no -o BatchMode=yes -p {port}"
+
+        retry_base = 5
+        for attempt in range(1, max_retries + 1):
+            try:
+                cmd = [
+                    rsync_bin,
+                    "-e",
+                    ssh_cmd,
+                    "--partial",
+                    "--inplace",
+                    "--progress",
+                    str(local_path),
+                    f"{user}@{host}:{remote_path}",
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                # Parse rsync progress lines for real-time callback
+                for line in proc.stdout:
+                    line = line.strip()
+                    if progress_cb and line and line[0].isdigit():
+                        parts = line.split()
+                        if parts:
+                            try:
+                                sent = int(parts[0].replace(",", ""))
+                                progress_cb(min(sent, file_size), file_size)
+                            except (ValueError, IndexError):
+                                pass
+                proc.wait(timeout=3600)
+                if proc.returncode == 0:
+                    if progress_cb:
+                        progress_cb(file_size, file_size)
+                    return True
+                stderr = proc.stderr.read()
+                logger.debug(
+                    "rsync attempt %d failed (rc=%d): %s",
+                    attempt,
+                    proc.returncode,
+                    stderr.strip(),
+                )
+            except Exception as e:
+                logger.debug("rsync attempt %d error: %s", attempt, e)
+            if attempt < max_retries:
+                time.sleep(retry_base * (2 ** (attempt - 1)))
+        return False
+
     def _upload_native_scp(
         self, local_path: Path, remote_path: str, *, max_retries: int = 5
     ) -> bool:
-        """Upload via native scp (7x faster than paramiko). Returns True on success."""
+        """Upload via native scp. Returns True on success."""
         scp_bin = shutil.which("scp")
         if not scp_bin:
             return False
@@ -336,14 +430,33 @@ class ConnectionManager:
     ) -> None:
         """Upload a file to the seedbox.
 
-        Uses native scp when available (~5 MB/s) with automatic SSH key setup.
-        Falls back to paramiko SFTP (~0.6 MB/s) if scp is unavailable.
+        Tries upload methods in order of speed:
+        1. rsync  — fastest (~1.2 MB/s+), resumable, delta sync, real-time progress
+        2. scp    — fast (~0.7 MB/s), no resume
+        3. paramiko SFTP — slowest (~0.6 MB/s), always available
 
-        progress_cb(sent_bytes, total_bytes) is called during upload (paramiko only).
+        progress_cb(sent_bytes, total_bytes) is called during upload.
         """
         file_size = local_path.stat().st_size
 
-        # Try native scp first (7x faster than paramiko)
+        # Try rsync first (fastest, resumable, delta sync)
+        if self._upload_native_rsync(
+            local_path, remote_path, progress_cb=progress_cb, max_retries=max_retries
+        ):
+            # Verify size
+            transport, sftp = self.connect_sftp()
+            try:
+                remote_stat = sftp.stat(remote_path)
+                if remote_stat.st_size != file_size:
+                    raise OSError(
+                        f"Size mismatch: local {file_size} vs remote {remote_stat.st_size}"
+                    )
+            finally:
+                self.release_sftp(transport, sftp)
+            return
+
+        # Try native scp
+        logger.info("rsync unavailable, trying native scp")
         if self._upload_native_scp(local_path, remote_path, max_retries=max_retries):
             if progress_cb is not None:
                 progress_cb(file_size, file_size)
@@ -360,7 +473,7 @@ class ConnectionManager:
             return
 
         # Fallback: paramiko SFTP with pipelining
-        logger.info("Native scp unavailable, falling back to paramiko SFTP")
+        logger.info("Native tools unavailable, falling back to paramiko SFTP")
         retry_base = 5
         for attempt in range(1, max_retries + 1):
             try:

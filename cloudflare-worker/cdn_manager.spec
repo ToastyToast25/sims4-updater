@@ -58,6 +58,12 @@ for tool in ['xdelta3-x64.exe', 'xdelta3-x86.exe', 'unrar.exe', 'unrar-license.t
     if os.path.isfile(tool_path):
         datas.append((tool_path, 'tools'))
 
+# Bundled rsync + MSYS2 DLLs (for fast uploads)
+CDN_TOOLS_DIR = os.path.join(SPEC_DIR, 'tools')
+for f in Path(CDN_TOOLS_DIR).glob('*') if os.path.isdir(CDN_TOOLS_DIR) else []:
+    if f.is_file() and f.suffix in ('.exe', '.dll'):
+        datas.append((str(f), 'cdn_tools'))
+
 a = Analysis(
     [os.path.join(SPEC_DIR, 'cdn_manager', '__main__.py')],
     pathex=[
