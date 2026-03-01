@@ -414,7 +414,7 @@ class DepotFrame(ctk.CTkFrame):
 
         # Second row of checkboxes
         checks2 = ctk.CTkFrame(tab, fg_color="transparent")
-        checks2.pack(fill="x", pady=(2, 6))
+        checks2.grid(row=3, column=0, pady=(0, 4), sticky="ew")
 
         self._pipe_build_dlc_versions = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
@@ -465,7 +465,7 @@ class DepotFrame(ctk.CTkFrame):
 
         # Buttons
         btn_frame = ctk.CTkFrame(tab, fg_color="transparent")
-        btn_frame.grid(row=4, column=0, pady=(4, 6), sticky="ew")
+        btn_frame.grid(row=5, column=0, pady=(4, 6), sticky="ew")
 
         self._pipe_load_btn = ctk.CTkButton(
             btn_frame,
@@ -1096,7 +1096,7 @@ class DepotFrame(ctk.CTkFrame):
         self._pipe_cancel_btn.pack(side="left", padx=(0, 6))
 
         # Show progress
-        self._pipe_progress_frame.grid(row=3, column=0, padx=0, pady=(4, 0), sticky="ew")
+        self._pipe_progress_frame.grid(row=4, column=0, padx=0, pady=(4, 0), sticky="ew")
         self._pipe_progress_bar.set(0)
         self._pipe_progress_label.configure(text="Starting pipeline...")
         self._pipe_speed_label.configure(text="")
