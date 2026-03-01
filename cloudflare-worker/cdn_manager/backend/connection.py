@@ -117,7 +117,12 @@ class SFTPPool:
         )
         transport = client.get_transport()
         transport.default_window_size = paramiko.common.MAX_WINDOW_SIZE
+        transport.default_max_packet_size = 1 << 20  # 1 MB packets
         sftp = client.open_sftp()
+        # Widen the SFTP channel window to allow large in-flight data
+        chan = sftp.get_channel()
+        chan.in_window_size = paramiko.common.MAX_WINDOW_SIZE
+        chan.out_window_size = paramiko.common.MAX_WINDOW_SIZE
         return transport, sftp
 
     def release(self, transport, sftp):
@@ -247,7 +252,26 @@ class ConnectionManager:
                             with contextlib.suppress(OSError):
                                 sftp.mkdir(current)
 
-                    sftp.put(str(local_path), remote_path, callback=progress_cb)
+                    # Use large buffer with pipelining for high throughput.
+                    # paramiko's sftp.put() uses 32 KB reads which caps at ~1 MB/s.
+                    file_size = local_path.stat().st_size
+                    with open(local_path, "rb") as fl, sftp.file(remote_path, "wb") as fr:
+                        fr.set_pipelined(True)
+                        sent = 0
+                        while True:
+                            data = fl.read(1 << 20)  # 1 MB chunks
+                            if not data:
+                                break
+                            fr.write(data)
+                            sent += len(data)
+                            if progress_cb is not None:
+                                progress_cb(sent, file_size)
+                    # Verify size on server
+                    remote_stat = sftp.stat(remote_path)
+                    if remote_stat.st_size != file_size:
+                        raise OSError(
+                            f"Size mismatch: local {file_size} vs remote {remote_stat.st_size}"
+                        )
                     self.release_sftp(transport, sftp)
                     return
                 except Exception:
