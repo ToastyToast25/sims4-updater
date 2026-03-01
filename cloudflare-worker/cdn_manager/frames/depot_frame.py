@@ -401,7 +401,7 @@ class DepotFrame(ctk.CTkFrame):
             checkbox_height=16,
         ).pack(side="left", padx=(0, 12))
 
-        self._pipe_cleanup_versions = ctk.BooleanVar(value=False)
+        self._pipe_cleanup_versions = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
             checks,
             text="Delete versions after patching",
@@ -411,6 +411,21 @@ class DepotFrame(ctk.CTkFrame):
             checkbox_width=16,
             checkbox_height=16,
         ).pack(side="left")
+
+        # Second row of checkboxes
+        checks2 = ctk.CTkFrame(tab, fg_color="transparent")
+        checks2.pack(fill="x", pady=(2, 6))
+
+        self._pipe_build_dlc_versions = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            checks2,
+            text="Build DLC version metadata",
+            variable=self._pipe_build_dlc_versions,
+            font=ctk.CTkFont(size=11),
+            height=20,
+            checkbox_width=16,
+            checkbox_height=16,
+        ).pack(side="left", padx=(0, 12))
 
         # Progress section
         self._pipe_progress_frame = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1269,6 +1284,7 @@ class DepotFrame(ctk.CTkFrame):
                 patcher_dir=self.app.config_data.patcher_dir,
                 cleanup_patches=self._pipe_cleanup_patches.get(),
                 cleanup_versions=self._pipe_cleanup_versions.get(),
+                build_dlc_versions=self._pipe_build_dlc_versions.get(),
             )
         except Exception as exc:
             import traceback

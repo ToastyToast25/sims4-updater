@@ -359,6 +359,48 @@ def merge_language_entries_and_publish(
     return _publish_manifest_dict(conn, manifest, log)
 
 
+def update_dlc_min_versions(
+    conn: ConnectionManager,
+    version_map: dict[str, str],
+    *,
+    log_cb=None,
+) -> bool:
+    """Update min_version field on existing DLC entries in the live manifest.
+
+    version_map: {dlc_id: min_version} — only updates entries already in the manifest.
+    Returns True on success.
+    """
+
+    def log(msg, level="info"):
+        if log_cb:
+            log_cb(msg, level)
+
+    if not version_map:
+        return True
+
+    try:
+        manifest = conn.fetch_manifest()
+    except Exception as e:
+        log(f"Failed to fetch manifest for min_version update: {e}", "error")
+        return False
+
+    downloads = manifest.get("dlc_downloads", {})
+    updated = 0
+    for dlc_id, min_version in version_map.items():
+        if dlc_id in downloads:
+            old = downloads[dlc_id].get("min_version", "")
+            if old != min_version:
+                downloads[dlc_id]["min_version"] = min_version
+                updated += 1
+
+    if updated == 0:
+        log("No min_version changes needed")
+        return True
+
+    log(f"Updating manifest: {updated} DLC(s) with min_version data...")
+    return _publish_manifest_dict(conn, manifest, log)
+
+
 def _publish_manifest_dict(conn: ConnectionManager, manifest: dict, log) -> bool:
     """Write manifest dict to temp file and publish to CDN."""
     import tempfile

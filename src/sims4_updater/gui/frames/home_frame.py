@@ -1123,6 +1123,24 @@ class HomeFrame(ctk.CTkFrame):
                         "Downgrade: This will revert your game to an older version.",
                         color=theme.COLORS["warning"],
                     )
+                    # Warn about DLCs that will be auto-disabled
+                    manifest = self.app.updater.patch_client._manifest
+                    target = info.plan.target_version if info.plan else ""
+                    if manifest and target:
+                        from ...patch.client import _version_less_than
+
+                        affected = [
+                            dlc_id
+                            for dlc_id, entry in manifest.dlc_downloads.items()
+                            if entry.min_version and _version_less_than(target, entry.min_version)
+                        ]
+                        if affected:
+                            self._add_banner(
+                                f"{len(affected)} DLC(s) will be auto-disabled "
+                                f"(incompatible with {target}): "
+                                f"{', '.join(sorted(affected))}",
+                                color=theme.COLORS["warning"],
+                            )
                 else:
                     self._set_status(
                         f"Update available: {info.step_count} step(s), {size}",

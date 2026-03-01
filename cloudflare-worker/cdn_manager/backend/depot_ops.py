@@ -879,6 +879,7 @@ class BatchPipeline:
         patcher_dir: str = "",
         cleanup_patches: bool = False,
         cleanup_versions: bool = False,
+        build_dlc_versions: bool = False,
     ) -> PipelineResult:
         """Run the streaming batch pipeline.
 
@@ -916,6 +917,37 @@ class BatchPipeline:
 
         done_downloads = set(state.completed_downloads)
         done_patches = set(state.completed_patches)
+
+        # -- Discover on-disk versions not yet in completed_downloads --
+        # Previous runs (or state resets) may have left full copies on disk
+        # that the current state doesn't know about.  Recognising them here
+        # lets the catch-up phase create their patches and clean them up
+        # instead of leaving ~25 GB copies orphaned on disk.
+        version_set = set(versions)
+        discovered = 0
+        for entry in download_base_dir.iterdir():
+            if not entry.is_dir() or entry.name not in version_set:
+                continue
+            if entry.name in done_downloads:
+                continue
+            # Must have actual content (not an empty leftover)
+            try:
+                if not any(entry.iterdir()):
+                    continue
+            except OSError:
+                continue
+            if self._verify_download(entry.name, entry):
+                done_downloads.add(entry.name)
+                state.completed_downloads.append(entry.name)
+                discovered += 1
+                self._log(f"Discovered on-disk version: {entry.name}", "info")
+            else:
+                # Partial/corrupt leftover — delete to reclaim space
+                self._delete_version_dir(entry, entry.name)
+        if discovered:
+            self._log(f"Discovered {discovered} versions from previous runs", "info")
+            with self._state_lock:
+                save_pipeline_state(self._config_dir, state)
 
         # -- Setup: Connect to CDN + start upload worker --
         if auto_upload:
@@ -1255,6 +1287,44 @@ class BatchPipeline:
                     result.errors.append(f"Manifest connection failed: {e}")
             if conn:
                 result.manifest_updated = self._update_manifest(conn, state.upload_manifest_entries)
+
+        # -- Build DLC version metadata --
+        if build_dlc_versions and state.completed_downloads:
+            self._log("Building DLC version metadata...", "info")
+            state.current_phase = "dlc_versions"
+            try:
+                from .dlc_ops import build_dlc_version_map
+                from .manifest_ops import update_dlc_min_versions
+
+                sorted_versions = sorted(
+                    state.completed_downloads,
+                    key=lambda v: [int(x) for x in v.split(".")],
+                )
+                version_map = build_dlc_version_map(sorted_versions, download_base_dir)
+                if version_map:
+                    self._log(
+                        f"Found min_version data for {len(version_map)} DLCs",
+                        "info",
+                    )
+                    if conn is None:
+                        try:
+                            from ..config import ManagerConfig
+                            from .connection import ConnectionManager
+
+                            cdn_config = ManagerConfig.load().to_cdn_config()
+                            conn = ConnectionManager(cdn_config)
+                        except Exception as e:
+                            self._log(
+                                f"Cannot connect for min_version update: {e}",
+                                "error",
+                            )
+                    if conn:
+                        update_dlc_min_versions(conn, version_map, log_cb=self._log)
+                else:
+                    self._log("No DLC version data found in downloads", "info")
+            except Exception as e:
+                self._log(f"DLC version metadata failed: {e}", "error")
+                result.errors.append(f"DLC version metadata: {e}")
 
         # -- Done --
         if conn:

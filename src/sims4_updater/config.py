@@ -81,6 +81,7 @@ class Settings:
     backup_max_count: int = 3  # Keep last N backups, auto-prune older ones
     uid: str = ""  # Anonymous telemetry user ID (generated on first launch)
     telemetry_enabled: bool = True  # Send anonymous usage statistics
+    auto_disabled_dlcs: list[str] = field(default_factory=list)  # DLCs auto-disabled due to version
 
     def __post_init__(self):
         # Fill in critical URL defaults when empty (e.g. migrated from older settings)

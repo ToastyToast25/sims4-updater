@@ -400,6 +400,54 @@ class ProgressFrame(ctk.CTkFrame):
                         new_enabled.add(st.dlc.id)
                 elif st.installed:
                     new_enabled.add(st.dlc.id)
+            # Auto-disable/re-enable DLCs based on version compatibility
+            target = plan.target_version
+            manifest = updater.patch_client._manifest
+            if target and manifest:
+                from ...patch.client import _version_less_than
+
+                dlc_dl = manifest.dlc_downloads
+                auto_disabled = set(self.app.settings.auto_disabled_dlcs)
+                installed_ids = {s.dlc.id for s in current_states if s.installed}
+
+                # Re-enable DLCs previously auto-disabled that are now compatible
+                for dlc_id in list(auto_disabled):
+                    entry = dlc_dl.get(dlc_id)
+                    if (
+                        entry
+                        and entry.min_version
+                        and not _version_less_than(target, entry.min_version)
+                        and dlc_id in installed_ids
+                    ):
+                        new_enabled.add(dlc_id)
+                        auto_disabled.discard(dlc_id)
+
+                # Disable DLCs incompatible with target version
+                newly_disabled = []
+                for dlc_id in list(new_enabled):
+                    entry = dlc_dl.get(dlc_id)
+                    if (
+                        entry
+                        and entry.min_version
+                        and _version_less_than(target, entry.min_version)
+                    ):
+                        new_enabled.discard(dlc_id)
+                        auto_disabled.add(dlc_id)
+                        newly_disabled.append(dlc_id)
+
+                # Persist auto-disabled list
+                self.app.settings.auto_disabled_dlcs = sorted(auto_disabled)
+                self.app.settings.save()
+
+                if newly_disabled:
+                    msg = (
+                        f"Auto-disabled {len(newly_disabled)} DLC(s) "
+                        f"incompatible with {target}: "
+                        f"{', '.join(sorted(newly_disabled))}"
+                    )
+                    self.app._enqueue_gui(self._log_text, msg + "\n", "warning")
+                    self.app._enqueue_gui(self.app.show_toast, msg, "warning")
+
             updater._dlc_manager.apply_changes(game_dir, new_enabled)
 
     def _on_update_done(self, _):
