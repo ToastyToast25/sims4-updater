@@ -50,6 +50,8 @@ test_edge_output.txt
 # CDN credentials and config (never commit)
 cloudflare-worker/cdn_config.json
 cloudflare-worker/cdn_manager_config.json
+cloudflare-worker/cdn_manager_key
+cloudflare-worker/cdn_manager_key.pub
 
 # Supabase local state
 cloudflare-worker/supabase/.temp/

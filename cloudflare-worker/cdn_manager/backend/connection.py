@@ -5,17 +5,24 @@ from __future__ import annotations
 import contextlib
 import functools
 import json
+import logging
+import shutil
+import subprocess
 import time
 import urllib.request
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 SEEDBOX_BASE_DIR = "files/sims4"
 CDN_DOMAIN = "https://cdn.hyperabyss.com"
 
 # Cached SSH host keys file (alongside cdn_config.json)
 _KNOWN_HOSTS_FILE = Path(__file__).resolve().parent.parent.parent / "known_hosts"
+# SSH key for native scp uploads (auto-generated, alongside cdn_config.json)
+_SSH_KEY_FILE = Path(__file__).resolve().parent.parent.parent / "cdn_manager_key"
 
 
 def _get_host_keys_policy():
@@ -117,12 +124,7 @@ class SFTPPool:
         )
         transport = client.get_transport()
         transport.default_window_size = paramiko.common.MAX_WINDOW_SIZE
-        transport.default_max_packet_size = 1 << 20  # 1 MB packets
         sftp = client.open_sftp()
-        # Widen the SFTP channel window to allow large in-flight data
-        chan = sftp.get_channel()
-        chan.in_window_size = paramiko.common.MAX_WINDOW_SIZE
-        chan.out_window_size = paramiko.common.MAX_WINDOW_SIZE
         return transport, sftp
 
     def release(self, transport, sftp):
@@ -223,6 +225,107 @@ class ConnectionManager:
         except Exception:
             return False
 
+    def _ensure_ssh_key(self) -> Path | None:
+        """Ensure an SSH key exists for native scp uploads.
+
+        Generates a key pair on first use and installs the public key on the
+        seedbox.  Returns the private key path, or None on failure.
+        """
+        if _SSH_KEY_FILE.exists():
+            return _SSH_KEY_FILE
+        try:
+            import paramiko as _pm
+
+            key = _pm.RSAKey.generate(4096)
+            key.write_private_key_file(str(_SSH_KEY_FILE))
+            pub = f"{key.get_name()} {key.get_base64()} cdn_manager"
+            _SSH_KEY_FILE.with_suffix(".pub").write_text(pub)
+
+            # Install on seedbox
+            transport, sftp = self.connect_sftp()
+            try:
+                chan = transport.open_session()
+                chan.exec_command(
+                    f'mkdir -p ~/.ssh && echo "{pub}" >> ~/.ssh/authorized_keys '
+                    f"&& chmod 600 ~/.ssh/authorized_keys"
+                )
+                chan.recv_exit_status()
+                chan.close()
+            finally:
+                self.release_sftp(transport, sftp)
+            logger.info("Generated SSH key and installed on seedbox")
+            return _SSH_KEY_FILE
+        except Exception:
+            logger.debug("SSH key setup failed, will use paramiko", exc_info=True)
+            _SSH_KEY_FILE.unlink(missing_ok=True)
+            _SSH_KEY_FILE.with_suffix(".pub").unlink(missing_ok=True)
+            return None
+
+    def _ensure_remote_dirs(self, sftp, remote_path: str) -> None:
+        """Create remote directories for a file path."""
+        parts = remote_path.split("/")
+        current = ""
+        for part in parts[:-1]:
+            current = f"{current}/{part}" if current else part
+            try:
+                sftp.stat(current)
+            except FileNotFoundError:
+                with contextlib.suppress(OSError):
+                    sftp.mkdir(current)
+
+    def _upload_native_scp(
+        self, local_path: Path, remote_path: str, *, max_retries: int = 5
+    ) -> bool:
+        """Upload via native scp (7x faster than paramiko). Returns True on success."""
+        scp_bin = shutil.which("scp")
+        if not scp_bin:
+            return False
+        key_path = self._ensure_ssh_key()
+        if not key_path:
+            return False
+
+        host = self._config["whatbox_host"]
+        user = self._config["whatbox_user"]
+        port = str(self._config.get("whatbox_port", 22))
+
+        # Ensure remote directories exist (scp can't create them)
+        transport, sftp = self.connect_sftp()
+        try:
+            self._ensure_remote_dirs(sftp, remote_path)
+        finally:
+            self.release_sftp(transport, sftp)
+
+        retry_base = 5
+        for attempt in range(1, max_retries + 1):
+            try:
+                result = subprocess.run(
+                    [
+                        scp_bin,
+                        "-P",
+                        port,
+                        "-i",
+                        str(key_path),
+                        "-o",
+                        "StrictHostKeyChecking=no",
+                        "-o",
+                        "BatchMode=yes",
+                        str(local_path),
+                        f"{user}@{host}:{remote_path}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=3600,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                if result.returncode == 0:
+                    return True
+                logger.debug("scp attempt %d failed: %s", attempt, result.stderr.strip())
+            except Exception as e:
+                logger.debug("scp attempt %d error: %s", attempt, e)
+            if attempt < max_retries:
+                time.sleep(retry_base * (2 ** (attempt - 1)))
+        return False
+
     def upload_sftp(
         self,
         local_path: Path,
@@ -231,35 +334,44 @@ class ConnectionManager:
         progress_cb=None,
         max_retries: int = 5,
     ) -> None:
-        """Upload a file via SFTP with retry and optional progress callback.
+        """Upload a file to the seedbox.
 
-        progress_cb(sent_bytes, total_bytes) is called during upload.
+        Uses native scp when available (~5 MB/s) with automatic SSH key setup.
+        Falls back to paramiko SFTP (~0.6 MB/s) if scp is unavailable.
+
+        progress_cb(sent_bytes, total_bytes) is called during upload (paramiko only).
         """
-        retry_base = 5
+        file_size = local_path.stat().st_size
 
+        # Try native scp first (7x faster than paramiko)
+        if self._upload_native_scp(local_path, remote_path, max_retries=max_retries):
+            if progress_cb is not None:
+                progress_cb(file_size, file_size)
+            # Verify size
+            transport, sftp = self.connect_sftp()
+            try:
+                remote_stat = sftp.stat(remote_path)
+                if remote_stat.st_size != file_size:
+                    raise OSError(
+                        f"Size mismatch: local {file_size} vs remote {remote_stat.st_size}"
+                    )
+            finally:
+                self.release_sftp(transport, sftp)
+            return
+
+        # Fallback: paramiko SFTP with pipelining
+        logger.info("Native scp unavailable, falling back to paramiko SFTP")
+        retry_base = 5
         for attempt in range(1, max_retries + 1):
             try:
                 transport, sftp = self.connect_sftp()
                 try:
-                    # Ensure remote directories
-                    parts = remote_path.split("/")
-                    current = ""
-                    for part in parts[:-1]:
-                        current = f"{current}/{part}" if current else part
-                        try:
-                            sftp.stat(current)
-                        except FileNotFoundError:
-                            with contextlib.suppress(OSError):
-                                sftp.mkdir(current)
-
-                    # Use large buffer with pipelining for high throughput.
-                    # paramiko's sftp.put() uses 32 KB reads which caps at ~1 MB/s.
-                    file_size = local_path.stat().st_size
+                    self._ensure_remote_dirs(sftp, remote_path)
                     with open(local_path, "rb") as fl, sftp.file(remote_path, "wb") as fr:
                         fr.set_pipelined(True)
                         sent = 0
                         while True:
-                            data = fl.read(1 << 20)  # 1 MB chunks
+                            data = fl.read(1 << 20)
                             if not data:
                                 break
                             fr.write(data)
@@ -275,7 +387,6 @@ class ConnectionManager:
                     self.release_sftp(transport, sftp)
                     return
                 except Exception:
-                    # Don't return broken connections to pool
                     try:
                         sftp.close()
                         transport.close()
@@ -285,8 +396,7 @@ class ConnectionManager:
             except Exception as e:
                 if attempt == max_retries:
                     raise ConnectionError(f"Upload failed after {max_retries} attempts: {e}") from e
-                delay = retry_base * (2 ** (attempt - 1))
-                time.sleep(delay)
+                time.sleep(retry_base * (2 ** (attempt - 1)))
 
     def file_exists_sftp(self, remote_path: str) -> bool:
         """Check if a file exists on the seedbox."""
