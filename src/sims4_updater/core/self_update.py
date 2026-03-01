@@ -29,10 +29,22 @@ EXE_ASSET_NAME = "Sims4Updater.exe"
 
 # Allowed hostnames for self-update URLs
 _ALLOWED_HOSTS = {"api.github.com", "github.com", "objects.githubusercontent.com"}
+# Allowed domain suffixes for download URLs (exact or subdomain match)
+_ALLOWED_DOWNLOAD_DOMAINS = ("github.com", "githubusercontent.com")
 # Version strings must be digits and dots only (e.g. "2.1.0")
 _VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 # Safe path characters — rejects chars that could escape batch/PS quoting
 _SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9_\-./\\\s:()]+$")
+
+
+def _is_github_host(hostname: str | None) -> bool:
+    """Check hostname is exactly or a subdomain of an allowed download domain."""
+    if not hostname:
+        return False
+    return any(
+        hostname == domain or hostname.endswith(f".{domain}")
+        for domain in _ALLOWED_DOWNLOAD_DOMAINS
+    )
 
 
 class SelfUpdateError(UpdaterError):
@@ -117,7 +129,7 @@ def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
             # Validate download URL is HTTPS on GitHub
             if candidate_url.startswith("https://"):
                 parsed_dl = urlparse(candidate_url)
-                if parsed_dl.hostname and parsed_dl.hostname.endswith("github.com"):
+                if _is_github_host(parsed_dl.hostname):
                     download_url = candidate_url
                     download_size = asset.get("size", 0)
             break
@@ -129,7 +141,7 @@ def check_for_app_update(timeout: int = 15, manifest=None) -> AppUpdateInfo:
             candidate_url = asset.get("browser_download_url", "")
             if candidate_url.startswith("https://"):
                 parsed_sha = urlparse(candidate_url)
-                if parsed_sha.hostname and parsed_sha.hostname.endswith("github.com"):
+                if _is_github_host(parsed_sha.hostname):
                     try:
                         sha_resp = requests.get(candidate_url, timeout=10)
                         if sha_resp.status_code == 200:
@@ -181,7 +193,7 @@ def download_app_update(
     if not info.download_url.startswith("https://"):
         raise SelfUpdateError("Download URL must use HTTPS.")
     parsed_dl = urlparse(info.download_url)
-    if not parsed_dl.hostname or not parsed_dl.hostname.endswith("github.com"):
+    if not _is_github_host(parsed_dl.hostname):
         raise SelfUpdateError(f"Download URL must be on GitHub, got: {parsed_dl.hostname}")
 
     # Validate version format (used in file path and batch script)
