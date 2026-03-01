@@ -11,6 +11,7 @@ Subclasses the base Patcher to add:
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from enum import Enum
@@ -31,6 +32,8 @@ from .dlc.downloader import DLCDownloader
 from .dlc.manager import DLCManager
 from .patch.client import PatchClient, UpdateInfo
 from .patch.planner import UpdatePlan
+
+logger = logging.getLogger(__name__)
 
 
 class UpdateState(Enum):
@@ -138,7 +141,7 @@ class Sims4Updater(BasePatcher):
             self.settings.save()
         except Exception:
             # May fail during interpreter shutdown when builtins are gone
-            pass
+            logger.debug("Cleanup error in __del__ (expected during shutdown)", exc_info=True)
 
     # ── Version Detection ──────────────────────────────────────────
 
@@ -205,11 +208,16 @@ class Sims4Updater(BasePatcher):
 
     # ── Update Checking ────────────────────────────────────────────
 
-    def check_for_updates(self, current_version: str | None = None) -> UpdateInfo:
+    def check_for_updates(
+        self,
+        current_version: str | None = None,
+        target_version: str | None = None,
+    ) -> UpdateInfo:
         """Check if updates are available.
 
         Args:
             current_version: Override auto-detected version.
+            target_version: Desired version (defaults to manifest latest).
 
         Returns:
             UpdateInfo with plan details.
@@ -225,7 +233,7 @@ class Sims4Updater(BasePatcher):
                     "Could not detect installed version. Cannot check for updates."
                 )
 
-        return self.patch_client.check_update(version)
+        return self.patch_client.check_update(version, target_version=target_version)
 
     # ── Downloading ────────────────────────────────────────────────
 

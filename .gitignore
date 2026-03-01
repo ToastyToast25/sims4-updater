@@ -51,6 +51,9 @@ test_edge_output.txt
 cloudflare-worker/cdn_config.json
 cloudflare-worker/cdn_manager_config.json
 
+# Supabase local state
+cloudflare-worker/supabase/.temp/
+
 # Local notes and data files
 greenlumainstructions.md
 cloudflare-worker/language_downloads.json

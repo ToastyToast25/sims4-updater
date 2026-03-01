@@ -112,9 +112,15 @@ class TestBackupManager:
         mgr.create_backup(sample_game_dir, ["Game/Bin/TS4_x64.exe"], "v1")
         assert mgr.get_total_size() > 0
 
-    def test_max_count_clamped_to_one(self, tmp_path):
+    def test_max_count_zero_disables_backup(self, tmp_path, sample_game_dir):
         mgr = BackupManager(app_dir=tmp_path, max_count=0)
-        assert mgr.max_count == 1
+        assert mgr.max_count == 0
+        result = mgr.create_backup(sample_game_dir, ["Game/Bin/TS4_x64.exe"], "v1")
+        assert result is None  # no-op when disabled
+
+    def test_max_count_negative_clamped_to_zero(self, tmp_path):
+        mgr = BackupManager(app_dir=tmp_path, max_count=-5)
+        assert mgr.max_count == 0
 
     def test_restore_calls_progress(self, tmp_path, sample_game_dir):
         mgr = self._make_manager(tmp_path)

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -22,8 +23,18 @@ from .downloader import Downloader, DownloadResult, ProgressCallback, _check_ban
 from .manifest import Manifest, PendingDLC, parse_manifest
 from .planner import UpdatePlan, plan_update
 
+logger = logging.getLogger(__name__)
+
 # Callback types for status updates: (message: str)
 StatusCallback = Callable[[str], None]
+
+
+def _version_less_than(a: str, b: str) -> bool:
+    """Return True if version *a* is numerically less than version *b*."""
+    try:
+        return [int(x) for x in a.split(".")] < [int(x) for x in b.split(".")]
+    except (ValueError, AttributeError):
+        return False
 
 
 @dataclass
@@ -40,6 +51,7 @@ class UpdateInfo:
     game_latest_date: str = ""
     patch_pending: bool = False
     new_dlcs: list[PendingDLC] = field(default_factory=list)
+    is_downgrade: bool = False
 
 
 class PatchClient:
@@ -239,6 +251,7 @@ class PatchClient:
             game_latest_date=manifest.game_latest_date,
             patch_pending=is_patch_pending,
             new_dlcs=list(manifest.new_dlcs),
+            is_downgrade=_version_less_than(target, current_version),
         )
 
     def download_update(
@@ -299,7 +312,14 @@ class PatchClient:
                     progress=file_progress,
                     subdir=f"{patch.version_from}_to_{patch.version_to}",
                 )
-                grand_downloaded += entry.size
+                # Use actual bytes for progress so cached files don't cause jumps
+                if result.bytes_downloaded == 0 and entry.size > 0:
+                    # File was cached — animate progress smoothly
+                    grand_downloaded += entry.size
+                    if progress:
+                        progress(grand_downloaded, grand_total, entry.filename)
+                else:
+                    grand_downloaded += entry.size
                 step_results.append(result)
 
             # Download crack if present
@@ -318,7 +338,12 @@ class PatchClient:
                     progress=crack_progress,
                     subdir=f"{patch.version_from}_to_{patch.version_to}",
                 )
-                grand_downloaded += patch.crack.size
+                if result.bytes_downloaded == 0 and patch.crack.size > 0:
+                    grand_downloaded += patch.crack.size
+                    if progress:
+                        progress(grand_downloaded, grand_total, patch.crack.filename)
+                else:
+                    grand_downloaded += patch.crack.size
                 step_results.append(result)
 
             all_results.append(step_results)
@@ -417,7 +442,7 @@ class PatchClient:
                     self._learned_db.merge(versions)
                     self._learned_db.save()
         except Exception:
-            pass  # non-critical, silently ignore
+            logger.debug("Failed to fetch crowd fingerprints", exc_info=True)
 
     def report_hashes(
         self,

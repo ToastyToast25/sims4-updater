@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from threading import Event
@@ -123,11 +124,14 @@ def get_patcher_dir(config_patcher_dir: str) -> Path | None:
         if p.is_dir():
             return p
 
-    # Default: ../patcher relative to sims4-updater repo root
-    repo_root = Path(__file__).resolve().parents[3]
-    default = repo_root.parent / "patcher"
-    if default.is_dir():
-        return default
+    # Walk up from this file looking for a sibling "patcher/" directory.
+    # Works in both source mode and frozen (PyInstaller) mode.
+    current = Path(__file__).resolve().parent
+    for _ in range(6):
+        candidate = current.parent / "patcher"
+        if candidate.is_dir():
+            return candidate
+        current = current.parent
 
     return None
 
@@ -246,34 +250,51 @@ def create_patch(
     log(f"From: {from_dir}")
     log(f"To: {to_dir}")
 
-    # Resolve xdelta3 tool path
+    # Resolve xdelta3 tool path — PatchMaker calls bare "xdelta3" so we
+    # need an exe named exactly "xdelta3.exe" on PATH.
     tools_dir = patcher_dir / "tools"
-    xdelta_path = tools_dir / "xdelta3-x64.exe"
-    if not xdelta_path.is_file():
-        xdelta_path = tools_dir / "xdelta3.exe"
+    xdelta_canonical = tools_dir / "xdelta3.exe"
 
-    if not xdelta_path.is_file():
+    # If only xdelta3-x64.exe exists, copy it to xdelta3.exe so PatchMaker finds it
+    if not xdelta_canonical.is_file():
+        for candidate in ("xdelta3-x64.exe", "xdelta3-x86.exe"):
+            src = tools_dir / candidate
+            if src.is_file():
+                import shutil
+
+                shutil.copy2(src, xdelta_canonical)
+                log(f"Copied {candidate} -> xdelta3.exe", "debug")
+                break
+
+    if not xdelta_canonical.is_file():
         log(f"xdelta3 not found in {tools_dir}", "error")
         return None
 
-    try:
-        maker = PatchMaker(
-            old_dir=from_dir,
-            new_dir=to_dir,
-            xdelta_path=str(xdelta_path),
-        )
+    # Put tools dir on PATH so PatchMaker can find xdelta3
+    tools_str = str(tools_dir)
+    env_path = os.environ.get("PATH", "")
+    if tools_str not in env_path:
+        os.environ["PATH"] = tools_str + os.pathsep + env_path
 
-        def _progress_wrapper(stage: str, current: int, total: int):
-            if log_cb:
-                log_cb(f"[{stage}] {current}/{total}", "debug")
-            if progress_cb:
-                progress_cb(current, total)
+    try:
+
+        def _callback(callback_type: str, *args):
             if cancel_event and cancel_event.is_set():
                 raise KeyboardInterrupt("Cancelled")
+            if callback_type == "xdelta":
+                log(f"  xdelta: {args[0]}", "debug")
+            elif callback_type == "hashing":
+                log(f"  hashing: {Path(args[0]).name}", "debug")
+
+        maker = PatchMaker(game_name="The Sims 4", callback=_callback)
 
         result = maker.make_patch(
             output_path=str(output_path),
-            progress_callback=_progress_wrapper,
+            version_from=from_version,
+            version_to=to_version,
+            folder_from=from_dir,
+            folder_to=to_dir,
+            extension=".xdelta",
         )
 
         if result and output_path.is_file():
@@ -313,22 +334,51 @@ def upload_patch(
     remote_path = f"{SEEDBOX_BASE_DIR}/{cdn_path}"
 
     patch_size = patch_path.stat().st_size
-    patch_md5 = md5_file(patch_path)
+    patch_md5 = md5_file(patch_path).lower()
 
-    log(f"Uploading patch ({fmt_size(patch_size)})...")
-
+    # Skip upload if already on seedbox with matching size + hash
     try:
-        conn.upload_sftp(patch_path, remote_path, progress_cb=progress_cb)
-        conn.kv_put(cdn_path, remote_path)
-        log("Patch uploaded and registered", "success")
+        remote_size = conn.file_size_sftp(remote_path)
+        if remote_size == patch_size:
+            log(f"Patch exists on seedbox ({fmt_size(patch_size)}), verifying hash...")
+            remote_md5 = conn.md5_remote_sftp(remote_path)
+            if remote_md5 == patch_md5:
+                log("Hash verified, skipping upload", "success")
+            else:
+                log(
+                    f"Hash mismatch (remote={remote_md5}, local={patch_md5}), re-uploading...",
+                    "warning",
+                )
+                conn.upload_sftp(patch_path, remote_path, progress_cb=progress_cb)
+                log("Patch re-uploaded", "success")
+        else:
+            if remote_size > 0:
+                log(
+                    f"Remote size mismatch ({fmt_size(remote_size)} vs"
+                    f" {fmt_size(patch_size)}), re-uploading...",
+                    "warning",
+                )
+            log(f"Uploading patch ({fmt_size(patch_size)})...")
+            conn.upload_sftp(patch_path, remote_path, progress_cb=progress_cb)
+            log("Patch uploaded", "success")
     except Exception as e:
         log(f"Upload failed: {e}", "error")
         return None
 
+    # Verify upload integrity
+    remote_md5_check = conn.md5_remote_sftp(remote_path)
+    if remote_md5_check and remote_md5_check != patch_md5:
+        log(
+            f"Post-upload hash mismatch ({remote_md5_check} vs {patch_md5}), upload corrupt!",
+            "error",
+        )
+        return None
+
     return {
-        "from_version": from_version,
-        "to_version": to_version,
+        "from": from_version,
+        "to": to_version,
         "url": f"{CDN_DOMAIN}/{cdn_path}",
         "size": patch_size,
         "md5": patch_md5,
+        "kv_route": {"key": cdn_path, "value": remote_path},
     }

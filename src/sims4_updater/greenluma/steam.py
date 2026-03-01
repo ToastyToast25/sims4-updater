@@ -121,6 +121,7 @@ def is_steam_running() -> bool:
             capture_output=True,
             text=True,
             timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return "steam.exe" in result.stdout.lower()
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:

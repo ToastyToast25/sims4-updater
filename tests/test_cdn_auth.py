@@ -175,6 +175,59 @@ class TestCDNTokenAuth:
         assert "Authorization" not in result.headers
 
 
+class TestCooldown:
+    def test_cooldown_logs_warning_when_no_token(self, auth):
+        """When cooldown is active and no valid token, should log a warning."""
+        import requests as req_lib
+
+        # First attempt: network error → sets last_refresh_attempt
+        with (
+            patch(
+                "sims4_updater.core.cdn_auth.requests.post",
+                side_effect=req_lib.ConnectionError("offline"),
+            ),
+            pytest.raises(RuntimeError),
+        ):
+            auth.get_token()
+
+        # Second attempt within cooldown: should log warning and raise
+        with (
+            patch("sims4_updater.core.cdn_auth.requests.post") as mock_post,
+            patch("sims4_updater.core.cdn_auth.log") as mock_log,
+            pytest.raises(RuntimeError, match="Token refresh failed"),
+        ):
+            auth.get_token()
+
+        # Should NOT have made a new network request (cooldown active)
+        mock_post.assert_not_called()
+        # Should have logged a warning about cooldown
+        mock_log.warning.assert_called()
+        assert "cooldown" in mock_log.warning.call_args[0][0].lower()
+
+    def test_cooldown_keeps_valid_token(self, auth):
+        """When cooldown is active but token is still valid, return it."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"token": "jwt-valid", "expires_in": 3600}
+
+        with patch("sims4_updater.core.cdn_auth.requests.post", return_value=mock_resp):
+            token = auth.get_token()
+
+        assert token == "jwt-valid"
+
+        # Force near-cooldown state (recent attempt, but token still valid)
+        auth._last_refresh_attempt = time.monotonic()
+        auth._expires_at = time.monotonic() + 30  # < 60s but still valid
+
+        # This should return the cached token without hitting the network
+        with patch("sims4_updater.core.cdn_auth.requests.post"):
+            # Token is near expiry (< 60s) so get_token will try to refresh
+            # But cooldown is active and token hasn't expired yet
+            token2 = auth.get_token()
+
+        assert token2 == "jwt-valid"
+
+
 class TestRequestAccess:
     def test_request_access_success(self, auth):
         """Access request should POST to the correct endpoint."""

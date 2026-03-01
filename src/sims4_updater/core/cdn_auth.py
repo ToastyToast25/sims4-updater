@@ -169,9 +169,14 @@ class CDNAuth:
         """
         now = time.monotonic()
         if now - self._last_refresh_attempt < self._MIN_RETRY_INTERVAL:
-            # Still in cooldown — keep existing token if valid, else silently skip
+            # Still in cooldown — keep existing token if valid
             if self._token and now < self._expires_at:
                 return
+            remaining = self._MIN_RETRY_INTERVAL - (now - self._last_refresh_attempt)
+            log.warning(
+                "CDN token refresh in cooldown (%.1fs remaining), no valid token available",
+                remaining,
+            )
             return
         self._last_refresh_attempt = now
 

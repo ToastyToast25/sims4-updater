@@ -2,6 +2,49 @@
 
 All notable changes to The Sims 4 Updater will be documented in this file.
 
+## [2.11.0] - 2026-03-01
+
+### Added
+
+- **DLC version compatibility safeguards** — DLCs now carry a `min_version` field in the manifest indicating the earliest game version they support. On downgrade, incompatible DLCs are automatically disabled in the crack config; on upgrade back, they are re-enabled. Tracked via new `auto_disabled_dlcs` list in settings so user-toggled DLCs are never affected
+- **Pre-downgrade DLC impact warning** — when the home screen detects a downgrade, a warning banner lists which DLCs will be auto-disabled (e.g., "3 DLC(s) will be auto-disabled (incompatible with 1.112.519.1020): EP18, SP63, SP64")
+- **Version compatibility pill in DLC catalog** — DLCs incompatible with the current game version display a "v1.113.277.1030+" pill badge in the DLC list so users can see at a glance which packs require a newer game version
+- **Download version guard** — downloading DLCs incompatible with the installed game version triggers a warning toast ("EP18 require a newer game version. Update your game first.")
+- **CDN Manager: DLC version metadata pipeline** — new "Build DLC version metadata" checkbox in the depot pipeline scans downloaded game versions for Delta DLC folders, builds a `{dlc_id: min_version}` map sorted by numeric version, and publishes `min_version` to each DLC entry in the live manifest
+- **CDN Manager: `scan_version_dlcs()`** — scans a version directory's `Delta/` folder for DLC subdirectories (EP, GP, SP, FP prefixes) and returns a sorted list of DLC IDs
+- **CDN Manager: `build_dlc_version_map()`** — iterates versions oldest-to-newest (numeric sort) and records the first version each DLC appears in, producing the `min_version` mapping
+- **CDN Manager: `update_dlc_min_versions()`** — fetches the live manifest, updates `min_version` on existing DLC download entries, and re-publishes
+- **CDN Manager: batch pipeline version cleanup** — downloaded game versions are cleaned up incrementally during catch-up phase, freeing ~25 GB per version as soon as all adjacent patches are created
+- **CDN Manager: partial download cleanup** — DepotDownloader preallocated files are deleted immediately on download failure or hash verification failure to reclaim disk space
+
+### Fixed
+
+- **Patching: DLC state lost on update** — replaced `auto_toggle` with `export_states`/`import_states` in the GUI update path so user's manual DLC enable/disable choices are preserved across patches instead of being overwritten
+- **Patching: backup message when backups disabled** — `create_backup()` return value is now checked before logging "Backup created" so `max_count=0` shows the correct "Backups disabled" message
+- **Patching: HTTP 416 on download resume** — corrupt partial files that cause 416 Range Not Satisfiable are now deleted and retried as fresh downloads instead of failing permanently
+- **Patching: progress bar jump on resume** — progress callback now emitted after skipping cached files so the progress bar advances smoothly instead of jumping
+- **CMD window flash** — all subprocess calls (`tasklist`, `taskkill`, `schtasks`, `unrar`) now use `CREATE_NO_WINDOW` creation flags to prevent console windows from briefly appearing while navigating tabs
+- **CSV parsing robustness** — `tasklist` CSV output is now parsed with `csv.reader` instead of naive `split(",")` to handle quoted fields correctly
+- **Version detection: oversized sentinels** — sentinel files larger than 50 MB are skipped during version detection to avoid slow hashing of unexpectedly large files
+- **Fingerprint merge validation** — fingerprint type, MD5 format, and entry counts are validated before merging learned hashes to prevent corrupt data from poisoning the database
+- **Backup disable setting** — `max_count=0` now correctly disables backups (no-op `create_backup`) instead of being treated as unlimited
+- **URL validation** — manifest and contribute URLs in settings are validated to require HTTPS
+- **Path validation** — game directory, Steam, and GreenLuma paths are validated before saving settings
+- **Silent exception logging** — five modules that used bare `except: pass` now log exceptions at `DEBUG` level instead of swallowing them silently
+- **CLI `check-update` subcommand** — new subcommand with exit codes (0=up-to-date, 1=update available, 2=error) for scripting
+
+### CDN Manager
+
+- **Depot pipeline** — full batch pipeline with concurrent DepotDownloader download, xdelta patch creation, and SFTP upload to the seedbox with streaming upload worker
+- **Post-download verification** — file count, total size, zero-byte detection, and sentinel hash fingerprint checks after each DepotDownloader download
+- **Upload integrity** — size + MD5 hash verification on seedbox; skip re-upload if already present with matching hash; detect truncated uploads
+- **Bulk KV route registration** — all Cloudflare KV routes registered at pipeline end to avoid free-tier rate limits
+- **Catch-up patching** — on resume, patches are created for already-downloaded versions that haven't been patched yet
+- **SteamDB manifest scraper** — version registry populated from SteamDB depot manifests
+- **Python 3.14 compatibility** — fixed `zipfile._EXTRA_FIELD_STRUCT` removal, `CTkSegmentedButton` negative pad workaround
+- **PatchMaker integration** — correct `make_patch()` kwargs, xdelta3 binary resolution, hidden console windows
+- **Steam auth fix** — credentials only cleared after successful download, not on failure
+
 ## [2.10.0] - 2026-02-27
 
 ### Added

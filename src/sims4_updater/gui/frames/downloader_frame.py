@@ -789,6 +789,24 @@ class DownloaderFrame(ctk.CTkFrame):
             return
 
         entries = [self._dlc_downloads[d] for d in selected if d in self._dlc_downloads]
+
+        # Warn about version-incompatible DLCs
+        game_version = self.app.updater.settings.last_known_version or ""
+        if game_version and entries:
+            from ...patch.client import _version_less_than
+
+            incompat = [
+                e.dlc_id
+                for e in entries
+                if e.min_version and _version_less_than(game_version, e.min_version)
+            ]
+            if incompat:
+                self.app.show_toast(
+                    f"{', '.join(sorted(incompat))} require a newer game version. "
+                    f"Update your game first.",
+                    "warning",
+                )
+
         self._start_downloads(entries)
 
     def _start_downloads(self, entries: list[DLCDownloadEntry]):

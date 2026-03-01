@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import subprocess
 
 logger = logging.getLogger(__name__)
+
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW
 
 # Executable names the game can run as
 _GAME_EXES = ("TS4_x64.exe", "TS4_DX9_x64.exe")
@@ -24,6 +28,7 @@ def is_game_running() -> bool:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
             if exe.lower() in result.stdout.lower():
                 return True
@@ -41,15 +46,13 @@ def get_game_pid() -> int | None:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
-            for line in result.stdout.strip().splitlines():
-                if exe.lower() in line.lower():
-                    # CSV format: "image_name","pid","session","session#","mem"
-                    parts = line.split(",")
-                    if len(parts) >= 2:
-                        pid_str = parts[1].strip().strip('"')
-                        if pid_str.isdigit():
-                            return int(pid_str)
+            for row in csv.reader(io.StringIO(result.stdout)):
+                if len(row) >= 2 and exe.lower() in row[0].lower():
+                    pid_str = row[1].strip()
+                    if pid_str.isdigit():
+                        return int(pid_str)
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
             logger.debug("Could not get PID for %s: %s", exe, e)
     return None
@@ -65,6 +68,7 @@ def kill_game_process() -> bool:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode == 0:
                 killed = True

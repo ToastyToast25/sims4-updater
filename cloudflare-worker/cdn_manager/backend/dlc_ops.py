@@ -124,6 +124,44 @@ def scan_installed_dlcs(game_dir: Path) -> list[str]:
     return dlcs
 
 
+def scan_version_dlcs(version_dir: Path) -> list[str]:
+    """Scan version_dir/Delta/ for DLC folders (EP01, GP01, SP01...).
+
+    Returns sorted list of DLC IDs found in the Delta directory.
+    """
+    delta_dir = version_dir / "Delta"
+    if not delta_dir.is_dir():
+        return []
+    return sorted(
+        d.name
+        for d in delta_dir.iterdir()
+        if d.is_dir()
+        and len(d.name) >= 3
+        and d.name[:2] in ("EP", "GP", "SP", "FP")
+        and d.name[2:].isdigit()
+    )
+
+
+def build_dlc_version_map(
+    versions: list[str],
+    download_base_dir: Path,
+) -> dict[str, str]:
+    """Build {dlc_id: min_version} from downloaded versions.
+
+    Versions must be sorted oldest-to-newest (numeric, not string).
+    Returns a dict mapping each DLC ID to the earliest version where it appears.
+    """
+    min_versions: dict[str, str] = {}
+    for version in versions:
+        version_dir = download_base_dir / version
+        if not version_dir.is_dir():
+            continue
+        for dlc_id in scan_version_dlcs(version_dir):
+            if dlc_id not in min_versions:
+                min_versions[dlc_id] = version
+    return min_versions
+
+
 def get_folder_size(path: Path) -> int:
     return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
 

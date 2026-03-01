@@ -4,7 +4,7 @@
   "game_latest_date": "2026-02-22",
   "patches": [],
   "fingerprints": {},
-  "fingerprints_url": "",
+  "fingerprints_url": "https://cdn.hyperabyss.com/version_hashes.json",
   "report_url": "https://api.hyperabyss.com/report",
   "versions": {},
   "entitlements_url": "https://cdn.hyperabyss.com/entitlements.ini",

@@ -566,7 +566,7 @@ class ManifestFrame(ctk.CTkFrame):
             ).grid(row=row, column=0, padx=4, pady=1)
             self._patch_check_vars[i] = var
 
-            for col, key in enumerate(["from_version", "to_version"], start=1):
+            for col, key in enumerate(["from", "to"], start=1):
                 ctk.CTkLabel(
                     self._patches_scroll,
                     text=patch.get(key, ""),
@@ -609,25 +609,34 @@ class ManifestFrame(ctk.CTkFrame):
         from ..backend.manifest_ops import (
             audit_dlc_entries,
             audit_language_entries,
+            audit_meta_urls,
             detect_orphans,
         )
 
-        dlc = audit_dlc_entries(self._manifest.get("dlc_downloads", {}))
-        lang = audit_language_entries(self._manifest.get("language_downloads", {}))
+        # Use SFTP to verify files on the seedbox (bypasses CDN JWT auth)
+        conn = ConnectionManager(self.app.config_data.to_cdn_config())
+
+        # SFTP stat is fast (~20ms each), so use fewer workers to avoid
+        # creating excessive SSH connections (pool max_idle=2).
+        dlc = audit_dlc_entries(self._manifest.get("dlc_downloads", {}), conn, workers=3)
+        lang = audit_language_entries(self._manifest.get("language_downloads", {}), conn, workers=3)
+
+        # Check meta URLs (fingerprints, entitlements, etc.)
+        meta = audit_meta_urls(self._manifest, conn)
 
         # Orphan detection: cross-reference KV keys vs manifest
         orphans = ([], [])
         try:
-            conn = ConnectionManager(self.app.config_data.to_cdn_config())
             kv_keys = conn.kv_list()
             orphans = detect_orphans(self._manifest, kv_keys)
         except Exception:
             pass
 
-        return dlc, lang, orphans
+        conn.close()
+        return dlc, lang, orphans, meta
 
     def _on_audit_done(self, result):
-        dlc_results, lang_results, orphans = result
+        dlc_results, lang_results, orphans = result[0], result[1], result[2]
         self._audit_results = dlc_results
         self._lang_audit_results = lang_results
         self._audit_btn.configure(state="normal")
@@ -639,11 +648,27 @@ class ManifestFrame(ctk.CTkFrame):
 
         self._log.log(f"DLC: {ok} OK, {issues} issues  |  Lang: {l_ok} OK, {l_issues} issues")
 
-        for did, issue, old_s, real_s, status in dlc_results:
+        for did, issue, old_s, real_s, _status in dlc_results:
             if issue == "unreachable":
-                self._log.log(f"  {did}: unreachable (HTTP {status})", "error")
+                self._log.log(f"  DLC {did}: unreachable", "error")
             elif issue in ("size_zero", "size_mismatch"):
-                self._log.log(f"  {did}: {issue} ({old_s} -> {real_s})", "warning")
+                self._log.log(f"  DLC {did}: {issue} ({old_s} -> {real_s})", "warning")
+
+        for locale, issue, old_s, real_s, _status in lang_results:
+            if issue == "unreachable":
+                self._log.log(f"  Lang {locale}: unreachable", "error")
+            elif issue in ("size_zero", "size_mismatch"):
+                self._log.log(f"  Lang {locale}: {issue} ({old_s} -> {real_s})", "warning")
+
+        # Meta URL report
+        meta_results = result[3] if len(result) > 3 else []
+        if meta_results:
+            m_ok = sum(1 for r in meta_results if r[1] == "ok")
+            m_issues = len(meta_results) - m_ok
+            self._log.log(f"Meta URLs: {m_ok} OK, {m_issues} issues")
+            for name, issue, *_ in meta_results:
+                if issue != "ok":
+                    self._log.log(f"  {name}: {issue}", "error")
 
         # Orphan report
         in_kv_not_manifest, in_manifest_not_kv = orphans
@@ -672,7 +697,8 @@ class ManifestFrame(ctk.CTkFrame):
                     "error",
                 )
 
-        total = issues + l_issues + len(in_manifest_not_kv)
+        m_issues = sum(1 for r in meta_results if r[1] != "ok") if meta_results else 0
+        total = issues + l_issues + m_issues + len(in_manifest_not_kv)
         orphan_count = len(in_kv_not_manifest)
         if total == 0 and orphan_count == 0:
             self._log.log("All entries OK, no orphans!", "success")
@@ -772,8 +798,12 @@ class ManifestFrame(ctk.CTkFrame):
                 return
 
         self._log.log("Uploading manifest to CDN...")
+        # Snapshot manifest on GUI thread to avoid thread-unsafe dict access
+        import copy
+
+        manifest_snapshot = copy.deepcopy(self._manifest)
         self.app.run_async(
-            self._bg_upload,
+            lambda: self._bg_upload(manifest_snapshot),
             on_done=lambda _: (
                 self._log.log("Manifest uploaded!", "success"),
                 self.app.show_toast("Manifest uploaded", "success"),
@@ -781,7 +811,7 @@ class ManifestFrame(ctk.CTkFrame):
             on_error=lambda e: self._log.log(f"Upload failed: {e}", "error"),
         )
 
-    def _bg_upload(self):
+    def _bg_upload(self, manifest_data: dict):
         import tempfile
         from pathlib import Path
 
@@ -794,7 +824,7 @@ class ManifestFrame(ctk.CTkFrame):
             delete=False,
             encoding="utf-8",
         ) as tmp:
-            json.dump(self._manifest, tmp, indent=2, ensure_ascii=False)
+            json.dump(manifest_data, tmp, indent=2, ensure_ascii=False)
             tmp_path = Path(tmp.name)
         try:
             conn.publish_manifest(tmp_path)
@@ -939,8 +969,8 @@ class ManifestFrame(ctk.CTkFrame):
         patches = self._manifest.setdefault("patches", [])
         patches.append(
             {
-                "from_version": from_ver,
-                "to_version": to_ver,
+                "from": from_ver,
+                "to": to_ver,
                 "url": dialog.result[2],
                 "size": size,
             }

@@ -207,6 +207,7 @@ class DLCPacker:
             [str(unrar), "lb", str(archive_path)],
             capture_output=True,
             timeout=60,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if list_result.returncode == 0:
             dest_resolved = dest_dir.resolve()
@@ -229,6 +230,7 @@ class DLCPacker:
             ],
             capture_output=True,
             timeout=600,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
 
         if result.returncode != 0:

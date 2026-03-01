@@ -222,6 +222,7 @@ class CDNManagerApp(ctk.CTk):
             ("dlc", "DLC Upload"),
             ("language", "Languages"),
             ("patch", "Patches"),
+            ("depot", "Depot DL"),
             ("manifest", "Manifest"),
             ("archive", "Archives"),
             ("kv", "KV Browser"),
@@ -441,6 +442,7 @@ class CDNManagerApp(ctk.CTk):
     def _create_frames(self):
         from .frames.archive_frame import ArchiveFrame
         from .frames.dashboard_frame import DashboardFrame
+        from .frames.depot_frame import DepotFrame
         from .frames.dlc_frame import DLCFrame
         from .frames.kv_frame import KVBrowserFrame
         from .frames.language_frame import LanguageFrame
@@ -455,6 +457,7 @@ class CDNManagerApp(ctk.CTk):
             ("dlc", DLCFrame),
             ("language", LanguageFrame),
             ("patch", PatchFrame),
+            ("depot", DepotFrame),
             ("manifest", ManifestFrame),
             ("archive", ArchiveFrame),
             ("kv", KVBrowserFrame),
@@ -470,6 +473,7 @@ class CDNManagerApp(ctk.CTk):
             "dlc": "DLC",
             "language": "Language",
             "patch": "Patch",
+            "depot": "Depot",
             "manifest": "Manifest",
             "archive": "Archive",
             "kv": "KV",

@@ -91,6 +91,7 @@ class DLCDownloadEntry:
     size: int = 0  # archive size in bytes
     md5: str = ""  # verification hash
     filename: str = ""  # derived from URL if not specified
+    min_version: str = ""  # minimum game version required for this DLC
 
     def __post_init__(self):
         if not self.filename:
@@ -291,6 +292,7 @@ def parse_manifest(data: dict, source_url: str = "") -> Manifest:
                     size=int(dl_data.get("size", 0)),
                     md5=dl_data.get("md5", ""),
                     filename=dl_data.get("filename", ""),
+                    min_version=dl_data.get("min_version", ""),
                 )
 
     # Parse optional language_downloads: {locale_code: {url, size, md5}}

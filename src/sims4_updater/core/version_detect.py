@@ -171,6 +171,8 @@ class VersionDetector:
         total = len(sentinels)
         local_hashes = {}
 
+        _MAX_SENTINEL_SIZE = 50 * 1024 * 1024  # 50 MB — sentinel files are typically <5 MB
+
         for i, sentinel in enumerate(sentinels):
             file_path = game_dir / sentinel.replace("/", os.sep)
 
@@ -178,6 +180,13 @@ class VersionDetector:
                 progress(sentinel, i, total)
 
             if not file_path.is_file():
+                continue
+
+            try:
+                if file_path.stat().st_size > _MAX_SENTINEL_SIZE:
+                    logger.warning("Sentinel file too large, skipping: %s", sentinel)
+                    continue
+            except OSError:
                 continue
 
             md5 = hash_file(str(file_path))

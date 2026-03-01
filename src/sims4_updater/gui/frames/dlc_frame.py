@@ -933,6 +933,25 @@ class DLCFrame(ctk.CTkFrame):
         pill.grid(row=0, column=next_col, padx=(5, 0), pady=6, sticky="e")
         next_col += 1
 
+        # Version compatibility indicator
+        dl_entry = self._dlc_downloads.get(dlc.id)
+        game_version = self.app.updater.settings.last_known_version or ""
+        if dl_entry and dl_entry.min_version and game_version:
+            from ...patch.client import _version_less_than
+
+            if _version_less_than(game_version, dl_entry.min_version):
+                ver_pill = ctk.CTkLabel(
+                    row_frame,
+                    text=f"  v{dl_entry.min_version}+  ",
+                    font=ctk.CTkFont(size=10),
+                    text_color=theme.COLORS["warning"],
+                    fg_color=theme.COLORS["toast_warning"],
+                    corner_radius=10,
+                    height=22,
+                )
+                ver_pill.grid(row=0, column=next_col, padx=(4, 0), pady=6, sticky="e")
+                next_col += 1
+
         # GreenLuma readiness indicator
         gl_r = self._gl_readiness.get(dlc.id)
         if gl_r is not None:

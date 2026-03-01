@@ -31,7 +31,7 @@
  */
 
 // Paths that don't require JWT authentication
-const PUBLIC_PATHS = new Set(["manifest.json"]);
+const PUBLIC_PATHS = new Set(["manifest.json", "version_hashes.json"]);
 
 // Expected seedbox path prefix (prevents KV route traversal)
 const SEEDBOX_PATH_PREFIX = "files/";
