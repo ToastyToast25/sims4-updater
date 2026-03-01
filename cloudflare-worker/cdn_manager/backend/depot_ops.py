@@ -1139,6 +1139,7 @@ class BatchPipeline:
                         "files may be corrupt or incomplete",
                         "error",
                     )
+                    self._delete_version_dir(output_dir, version)
                     with self._state_lock:
                         state.failed_items.append(f"verify:{version}")
                         save_pipeline_state(self._config_dir, state)
@@ -1178,6 +1179,7 @@ class BatchPipeline:
             else:
                 self._set_status(version, "failed")
                 self._log(f"Download failed for {version}: {dl_result.error}", "error")
+                self._delete_version_dir(output_dir, version)
                 with self._state_lock:
                     state.failed_items.append(f"download:{version}")
                     save_pipeline_state(self._config_dir, state)
@@ -1375,6 +1377,14 @@ class BatchPipeline:
 
                     shutil.rmtree(version_dir, ignore_errors=True)
                     self._log(f"Cleaned up version directory: {version}", "success")
+
+    def _delete_version_dir(self, version_dir: Path, version: str) -> None:
+        """Delete a failed/partial version directory to reclaim preallocated space."""
+        if version_dir.is_dir():
+            import shutil
+
+            shutil.rmtree(version_dir, ignore_errors=True)
+            self._log(f"Deleted partial download: {version}", "info")
 
     # -- Pipeline Helpers ---------------------------------------------------
 
