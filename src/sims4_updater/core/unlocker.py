@@ -22,6 +22,8 @@ from pathlib import Path
 
 from ..constants import get_tools_dir
 
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW
+
 # ── Constants ────────────────────────────────────────────────────
 
 _COMMON_DIR = r"ToastyToast25\EA DLC Unlocker"
@@ -116,6 +118,7 @@ def _task_exists() -> bool:
             ["schtasks", "/Query", "/TN", _TASK_NAME],
             capture_output=True,
             timeout=10,
+            creationflags=_NO_WINDOW,
         )
         return result.returncode == 0
     except Exception:
@@ -148,6 +151,7 @@ def _create_task(dst_dll: Path, staged_dir: Path) -> bool:
                 ],
                 capture_output=True,
                 timeout=15,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode == 0:
                 return True
@@ -163,6 +167,7 @@ def _delete_task():
             ["schtasks", "/Delete", "/TN", _TASK_NAME, "/F"],
             capture_output=True,
             timeout=10,
+            creationflags=_NO_WINDOW,
         )
 
 
@@ -178,6 +183,7 @@ def _stop_client_processes(log: Callable[[str], None]):
                 ["taskkill", "/F", "/IM", f"{name}.exe"],
                 capture_output=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode == 0:
                 killed_any = True

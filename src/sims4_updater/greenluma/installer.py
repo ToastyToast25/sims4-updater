@@ -371,6 +371,7 @@ def kill_steam() -> bool:
             ["taskkill", "/F", "/IM", "steam.exe"],
             capture_output=True,
             timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         time.sleep(2)
         return not is_steam_running()

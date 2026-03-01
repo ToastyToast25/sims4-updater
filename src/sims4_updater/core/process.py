@@ -7,6 +7,8 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW
+
 # Executable names the game can run as
 _GAME_EXES = ("TS4_x64.exe", "TS4_DX9_x64.exe")
 
@@ -24,6 +26,7 @@ def is_game_running() -> bool:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
             if exe.lower() in result.stdout.lower():
                 return True
@@ -41,6 +44,7 @@ def get_game_pid() -> int | None:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
             for line in result.stdout.strip().splitlines():
                 if exe.lower() in line.lower():
@@ -65,6 +69,7 @@ def kill_game_process() -> bool:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                creationflags=_NO_WINDOW,
             )
             if result.returncode == 0:
                 killed = True
