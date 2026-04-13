@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "customtkinter @ git+https://github.com/ToastyToast25/CustomTkinter.git@v5.4.0",
     "requests>=2.31.0",
-    "pywin32>=306; sys_platform == 'win32'",
+    "pywin32>=311; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
