@@ -22,7 +22,7 @@ dev = [
 cdn = [
     "paramiko>=4.0",
     "bcrypt>=5.0",
-    "cryptography>=44.0",
+    "cryptography>=46.0.7",
     "pynacl>=1.6",
 ]
 
