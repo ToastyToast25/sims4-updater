@@ -23,7 +23,7 @@ cdn = [
     "paramiko>=4.0",
     "bcrypt>=5.0",
     "cryptography>=44.0",
-    "pynacl>=1.6",
+    "pynacl>=1.6.2",
 ]
 
 [project.scripts]
