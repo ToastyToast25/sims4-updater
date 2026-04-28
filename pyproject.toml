@@ -16,7 +16,7 @@ dependencies = [
 dev = [
     "pytest>=9.0",
     "pytest-cov>=7.0",
-    "ruff>=0.15.0",
+    "ruff>=0.15.12",
     "pyinstaller>=6.19",
 ]
 cdn = [
