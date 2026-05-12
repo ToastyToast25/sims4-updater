@@ -20,7 +20,7 @@ dev = [
     "pyinstaller>=6.19",
 ]
 cdn = [
-    "paramiko>=4.0",
+    "paramiko>=5.0.0",
     "bcrypt>=5.0",
     "cryptography>=44.0",
     "pynacl>=1.6",
